@@ -1,0 +1,20 @@
+node_modules/
+dist/
+*.tsbuildinfo
+coverage/
+.DS_Store
+*.log
+
+# AutoQA local state. The three committed files under .autoqa/ are
+# whitelisted below; everything else in there is run-local scratch.
+.autoqa/*
+!.autoqa/appmodel.json
+!.autoqa/baselines.manifest.json
+!.autoqa/intents.json
+!.autoqa/README.md
+
+.env
+.env.*
+!.env.example
+test-results/
+playwright-report/

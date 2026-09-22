@@ -1,0 +1,78 @@
+import type { Decider } from '@autoqa/core';
+import { IS_DESTRUCTIVE } from '@autoqa/decide';
+
+export type ActionClass = 'navigation' | 'safe-action' | 'destructive' | 'external' | 'auth-gated';
+
+const DESTRUCTIVE_COPY = /\b(delete|remove|destroy|revoke|cancel|deactivate|close account|purge|wipe|reset)\b/i;
+const EXTERNAL_PROTOCOLS = /^(mailto:|tel:|https?:\/\/(?!localhost|127\.0\.0\.1))/i;
+
+export type ElementCandidate = {
+  selector: string;
+  text: string;
+  href?: string;
+  dataAttributes?: Record<string, string>;
+};
+
+/**
+ * Crawl safety classification. Getting this wrong is the worst possible bug in
+ * the product, so ambiguous cases are treated as DESTRUCTIVE (spec 1.3) --
+ * the crawler skipping a safe button costs coverage, the crawler clicking a
+ * destructive one costs somebody their data.
+ */
+export async function classifyAction(
+  candidate: ElementCandidate,
+  options: { origin: string; decider?: Decider } = { origin: '' },
+): Promise<{ class: ActionClass; reason: string }> {
+  if (candidate.dataAttributes?.['autoqaSafe'] === 'true') {
+    return { class: 'safe-action', reason: 'Explicitly marked safe by the repo.' };
+  }
+  if (candidate.dataAttributes?.['autoqaDestructive'] === 'true') {
+    return { class: 'destructive', reason: 'Explicitly marked destructive by the repo.' };
+  }
+
+  if (candidate.href && EXTERNAL_PROTOCOLS.test(candidate.href) && !candidate.href.startsWith(options.origin)) {
+    return { class: 'external', reason: 'Leaves the configured origin.' };
+  }
+
+  if (DESTRUCTIVE_COPY.test(candidate.text)) {
+    return { class: 'destructive', reason: `Copy matches a destructive verb: "${candidate.text.trim()}".` };
+  }
+
+  if (candidate.href) {
+    return { class: 'navigation', reason: 'Plain link within the origin.' };
+  }
+
+  if (!options.decider) {
+    // No decider available and the copy is ambiguous. Default to destructive.
+    return { class: 'destructive', reason: 'Ambiguous with no decider available; treated as destructive.' };
+  }
+
+  const answers = await options.decider.ask(JSON.stringify(candidate), { destructive: IS_DESTRUCTIVE });
+  const answer = answers['destructive'];
+  if (answer?.kind !== 'noul') {
+    return { class: 'destructive', reason: 'No usable answer; treated as destructive.' };
+  }
+  // Asymmetric threshold: it takes a confident "no" to permit the click.
+  if (answer.value < 0.2 && answer.confidence >= 0.85) {
+    return { class: 'safe-action', reason: 'Confidently non-destructive.' };
+  }
+  return { class: 'destructive', reason: `Not confidently safe (p=${answer.value.toFixed(2)}).` };
+}
+
+const PRODUCTION_HOSTNAME = /^(?!localhost|127\.|0\.0\.0\.0|.*\.local$|.*\.test$|dev\.|staging\.|preview\.)/;
+
+/**
+ * Production detection, run before any write action (spec 1.2). If it looks
+ * like production, mutations are disabled and the run continues read-only.
+ * There is no flag that silently overrides this.
+ */
+export function looksLikeProduction(url: string, env: NodeJS.ProcessEnv = process.env): boolean {
+  if (env['NODE_ENV'] === 'production') return true;
+  try {
+    const { hostname } = new URL(url);
+    if (hostname === 'localhost' || hostname.startsWith('127.') || hostname.endsWith('.local')) return false;
+    return PRODUCTION_HOSTNAME.test(hostname);
+  } catch {
+    return false;
+  }
+}

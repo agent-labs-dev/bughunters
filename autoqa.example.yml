@@ -1,0 +1,88 @@
+# A fully-populated autoqa.yml, for reference.
+# `autoqa init` writes a smaller version with detected values and TODO markers.
+version: 1
+
+run:
+  command: pnpm dev
+  url: http://localhost:3000
+  ready:
+    # "The port is open" is not sufficient - plenty of apps serve a 200 error page.
+    selectors: ["[data-testid=app-root]"]
+    forbidConsoleErrors: true
+    timeoutMs: 60000
+  seeds: ["pnpm db:seed"]
+
+auth:
+  kind: form
+  loginUrl: /login
+  credentials: ${AUTOQA_TEST_USER}
+  steps:
+    - fill: { selector: "#email", value: "${AUTOQA_TEST_EMAIL}" }
+    - fill: { selector: "#password", value: "${AUTOQA_TEST_PASSWORD}" }
+    - click: { selector: "button[type=submit]" }
+    - expect: { url: "/dashboard" }
+
+viewports:
+  - { name: desktop, width: 1440, height: 900 }
+  - { name: mobile,  width: 390,  height: 844 }
+
+scope:
+  include: ["src/**", "app/**"]
+  ignore:  ["**/*.stories.tsx", "**/*.test.ts", "**/generated/**"]
+
+crawl:
+  maxScreens: 500
+  maxDepth: 6
+  maxActionsPerScreen: 15
+  maxWallClockMs: 3600000
+  allowDestructive: false
+  safeMode: true
+  confineToOrigin: true
+
+# Masked regions are excluded from the numerator AND the denominator of the
+# diff score, and the masked percentage is reported alongside every diff.
+# A diff that is 60% masked is a hollow test, and the report says so.
+mask:
+  - { selector: "[data-testid=user-avatar]", reason: "Gravatar, varies per run" }
+  - { selector: ".relative-time", reason: "'3 minutes ago'" }
+
+tolerance:
+  default: exact
+  regions:
+    - screen: /dashboard
+      selector: ".chart"
+      mode: perceptual
+      threshold: 0.02
+      reason: "Canvas-rendered; sub-pixel AA varies within the pinned image"
+
+determinism:
+  image: "ghcr.io/autoqa/runner@sha256:0000000000000000000000000000000000000000000000000000000000000000"
+  freezeClockAt: "2026-01-01T00:00:00.000Z"
+  timezone: UTC
+  locale: en-US
+  randomSeed: 1
+  stabilityGate:
+    consecutiveIdenticalFrames: 2
+    intervalMs: 120
+    timeoutMs: 10000
+  failOnFontFallback: true
+  blockThirdPartyRequests: true
+
+decisions:
+  decider: jev              # jev | model | local | heuristic
+  confidence: { high: 0.85, low: 0.55 }
+  budget:
+    perRunUsd: 0.50
+    visionSampleRate: 0.05
+    allowFrontier: true
+
+surfaces:
+  checks: true
+  prComment: true
+  issues: true
+  questions: true
+  fixPRs: false             # opt-in; the only setting that needs contents:write
+
+production:
+  detect: true
+  allowMutations: false     # never enable against a production system

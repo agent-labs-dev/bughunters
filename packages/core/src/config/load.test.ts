@@ -1,0 +1,35 @@
+import { describe, expect, it } from 'vitest';
+import { parseConfig, resolveSecretRefs } from './load.js';
+import { ConfigError } from '../errors.js';
+
+const minimal = { version: 1, run: { command: 'pnpm dev', url: 'http://localhost:3000' } };
+
+describe('parseConfig', () => {
+  it('applies conservative defaults', () => {
+    const c = parseConfig(minimal);
+    expect(c.tolerance.default).toBe('exact');
+    expect(c.crawl.allowDestructive).toBe(false);
+    expect(c.production.allowMutations).toBe(false);
+    expect(c.surfaces.fixPRs).toBe(false);
+    expect(c.determinism.blockThirdPartyRequests).toBe(true);
+    expect(c.viewports).toHaveLength(2);
+  });
+
+  it('rejects an unknown version rather than guessing', () => {
+    expect(() => parseConfig({ ...minimal, version: 2 })).toThrow(ConfigError);
+  });
+
+  it('requires a bring-up command', () => {
+    expect(() => parseConfig({ version: 1, run: { url: 'http://localhost:3000' } })).toThrow(ConfigError);
+  });
+});
+
+describe('resolveSecretRefs', () => {
+  it('resolves ${VAR} from the environment', () => {
+    expect(resolveSecretRefs({ a: '${TOKEN}' }, { TOKEN: 's3cret' })).toEqual({ a: 's3cret' });
+  });
+
+  it('fails loudly on a missing secret instead of sending an empty string', () => {
+    expect(() => resolveSecretRefs('${MISSING}', {})).toThrow(ConfigError);
+  });
+});

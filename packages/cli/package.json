@@ -1,0 +1,30 @@
+{
+  "name": "@autoqa/cli",
+  "version": "0.0.0",
+  "license": "Apache-2.0",
+  "type": "module",
+  "bin": {
+    "autoqa": "./dist/bin.js"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "templates"
+  ],
+  "scripts": {
+    "build": "tsc --build"
+  },
+  "dependencies": {
+    "@autoqa/capture": "workspace:*",
+    "@autoqa/core": "workspace:*",
+    "@autoqa/decide": "workspace:*",
+    "@autoqa/diff": "workspace:*",
+    "@autoqa/github-app": "workspace:*",
+    "@autoqa/invariants": "workspace:*",
+    "@autoqa/recon": "workspace:*",
+    "@autoqa/report": "workspace:*",
+    "@autoqa/triage": "workspace:*",
+    "yaml": "^2.5.1"
+  }
+}

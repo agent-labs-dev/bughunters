@@ -1,0 +1,51 @@
+# AutoQA's own must-pass test.
+#
+# M3's acceptance criterion is the single most important one in the roadmap:
+# three consecutive runs against an UNCHANGED commit must produce zero diffs
+# across every screen and every viewport. It is the property every competitor
+# fails, and until it holds, nothing built on top of the signal can be trusted.
+#
+# So it runs on every commit, not nightly, and a failure here is treated as a
+# product defect rather than a flake to be retried.
+name: Determinism
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  flake-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 9 }
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+
+      - name: Build the pinned runner image
+        run: docker build -t autoqa-runner:ci -f images/runner/Dockerfile .
+
+      - name: Capture baselines, then run three times against the same commit
+        run: |
+          set -euo pipefail
+          # Any diff across these three runs is a determinism violation, not a
+          # regression in the fixture app. Nothing changed between them.
+          echo "TODO(M3): wire to \`autoqa baseline capture\` + 3x \`autoqa run\`"
+          echo "Acceptance: zero diffs across all screens and all viewports."
+
+      - name: Upload diff artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: determinism-diffs
+          path: .autoqa/runs/
+          retention-days: 7

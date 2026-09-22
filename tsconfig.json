@@ -1,0 +1,15 @@
+{
+  "files": [],
+  "references": [
+    { "path": "packages/core" },
+    { "path": "packages/diff" },
+    { "path": "packages/capture" },
+    { "path": "packages/invariants" },
+    { "path": "packages/decide" },
+    { "path": "packages/triage" },
+    { "path": "packages/report" },
+    { "path": "packages/recon" },
+    { "path": "packages/github-app" },
+    { "path": "packages/cli" }
+  ]
+}
