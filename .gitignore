@@ -17,6 +17,10 @@ coverage/
 !**/.autoqa/intents.json
 !**/.autoqa/README.md
 
+# The fixture app is a test subject, not a project: its baselines are captured
+# fresh by scripts/determinism-check.sh and are tied to one machine's rendering.
+examples/*/.autoqa/
+
 .env
 .env.*
 !.env.example

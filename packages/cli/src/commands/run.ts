@@ -11,6 +11,7 @@ import {
   type AppModel,
   type AutoQAConfig,
   type ExitCodeValue,
+  type LiveProgress,
   type RunMode,
   type ViewportConfig,
 } from '@autoqa/core';
@@ -79,21 +80,31 @@ export async function runCommand(options: RunCommandOptions): Promise<RunResult>
   const runDir = join(paths.runs(root), 'latest');
   mkdirSync(runDir, { recursive: true });
 
+  // Progress is published per screen so the dashboard can show the app being
+  // walked rather than a blank page until the run finishes.
+  const live = new LiveProgressWriter(root, targets.length * config.viewports.length);
+  live.start();
+
   try {
     for (const viewport of config.viewports) {
+      live.step(`Opening a browser at ${viewport.name}`);
       const session = await openSession(config, viewport);
       watchConsole(session.page);
       try {
         for (const target of targets) {
           log(`Capturing ${target.id} at ${viewport.name}`);
-          captured.push(
-            await captureOne({ target, viewport, session, config, store, runDir, root }),
-          );
+          live.step(`Capturing ${target.id} at ${viewport.name}`);
+          const screen = await captureOne({ target, viewport, session, config, store, runDir, root });
+          captured.push(screen);
+          live.captured(screen);
         }
       } finally {
         await session.close();
       }
     }
+  } catch (error) {
+    live.failed(error);
+    throw error;
   } finally {
     // Always return the machine to the state we found it in, even on failure.
     // A dev server left holding the port makes the next run fail for an
@@ -102,8 +113,9 @@ export async function runCommand(options: RunCommandOptions): Promise<RunResult>
   }
 
   store.save();
+  live.step('Evaluating findings');
 
-  return executeRun({
+  const result = await executeRun({
     root,
     config,
     mode: options.mode,
@@ -115,6 +127,78 @@ export async function runCommand(options: RunCommandOptions): Promise<RunResult>
     totalScreens,
     notes,
   });
+
+  live.finished(result.run.id);
+  return result;
+}
+
+/**
+ * Writes `.autoqa/runs/live.json` as the run proceeds.
+ *
+ * Every write is best-effort: a dashboard that cannot be updated must never be
+ * the reason a run fails. The file is rewritten whole rather than appended, so
+ * a reader always sees a complete JSON document or the previous one.
+ */
+class LiveProgressWriter {
+  private readonly state: LiveProgress;
+
+  constructor(private readonly root: string, plannedCaptures: number) {
+    this.state = {
+      version: 1,
+      runId: `pending_${Date.now().toString(36)}`,
+      status: 'running',
+      startedAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      plannedCaptures,
+      captured: [],
+    };
+  }
+
+  start(): void {
+    this.flush();
+  }
+
+  step(message: string): void {
+    this.state.currentStep = message;
+    this.flush();
+  }
+
+  captured(screen: CapturedScreen): void {
+    this.state.captured.push({
+      screenId: screen.screenId,
+      viewport: screen.viewport,
+      url: screen.url,
+      title: screen.snapshot.title,
+      actual: screen.artifacts.actual,
+      baselineCreated: screen.baselineCreated,
+      changedPixels: screen.comparison?.primary.changedPixels,
+      links: (screen.snapshot.links ?? []).map((l) => ({ href: l.href, text: l.text, external: l.external })),
+    });
+    this.flush();
+  }
+
+  finished(runId: string): void {
+    this.state.status = 'finished';
+    this.state.finishedRunId = runId;
+    this.state.currentStep = undefined;
+    this.flush();
+  }
+
+  failed(error: unknown): void {
+    this.state.status = 'failed';
+    this.state.error = error instanceof Error ? error.message.split('\n')[0] : String(error);
+    this.flush();
+  }
+
+  private flush(): void {
+    this.state.updatedAt = new Date().toISOString();
+    try {
+      mkdirSync(paths.runs(this.root), { recursive: true });
+      writeFileSync(paths.live(this.root), `${JSON.stringify(this.state, null, 2)}\n`);
+    } catch {
+      // Progress reporting is not worth failing a run over.
+    }
+  }
 }
 
 async function captureOne(args: {
@@ -154,6 +238,9 @@ async function captureOne(args: {
       baselineCreated: true,
       artifacts: { actual: actualPath },
       planReason: 'always-on',
+      stability: output.stability,
+      maskedSelectors: [...new Set(output.masks.map((m) => m.selector))],
+      missingFonts: output.missingFonts,
     };
   }
 
@@ -183,6 +270,9 @@ async function captureOne(args: {
       diff: comparison.primary.identical ? undefined : diffPath,
     },
     planReason: 'always-on',
+    stability: output.stability,
+    maskedSelectors: [...new Set(output.masks.map((m) => m.selector))],
+    missingFonts: output.missingFonts,
   };
 }
 

@@ -8,6 +8,7 @@
     { "path": "packages/decide" },
     { "path": "packages/triage" },
     { "path": "packages/report" },
+    { "path": "packages/dashboard" },
     { "path": "packages/recon" },
     { "path": "packages/github-app" },
     { "path": "packages/cli" }

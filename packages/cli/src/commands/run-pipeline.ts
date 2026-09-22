@@ -13,8 +13,12 @@ import {
   type RunTrigger,
   type Severity,
   type TestPlanItem,
+  type RunTrace,
+  type ScreenTrace,
+  type FindingTrace,
+  type CheckOutcome,
 } from '@autoqa/core';
-import { evaluateAll, type InvariantViolation, type ScreenSnapshot } from '@autoqa/invariants';
+import { RULES, evaluateAll, type InvariantViolation, type ScreenSnapshot } from '@autoqa/invariants';
 import { evaluate as evaluateTolerance, type CrossCheckResult } from '@autoqa/diff';
 import {
   Budget,
@@ -41,6 +45,10 @@ export type CapturedScreen = {
   baselineCreated: boolean;
   artifacts: { actual: string; baseline?: string; diff?: string };
   planReason: TestPlanItem['reason'];
+  /** Capture provenance, carried into the trace so a run can be audited. */
+  stability?: { frames: number; elapsedMs: number };
+  maskedSelectors?: string[];
+  missingFonts?: string[];
 };
 
 export type PipelineOptions = {
@@ -61,8 +69,20 @@ export type RunResult = {
   findings: Finding[];
   exitCode: ExitCodeValue;
   reportPath: string;
+  runDir: string;
+  trace: RunTrace;
   notes: string[];
 };
+
+/** Every rule id the trace can report on, including the visual ones. */
+const ALL_RULE_IDS: string[] = [
+  'visual/pixel-diff',
+  'visual/baseline-missing',
+  'visual/hollow-test',
+  'visual/masked-and-relaxed',
+  'visual/engine-disagreement',
+  ...RULES.map((r) => r.id),
+];
 
 export const PIXEL_DIFF_RULE = 'visual/pixel-diff';
 export const BASELINE_MISSING_RULE = 'visual/baseline-missing';
@@ -94,14 +114,43 @@ export async function executeRun(options: PipelineOptions): Promise<RunResult> {
   let decisionUsd = 0;
   let incomplete = false;
 
+  const screenTraces: ScreenTrace[] = [];
+  const findingTraces: FindingTrace[] = [];
+  const suppressedTrace: RunTrace['suppressed'] = [];
+
   const seenDegradations = new Set<string>();
   for (const screen of options.screens) {
     const violations = evaluateAll(screen.snapshot, { baseline: screen.baselineSnapshot, disabled });
     const visual = visualViolations(screen, config);
     const all = [...visual, ...violations];
-    if (all.length === 0) continue;
 
-    const { text } = buildState({
+    const trace: ScreenTrace = {
+      screenId: screen.screenId,
+      viewport: screen.viewport,
+      url: screen.url,
+      title: screen.snapshot.title,
+      planReason: screen.planReason,
+      baselineCreated: screen.baselineCreated,
+      artifacts: screen.artifacts,
+      stability: screen.stability,
+      maskedSelectors: screen.maskedSelectors ?? [],
+      missingFonts: screen.missingFonts ?? [],
+      consoleErrors: screen.snapshot.consoleErrors,
+      links: (screen.snapshot.links ?? []).map((l) => ({ href: l.href, text: l.text, external: l.external })),
+      diff: screen.comparison ? toDiffTrace(screen.comparison) : undefined,
+      checks: describeChecks(all, disabled),
+      findingIds: [],
+    };
+    screenTraces.push(trace);
+
+    // A clean screen still gets a trace. "Nothing fired here" is exactly what
+    // someone auditing a green run needs to see.
+    if (all.length === 0) {
+      trace.decision = { decider: 'none', skippedReason: 'Tier 1 was clean, so nothing needed deciding.' };
+      continue;
+    }
+
+    const { text, hash } = buildState({
       screen: { id: screen.screenId, description: screen.url },
       product: { summary: '', audience: '', domainVocabulary: [] },
       assertions: violationsToAssertions(all),
@@ -123,11 +172,31 @@ export async function executeRun(options: PipelineOptions): Promise<RunResult> {
       answers = await decider.ask(text, SCREEN_QUESTIONS);
       budget.record(estimate);
       decisionUsd += estimate;
-    } else if (!options.noModels) {
+      trace.decision = {
+        decider: decider.name,
+        stateHash: hash,
+        stateChars: text.length,
+        answers,
+        costUsd: estimate,
+      };
+    } else if (options.noModels) {
+      trace.decision = {
+        decider: 'none',
+        skippedReason: 'Offline mode (--no-models): the deterministic tier decided this on its own.',
+        stateHash: hash,
+        stateChars: text.length,
+      };
+    } else {
       // Budget exhausted. The run is INCOMPLETE, not green: a tool that
       // silently converts "I ran out of budget" into "passing" is worse than
       // no tool (spec 13.3).
       incomplete = true;
+      trace.decision = {
+        decider: 'none',
+        skippedReason: `Per-run budget of $${config.decisions.budget.perRunUsd} was exhausted before this screen.`,
+        stateHash: hash,
+        stateChars: text.length,
+      };
     }
 
     for (const violation of all) {
@@ -159,8 +228,15 @@ export async function executeRun(options: PipelineOptions): Promise<RunResult> {
         status: 'open',
       };
 
-      if (ledger.match(draft)) {
+      const matchedIntent = ledger.match(draft);
+      if (matchedIntent) {
         suppressed++;
+        suppressedTrace.push({
+          ruleId: violation.ruleId,
+          screenId: screen.screenId,
+          reason: matchedIntent.reason,
+          decidedBy: matchedIntent.decidedBy,
+        });
         continue;
       }
 
@@ -171,6 +247,8 @@ export async function executeRun(options: PipelineOptions): Promise<RunResult> {
         matchedLedger: false,
       });
 
+      trace.findingIds.push(draft.id);
+      findingTraces.push({ findingId: draft.id, routeReason: outcome.reason });
       findings.push({
         ...draft,
         // The decider grades user impact, but it may only ever soften a tier-1
@@ -237,8 +315,16 @@ export async function executeRun(options: PipelineOptions): Promise<RunResult> {
     suppressionCount: suppressed,
   };
 
-  const reportPath = writeArtifacts(root, run, findings, { suppressed, notes });
-  return { run, findings, exitCode, reportPath, notes };
+  const trace: RunTrace = {
+    version: 1,
+    runId,
+    screens: screenTraces,
+    findings: findingTraces,
+    suppressed: suppressedTrace,
+  };
+
+  const { reportPath, runDir } = writeArtifacts(root, run, findings, { suppressed, notes, trace });
+  return { run, findings, exitCode, reportPath, runDir, trace, notes };
 }
 
 /**
@@ -302,6 +388,48 @@ function visualViolations(screen: CapturedScreen, config: AutoQAConfig): Invaria
   return out;
 }
 
+function toDiffTrace(comparison: CrossCheckResult): NonNullable<ScreenTrace['diff']> {
+  const p = comparison.primary;
+  return {
+    engine: p.engine,
+    identical: p.identical,
+    changedPixels: p.changedPixels,
+    changedFraction: p.changedFraction,
+    maskedFraction: p.maskedFraction,
+    maskedRegionCount: p.maskedRegionCount,
+    regionCount: p.regions.length,
+    regions: p.regions.slice(0, 200),
+    dimensionMismatch: p.dimensionMismatch,
+    enginesAgreed: comparison.agreed,
+    crossCheckChangedPixels: comparison.crossCheck?.changedPixels,
+    degraded: comparison.degraded,
+    durationMs: p.durationMs,
+  };
+}
+
+/**
+ * Every rule that could have fired, with whether it did. Listing the silent
+ * ones is the point: a reader needs to know a check ran and passed, not just
+ * that no finding appeared.
+ */
+function describeChecks(fired: InvariantViolation[], disabled: string[]): CheckOutcome[] {
+  const byRule = new Map<string, InvariantViolation>();
+  for (const v of fired) if (!byRule.has(v.ruleId)) byRule.set(v.ruleId, v);
+
+  const out: CheckOutcome[] = [];
+  for (const rule of ALL_RULE_IDS) {
+    if (disabled.includes(rule)) continue;
+    const hit = byRule.get(rule);
+    out.push(hit ? { ruleId: rule, fired: true, severity: hit.severity, message: hit.message, detail: hit.detail } : { ruleId: rule, fired: false });
+  }
+  for (const [ruleId, v] of byRule) {
+    if (!ALL_RULE_IDS.includes(ruleId)) {
+      out.push({ ruleId, fired: true, severity: v.severity, message: v.message, detail: v.detail });
+    }
+  }
+  return out;
+}
+
 function classify(ruleId: string): Finding['classification'] {
   if (ruleId.startsWith('visual/')) return 'regression';
   if (ruleId.startsWith('usability/contrast')) return 'a11y';
@@ -319,8 +447,8 @@ function writeArtifacts(
   root: string,
   run: Run,
   findings: Finding[],
-  meta: { suppressed: number; notes: string[] },
-): string {
+  meta: { suppressed: number; notes: string[]; trace: RunTrace },
+): { reportPath: string; runDir: string } {
   const dir = paths.run(root, run.id);
   mkdirSync(dir, { recursive: true });
   const reportPath = join(dir, 'report.html');
@@ -331,5 +459,6 @@ function writeArtifacts(
   writeFileSync(join(dir, 'junit.xml'), toJUnit(run, findings));
   writeFileSync(join(dir, 'results.sarif'), toSarif(findings));
   writeFileSync(join(dir, 'run.json'), `${JSON.stringify({ run, findings }, null, 2)}\n`);
-  return reportPath;
+  writeFileSync(join(dir, 'trace.json'), `${JSON.stringify(meta.trace, null, 2)}\n`);
+  return { reportPath, runDir: dir };
 }

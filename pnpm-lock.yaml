@@ -40,6 +40,9 @@ importers:
       '@autoqa/core':
         specifier: workspace:*
         version: link:../core
+      '@autoqa/dashboard':
+        specifier: workspace:*
+        version: link:../dashboard
       '@autoqa/decide':
         specifier: workspace:*
         version: link:../decide
@@ -73,6 +76,15 @@ importers:
       zod:
         specifier: ^3.23.8
         version: 3.25.76
+
+  packages/dashboard:
+    dependencies:
+      '@autoqa/core':
+        specifier: workspace:*
+        version: link:../core
+      '@autoqa/invariants':
+        specifier: workspace:*
+        version: link:../invariants
 
   packages/decide:
     dependencies:

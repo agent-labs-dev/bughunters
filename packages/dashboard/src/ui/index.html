@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AutoQA</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <span class="mark" aria-hidden="true"></span>
+    <strong>AutoQA</strong>
+  </div>
+  <nav class="tabs" id="tabs">
+    <button data-view="runs" class="active">Runs</button>
+    <button data-view="graph">App map</button>
+  </nav>
+  <div class="status">
+    <span id="live" class="live" title="Live connection to the local watcher">live</span>
+    <span id="root" class="muted"></span>
+  </div>
+</header>
+
+<main id="view"></main>
+
+<div id="lightbox" class="lightbox" hidden>
+  <button class="lightbox-close" aria-label="Close">&times;</button>
+  <img id="lightbox-img" alt="">
+  <p id="lightbox-caption"></p>
+</div>
+
+<script type="module" src="/app.js"></script>
+</body>
+</html>

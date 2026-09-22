@@ -28,6 +28,9 @@ Triage
   autoqa findings accept <id> --reason "intentional"
   autoqa intent list|export|prune
 
+Dashboard
+  autoqa dashboard [--port N]          local UI: run history, app map, live watch
+
 Output
   autoqa report --open
   autoqa export --format junit|sarif|json

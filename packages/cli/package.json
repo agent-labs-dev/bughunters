@@ -25,6 +25,7 @@
     "@autoqa/recon": "workspace:*",
     "@autoqa/report": "workspace:*",
     "@autoqa/triage": "workspace:*",
-    "yaml": "^2.5.1"
+    "yaml": "^2.5.1",
+    "@autoqa/dashboard": "workspace:*"
   }
 }

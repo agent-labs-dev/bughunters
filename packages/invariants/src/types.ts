@@ -1,10 +1,21 @@
 import type { ElementGeometry, Severity } from '@autoqa/core';
 
 /** A single captured screen state, in one viewport, ready for evaluation. */
+export type ScreenLink = {
+  href: string;
+  text: string;
+  external: boolean;
+  selector: string;
+  box: { x: number; y: number; width: number; height: number };
+};
+
 export type ScreenSnapshot = {
   screenId: string;
   viewport: { name: string; width: number; height: number };
   url: string;
+  title?: string;
+  /** Outgoing links. Every one is a candidate edge in the app graph. */
+  links?: ScreenLink[];
   elements: ElementGeometry[];
   document: {
     scrollWidth: number;

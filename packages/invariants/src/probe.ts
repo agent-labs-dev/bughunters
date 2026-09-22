@@ -104,6 +104,32 @@ export const PROBE_SOURCE = String.raw`
     return 'rgb(255, 255, 255)';
   }
 
+  // Outgoing links. These are what the app-graph is drawn from: every one is a
+  // candidate edge from this screen to another. Collected here rather than
+  // per-element because the graph cares about destinations, not geometry.
+  const links = [];
+  const seenHrefs = new Set();
+  for (const anchor of [...document.querySelectorAll('a[href]')].slice(0, 400)) {
+    const href = anchor.getAttribute('href');
+    if (!href || href.startsWith('#') || href.startsWith('javascript:')) continue;
+    let resolved;
+    try {
+      resolved = new URL(href, location.href).toString();
+    } catch {
+      continue;
+    }
+    if (seenHrefs.has(resolved)) continue;
+    seenHrefs.add(resolved);
+    const rect = anchor.getBoundingClientRect();
+    links.push({
+      href: resolved,
+      text: (anchor.textContent || '').trim().slice(0, 120),
+      external: new URL(resolved).origin !== location.origin,
+      selector: selectorFor(anchor),
+      box: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
+    });
+  }
+
   const images = [...document.images].slice(0, 300).map((img) => ({
     selector: selectorFor(img),
     naturalWidth: img.naturalWidth,
@@ -114,7 +140,9 @@ export const PROBE_SOURCE = String.raw`
 
   return {
     url: location.href,
+    title: document.title,
     elements,
+    links,
     images,
     document: {
       scrollWidth: document.documentElement.scrollWidth,

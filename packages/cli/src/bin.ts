@@ -5,6 +5,7 @@ import { runChecks, doctorExitCode } from './commands/doctor.js';
 import { writeInitialConfig } from './commands/init.js';
 import { runCommand, exitCodeForError } from './commands/run.js';
 import { parseRunFlags, formatRunSummary } from './commands/run-cli.js';
+import { startDashboard } from '@autoqa/dashboard';
 
 const [command, ...args] = process.argv.slice(2);
 const root = process.cwd();
@@ -53,6 +54,31 @@ try {
       });
       process.stdout.write(formatRunSummary(result));
       process.exit(result.exitCode);
+      break;
+    }
+
+    case 'dashboard': {
+      const portFlag = args.indexOf('--port');
+      const port = portFlag >= 0 ? Number(args[portFlag + 1]) : undefined;
+      if (portFlag >= 0 && !Number.isInteger(port)) {
+        process.stderr.write('--port needs an integer\n');
+        process.exit(ExitCode.Usage);
+      }
+      const dashboard = await startDashboard({
+        root,
+        port,
+        onReady: (url) => {
+          process.stdout.write(`AutoQA dashboard on ${url}\n`);
+          process.stdout.write('Watching .autoqa/ — runs appear as they finish. Ctrl-C to stop.\n');
+        },
+      });
+      // Deliberately does not exit: this is a server, and the watcher is the
+      // whole point.
+      const stop = () => {
+        void dashboard.close().then(() => process.exit(ExitCode.Clean));
+      };
+      process.on('SIGINT', stop);
+      process.on('SIGTERM', stop);
       break;
     }
 

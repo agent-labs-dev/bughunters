@@ -18,6 +18,8 @@ export const paths = {
   /** Gitignored. Local run output. */
   runs: (root: string) => join(root, AUTOQA_DIR, 'runs'),
   run: (root: string, runId: string) => join(root, AUTOQA_DIR, 'runs', runId),
+  /** Progress for the run currently in flight. Gitignored, rewritten per screen. */
+  live: (root: string) => join(root, AUTOQA_DIR, 'runs', 'live.json'),
   config: (root: string) => join(root, 'autoqa.yml'),
 } as const;
 

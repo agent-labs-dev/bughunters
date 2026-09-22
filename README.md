@@ -75,6 +75,29 @@ BREAK=color node server.js &                          # inject one defect
 node ../../packages/cli/dist/bin.js run --no-models   # exit 1, with a diff image
 ```
 
+### The dashboard
+
+```bash
+cd examples/fixture-app
+node ../../packages/cli/dist/bin.js dashboard     # http://127.0.0.1:4311
+```
+
+Two views, both fed by the same local watcher:
+
+- **Runs** — every run, with expected/actual/diff for each screen, every check
+  that ran (including the ones that found nothing), and a *How AutoQA reached
+  this* panel per screen: how the capture settled, what the diff measured, how
+  much was masked, what the decision layer was asked and answered, and the
+  sentence that decided where each finding surfaced.
+- **App map** — the application as a graph, screenshots as nodes. Solid borders
+  are screens AutoQA captured; dashed are linked from a tested screen but
+  **never captured**; dotted are external links, recorded and never followed.
+  It updates live as a run walks the app.
+
+It binds to loopback only, on purpose: screenshots are of a real application and
+routinely contain real data. It is also read-only — a browser tab cannot mutate
+run state or race the CLI.
+
 Verify the determinism guarantee yourself — three runs, same commit, zero diffs:
 
 ```bash
@@ -107,6 +130,7 @@ autoqa run [--all | --smoke | --screens /a,/b] [--no-models]
 autoqa baseline capture | pull | push | accept
 autoqa findings list | explain <id> | accept <id> --reason "..."
 autoqa intent list | export | prune
+autoqa dashboard [--port N]
 autoqa report --open
 autoqa export --format junit|sarif|json
 autoqa watch
@@ -149,6 +173,7 @@ Only tier 1 may fail a check, so a red build always means the same thing: the sa
 | `@autoqa/report` | HTML report, sticky PR comment, JUnit, SARIF |
 | `@autoqa/recon` | Bring-up, crawl safety, change mapping |
 | `@autoqa/github-app` | Checks, issues, slash commands, least-privilege permissions |
+| `@autoqa/dashboard` | The local UI: run history, the app map, live watching |
 | `@autoqa/cli` | The `autoqa` command surface |
 
 ## Build vs adopt

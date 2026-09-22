@@ -93,6 +93,11 @@ Auth is the gate. If this does not work on a real app with real login, nothing d
 - [x] Sticky PR comment, edited in place
 - [x] Slash-command parsing
 - [x] JUnit and SARIF export
+- [x] Run trace: per-screen capture provenance, diff measurements, decision
+      answers and the routing sentence behind every finding
+- [x] Local dashboard (`autoqa dashboard`) — run history, per-screen evidence,
+      the "how it reached this" panel, and the app map
+- [x] Live progress: the map fills in as a run walks the app
 - [ ] Onion-skin slider and video scrubbing
 - [ ] `autoqa watch`
 - [ ] Compact ffmpeg highlight clips
