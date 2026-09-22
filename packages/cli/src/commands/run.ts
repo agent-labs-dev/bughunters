@@ -1,190 +1,259 @@
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
+  AutoQAError,
+  BaselineStore,
   ExitCode,
-  fingerprint as makeFingerprint,
-  id,
+  InfrastructureError,
+  baselineKeyFor,
   paths,
+  shortHash,
+  type AppModel,
   type AutoQAConfig,
   type ExitCodeValue,
-  type Finding,
-  type Run,
   type RunMode,
+  type ViewportConfig,
 } from '@autoqa/core';
-import { AutoQAError, InfrastructureError } from '@autoqa/core';
-import { evaluateAll, type ScreenSnapshot } from '@autoqa/invariants';
-import { createDecider, buildState, violationsToAssertions, route as routeDecision, severityFrom, SCREEN_QUESTIONS, Budget, estimateDecisionCost } from '@autoqa/decide';
-import { IntentLedger, cluster, applyNoiseControls } from '@autoqa/triage';
-import { renderHtml, toJUnit, toSarif } from '@autoqa/report';
+import { captureScreen, openSession, watchConsole } from '@autoqa/capture';
+import { startApp } from '@autoqa/capture';
+import { diff } from '@autoqa/diff';
+import type { ScreenSnapshot } from '@autoqa/invariants';
+import { executeRun, type CapturedScreen, type RunResult } from './run-pipeline.js';
 
-export type RunOptions = {
+export { executeRun } from './run-pipeline.js';
+export type { CapturedScreen, RunResult } from './run-pipeline.js';
+
+export type ScreenTarget = { id: string; url: string };
+
+export type RunCommandOptions = {
   root: string;
   config: AutoQAConfig;
   mode: RunMode;
   commit: string;
   noModels: boolean;
-  isFirstRun: boolean;
-  /** Supplied by the capture layer. Injected so the pipeline is testable. */
-  snapshots: ScreenSnapshot[];
-  /** Baseline snapshots keyed by screen id, when one exists. */
-  baselines?: Map<string, ScreenSnapshot>;
+  /** Explicit `--screens /a,/b` selection. */
+  only?: string[];
+  onProgress?: (message: string) => void;
 };
 
-export type RunResult = { run: Run; findings: Finding[]; exitCode: ExitCodeValue };
-
 /**
- * The run pipeline: tier 1 deterministic checks, then the decision layer on
- * anything non-clean, then triage, then the four report surfaces.
+ * The full `autoqa run`: bring the app up, capture every selected screen at
+ * every viewport, compare against the baseline, then hand the results to the
+ * pipeline.
  *
- * The rule that shapes all of it: only a tier-1 deterministic regression may
- * fail a check. Everything the decision layer produces becomes an issue, a
- * question, or a suggestion -- never a red build -- so a red check always means
- * the same thing.
+ * Bring-up and capture failures surface as InfrastructureError and exit 4.
+ * They are never reported as regressions -- "AutoQA could not test" is a
+ * different statement from "AutoQA found a bug" (spec 5.1).
  */
-export async function executeRun(options: RunOptions): Promise<RunResult> {
+export async function runCommand(options: RunCommandOptions): Promise<RunResult> {
   const { config, root } = options;
-  const runId = id.run(`run_${Date.now().toString(36)}`);
-  const startedAt = new Date();
+  const log = options.onProgress ?? (() => {});
+  const notes: string[] = [];
 
-  const ledger = IntentLedger.load(root);
-  const decider = createDecider(config.decisions, process.env as Record<string, string>, {
-    noModels: options.noModels,
-  });
-  const budget = new Budget(config.decisions.budget.perRunUsd);
+  const model = loadAppModel(root);
+  const targets = resolveTargets(config, model, options);
+  const totalScreens = model?.screens.length ?? targets.length;
 
-  const findings: Finding[] = [];
-  let suppressed = 0;
-  let decisionUsd = 0;
-  let incomplete = false;
-
-  for (const snapshot of options.snapshots) {
-    const baseline = options.baselines?.get(snapshot.screenId);
-    const violations = evaluateAll(snapshot, {
-      baseline,
-      disabled: ledger.disabledRuleIds(),
-    });
-    if (violations.length === 0) continue;
-
-    const hasDeterministicRegression = violations.some(
-      (v) => v.severity === 'critical' || v.severity === 'major',
+  const imageDigest = config.determinism.image || 'unpinned';
+  if (imageDigest === 'unpinned') {
+    notes.push(
+      'determinism.image is not pinned by digest, so these baselines are only valid on this machine. See docs/determinism-contract.md.',
     );
-
-    const { text, hash } = buildState({
-      screen: { id: snapshot.screenId, description: snapshot.url },
-      product: { summary: '', audience: '', domainVocabulary: [] },
-      assertions: violationsToAssertions(violations),
-      console: snapshot.consoleErrors,
-      knownIntents: ledger.summaries(),
-    });
-    void hash;
-
-    const estimate = estimateDecisionCost(text.length);
-    let answers = {};
-    if (budget.canSpend(estimate)) {
-      answers = await decider.ask(text, SCREEN_QUESTIONS);
-      budget.record(estimate);
-      decisionUsd += estimate;
-    } else {
-      // Budget exhausted. The run is INCOMPLETE, not green: a tool that
-      // silently converts "I ran out of budget" into "passing" is worse than
-      // no tool (spec 13.3).
-      incomplete = true;
-    }
-
-    for (const violation of violations) {
-      const fp = makeFingerprint({
-        screenId: snapshot.screenId,
-        ruleId: violation.ruleId,
-        regions: violation.region ? [violation.region] : [],
-      });
-
-      const draft: Finding = {
-        id: id.finding(`fnd_${fp}`),
-        runId,
-        fingerprint: fp,
-        screenId: id.screen(snapshot.screenId),
-        ruleId: violation.ruleId,
-        tier: 'tier1',
-        classification: 'regression',
-        severity: violation.severity,
-        confidence: 1,
-        route: 'issue',
-        summary: violation.message,
-        evidence: { console: snapshot.consoleErrors.slice(0, 10) },
-        suspectedFiles: [],
-        status: 'open',
-      };
-
-      const matched = ledger.match(draft);
-      if (matched) {
-        suppressed++;
-        continue;
-      }
-
-      const outcome = routeDecision({
-        answers,
-        thresholds: config.decisions.confidence,
-        hasDeterministicRegression,
-        matchedLedger: false,
-      });
-
-      findings.push({
-        ...draft,
-        severity: severityFrom((answers as Record<string, never>)['severity']) ?? violation.severity,
-        route: outcome.route === 'escalate' ? 'question' : outcome.route,
-        status: outcome.route === 'question' ? 'question' : 'open',
-      });
-    }
   }
 
-  const groups = await cluster(findings);
-  const noise = applyNoiseControls(groups, { isFirstRun: options.isFirstRun });
+  const store = BaselineStore.load(root, imageDigest);
+  if (store.isStaleFor(imageDigest)) {
+    // Comparing across images is what produces a diff storm nobody can explain.
+    const dropped = store.invalidateAll(imageDigest);
+    notes.push(
+      `The runner image changed (${store.imageDigest} -> ${imageDigest}), so ${dropped} baseline(s) were invalidated and re-captured rather than compared across images.`,
+    );
+  }
+  const isFirstRun = store.count === 0;
 
-  const blocking = noise.blockingAllowed ? findings.filter((f) => f.route === 'check') : [];
-  const exitCode: ExitCodeValue = blocking.length > 0 ? ExitCode.Regression : ExitCode.Clean;
+  log(`Starting the app: ${config.run.command}`);
+  const server = await startApp(config, { cwd: root });
+  if (server.external) log(`Using the app already serving at ${config.run.url}`);
 
-  const run: Run = {
-    id: runId,
-    projectId: id.project('local'),
-    modelVersion: 1,
-    trigger: 'manual',
+  const captured: CapturedScreen[] = [];
+  const runDir = join(paths.runs(root), 'latest');
+  mkdirSync(runDir, { recursive: true });
+
+  try {
+    for (const viewport of config.viewports) {
+      const session = await openSession(config, viewport);
+      watchConsole(session.page);
+      try {
+        for (const target of targets) {
+          log(`Capturing ${target.id} at ${viewport.name}`);
+          captured.push(
+            await captureOne({ target, viewport, session, config, store, runDir, root }),
+          );
+        }
+      } finally {
+        await session.close();
+      }
+    }
+  } finally {
+    // Always return the machine to the state we found it in, even on failure.
+    // A dev server left holding the port makes the next run fail for an
+    // unrelated reason, which is the worst kind of flake to debug.
+    if (!server.external) await server.stop();
+  }
+
+  store.save();
+
+  return executeRun({
+    root,
+    config,
     mode: options.mode,
+    trigger: 'manual',
     commit: options.commit,
-    changedFiles: [],
-    plan: {
-      items: options.snapshots.map((s) => ({ target: { screenId: id.screen(s.screenId) }, reason: 'always-on' as const })),
-      mappingConfidence: 1,
-      coverage: { screensSelected: options.snapshots.length, screensTotal: options.snapshots.length },
-    },
-    status: incomplete ? 'incomplete' : blocking.length > 0 ? 'failed' : 'passed',
-    exitCode,
-    startedAt,
-    endedAt: new Date(),
-    cost: { decisionUsd, visionUsd: 0, frontierUsd: 0, tokens: 0 },
-    findingIds: findings.map((f) => f.id),
-    suppressionCount: suppressed,
-  };
-
-  writeArtifacts(root, run, findings, {
-    suppressed,
-    notes: [...noise.notes, ...(incomplete ? ['Budget exhausted: this run is INCOMPLETE, not clean.'] : [])],
+    noModels: options.noModels,
+    isFirstRun,
+    screens: captured,
+    totalScreens,
+    notes,
   });
-
-  return { run, findings, exitCode };
 }
 
-function writeArtifacts(
-  root: string,
-  run: Run,
-  findings: Finding[],
-  meta: { suppressed: number; notes: string[] },
-): void {
-  const dir = paths.run(root, run.id);
-  mkdirSync(dir, { recursive: true });
-  writeFileSync(join(dir, 'report.html'), renderHtml({ run, findings, suppressed: meta.suppressed, quarantined: 0, notes: meta.notes }));
-  writeFileSync(join(dir, 'junit.xml'), toJUnit(run, findings));
-  writeFileSync(join(dir, 'results.sarif'), toSarif(findings));
-  writeFileSync(join(dir, 'run.json'), `${JSON.stringify({ run, findings }, null, 2)}\n`);
+async function captureOne(args: {
+  target: ScreenTarget;
+  viewport: ViewportConfig;
+  session: Awaited<ReturnType<typeof openSession>>;
+  config: AutoQAConfig;
+  store: BaselineStore;
+  runDir: string;
+  root: string;
+}): Promise<CapturedScreen> {
+  const { target, viewport, session, config, store, runDir } = args;
+  const slug = `${slugify(target.id)}--${viewport.name}`;
+  const actualPath = join(runDir, `${slug}.actual.png`);
+
+  const output = await captureScreen(session.page, config, {
+    screenId: target.id,
+    url: target.url,
+    viewport,
+    outPath: actualPath,
+  });
+
+  const key = baselineKeyFor(target.id, viewport.name);
+  const baselinePath = store.pathFor(key);
+
+  // First sight of this screen: record the baseline and say so. Nothing can
+  // regress against a baseline it just created, and reporting otherwise would
+  // be the first-run avalanche.
+  if (!baselinePath || !existsSync(baselinePath)) {
+    store.put(key, viewport.name, readFileSync(actualPath));
+    saveBaselineSnapshot(args.root, key, output.snapshot);
+    return {
+      screenId: target.id,
+      url: target.url,
+      viewport: viewport.name,
+      snapshot: output.snapshot,
+      baselineCreated: true,
+      artifacts: { actual: actualPath },
+      planReason: 'always-on',
+    };
+  }
+
+  const diffPath = join(runDir, `${slug}.diff.png`);
+  const comparison = await diff({
+    baselinePath,
+    actualPath,
+    diffOutPath: diffPath,
+    masks: output.masks,
+    // Tier 1 is exact. Per-region tolerance is applied by the tolerance policy
+    // downstream, never by loosening the comparison itself.
+    threshold: 0,
+    antialiasing: false,
+  });
+
+  return {
+    screenId: target.id,
+    url: target.url,
+    viewport: viewport.name,
+    snapshot: output.snapshot,
+    baselineSnapshot: loadBaselineSnapshot(args.root, key),
+    comparison,
+    baselineCreated: false,
+    artifacts: {
+      actual: actualPath,
+      baseline: baselinePath,
+      diff: comparison.primary.identical ? undefined : diffPath,
+    },
+    planReason: 'always-on',
+  };
+}
+
+/**
+ * Screen selection, in order of authority: an explicit `--screens` flag, then
+ * the approved AppModel, then the single configured entry URL.
+ *
+ * That last fallback is what makes `run` useful before Recon exists -- it is
+ * the M0 walking skeleton, and it is honest about covering one screen rather
+ * than implying it swept the app.
+ */
+export function resolveTargets(
+  config: AutoQAConfig,
+  model: AppModel | undefined,
+  options: { only?: string[]; mode: RunMode },
+): ScreenTarget[] {
+  const base = new URL(config.run.url);
+
+  if (options.only && options.only.length > 0) {
+    return options.only.map((path) => ({ id: path, url: new URL(path, base).toString() }));
+  }
+
+  if (model && model.screens.length > 0) {
+    const screens = model.screens.filter((s) => s.state === 'active');
+    const selected = options.mode === 'smoke' ? screens.slice(0, 10) : screens;
+    return selected.map((s) => ({ id: s.urlPattern, url: new URL(s.urlPattern, base).toString() }));
+  }
+
+  return [{ id: base.pathname, url: base.toString() }];
+}
+
+function loadAppModel(root: string): AppModel | undefined {
+  const file = paths.appModel(root);
+  if (!existsSync(file)) return undefined;
+  try {
+    return JSON.parse(readFileSync(file, 'utf8')) as AppModel;
+  } catch (cause) {
+    throw new AutoQAError(`${file} is not valid JSON`, ExitCode.Usage, { cause });
+  }
+}
+
+/**
+ * The structural snapshot captured alongside the baseline pixels. Without it,
+ * change-aware invariants have nothing to compare against and are skipped --
+ * which is correct, but means older baselines get weaker checks until they are
+ * re-captured.
+ */
+function loadBaselineSnapshot(root: string, key: string): ScreenSnapshot | undefined {
+  const file = snapshotFile(root, key);
+  if (!existsSync(file)) return undefined;
+  try {
+    return JSON.parse(readFileSync(file, 'utf8')) as ScreenSnapshot;
+  } catch {
+    return undefined;
+  }
+}
+
+function snapshotFile(root: string, key: string): string {
+  // The slug alone is not unique: `/::desktop` slugifies to `desktop`, which
+  // collides with any other screen whose path is punctuation-only. The hash
+  // suffix keys the file to the exact screen+viewport pair.
+  return join(root, '.autoqa', 'baselines', `${slugify(key)}-${shortHash(key, 8)}.snapshot.json`);
+}
+
+function saveBaselineSnapshot(root: string, key: string, snapshot: ScreenSnapshot): void {
+  mkdirSync(join(root, '.autoqa', 'baselines'), { recursive: true });
+  writeFileSync(snapshotFile(root, key), `${JSON.stringify(snapshot)}\n`);
+}
+
+export function slugify(value: string): string {
+  return value.replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-|-$/g, '') || 'root';
 }
 
 export function exitCodeForError(error: unknown): ExitCodeValue {

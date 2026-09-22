@@ -5,13 +5,17 @@ coverage/
 .DS_Store
 *.log
 
-# AutoQA local state. The three committed files under .autoqa/ are
-# whitelisted below; everything else in there is run-local scratch.
-.autoqa/*
-!.autoqa/appmodel.json
-!.autoqa/baselines.manifest.json
-!.autoqa/intents.json
-!.autoqa/README.md
+# AutoQA local state. The committed files under .autoqa/ are whitelisted below;
+# everything else in there is run-local scratch.
+#
+# A pattern containing a slash is anchored to this file's directory, so a bare
+# `.autoqa/*` misses `examples/*/.autoqa/`. The `**/` prefix applies it at
+# every depth.
+**/.autoqa/*
+!**/.autoqa/appmodel.json
+!**/.autoqa/baselines.manifest.json
+!**/.autoqa/intents.json
+!**/.autoqa/README.md
 
 .env
 .env.*

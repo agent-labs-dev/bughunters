@@ -46,11 +46,17 @@ export const PROBE_SOURCE = String.raw`
     if (elements.length >= MAX_ELEMENTS) break;
     if (seen.has(el)) continue;
     const interactive = el.matches(INTERACTIVE);
-    if (!interactive && !hasText(el)) continue;
+    const style = getComputedStyle(el);
+    // A container that clips its content is, by definition, one whose own
+    // direct children are elements rather than text -- so collecting only
+    // interactive-or-has-text elements makes the overflow detector structurally
+    // unable to fire on the very elements it exists to catch.
+    const clipping =
+      (style.overflow === 'hidden' || style.overflowX === 'hidden') && el.scrollWidth > el.clientWidth + 1;
+    if (!interactive && !clipping && !hasText(el)) continue;
     seen.add(el);
 
     const rect = el.getBoundingClientRect();
-    const style = getComputedStyle(el);
     const visible =
       style.visibility !== 'hidden' &&
       style.display !== 'none' &&

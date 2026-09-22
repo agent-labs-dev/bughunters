@@ -10,13 +10,14 @@
   .clipped { width: 140px; overflow: hidden; white-space: nowrap; border: 1px solid #e3e6ec; padding: .4rem; }
   .tiny { width: 14px; height: 14px; padding: 0; border: 0; background: #2b59d8; }
 </style>
+<style id="injected-defect">{{BREAK_STYLE}}</style>
 </head>
 <body data-testid="app-root">
 <main>
   <h1>Settings</h1>
-  <p class="{{BREAK}}">Notification preferences</p>
-  <div class="{{BREAK}}">A label long enough that it will be clipped by its container.</div>
-  <button class="{{BREAK}}" data-testid="toggle" data-autoqa-safe="true">Toggle</button>
+  <p>Notification preferences</p>
+  <div class="clipped">A label long enough that it will be clipped by its container.</div>
+  <button data-testid="toggle" data-autoqa-safe="true">Toggle</button>
   <button data-testid="delete">Delete account</button>
 </main>
 </body>

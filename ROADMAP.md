@@ -6,7 +6,7 @@ Status legend: **scaffolded** = types, contracts and tests exist; the seam is fi
 
 ---
 
-## M0 — Walking skeleton · *scaffolded*
+## M0 — Walking skeleton · **done**
 
 `init`, config parsing, single-URL capture in the pinned image, baseline, pixel diff, GitHub Check, report artifact.
 
@@ -22,8 +22,13 @@ This milestone proves the determinism contract before anything is built on top o
 - [x] Tolerance policy: exact by default, per-region only, hollow-test flagging
 - [x] Report surfaces: HTML, sticky PR comment, JUnit, SARIF (`@autoqa/report`)
 - [x] `autoqa init` / `autoqa doctor`
-- [ ] Wire capture → diff → check end to end against the fixture app
-- [ ] Publish and pin the runner image by digest
+- [x] App bring-up with a real health check; failures exit 4, never 1
+- [x] Baseline store: content-addressed objects, committed manifest, image-digest invalidation
+- [x] `autoqa run` end to end — capture → diff → invariants → triage → report
+- [x] Verified: one CSS colour change produces exit 1 with before/after/diff
+- [x] Verified: three consecutive unchanged runs produce zero diffs
+- [ ] Publish and pin the runner image by digest (`determinism.image` is still empty)
+- [ ] GitHub Check emission from CI (the payload builder exists and is tested; nothing posts it yet)
 
 ## M1 — Recon
 
@@ -58,12 +63,13 @@ Auth is the gate. If this does not work on a real app with real login, nothing d
 **This is the single most important acceptance criterion in the roadmap.** It is the property every competitor fails, and until it holds, nothing above this layer can be trusted. It runs as a CI test of AutoQA itself on every commit — see `.github/workflows/determinism.yml`.
 
 - [x] Layout invariants: overlap, overflow, occlusion, off-viewport, zero-size, shift
+- [x] Pixel diff wired into tier 1, with the tolerance policy owning the verdict
 - [x] Usability invariants: contrast, tap target, broken imagery, unstyled content
 - [x] New-versus-baseline console errors (no first-run avalanche)
 - [ ] axe-core integration, new violations only
 - [ ] Network HAR record and replay
 - [ ] Performance deltas: LCP, CLS, TBT
-- [ ] The three-run flake test wired to the fixture app
+- [x] The three-run flake test wired to the fixture app (`scripts/determinism-check.sh`)
 
 ## M4 — The decision layer
 

@@ -3,6 +3,8 @@ import { ExitCode, loadConfig, AutoQAError } from '@autoqa/core';
 import { USAGE } from './usage.js';
 import { runChecks, doctorExitCode } from './commands/doctor.js';
 import { writeInitialConfig } from './commands/init.js';
+import { runCommand, exitCodeForError } from './commands/run.js';
+import { parseRunFlags, formatRunSummary } from './commands/run-cli.js';
 
 const [command, ...args] = process.argv.slice(2);
 const root = process.cwd();
@@ -37,11 +39,27 @@ try {
       break;
     }
 
+    case 'run': {
+      const config = loadConfig(root);
+      const flags = parseRunFlags(args);
+      const result = await runCommand({
+        root,
+        config,
+        mode: flags.mode,
+        commit: flags.commit,
+        noModels: flags.noModels,
+        only: flags.only,
+        onProgress: (m) => process.stdout.write(`  ${m}\n`),
+      });
+      process.stdout.write(formatRunSummary(result));
+      process.exit(result.exitCode);
+      break;
+    }
+
     // M1-M6. Each command exists in the surface now so the contract is fixed
     // and the exit codes are honest about what is not built yet.
     case 'recon':
     case 'model':
-    case 'run':
     case 'baseline':
     case 'findings':
     case 'intent':
@@ -62,7 +80,10 @@ try {
     process.stderr.write(`${error.message}\n`);
     process.exit(error.exitCode);
   }
-  throw error;
+  // Anything unrecognised is treated as "AutoQA could not test", never as a
+  // product regression.
+  process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
+  process.exit(exitCodeForError(error));
 }
 
 function tryLoadConfig(cwd: string) {

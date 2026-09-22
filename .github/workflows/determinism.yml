@@ -31,21 +31,27 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
 
-      - name: Build the pinned runner image
-        run: docker build -t autoqa-runner:ci -f images/runner/Dockerfile .
+      - name: Install the pinned browser build
+        run: pnpm --filter @autoqa/capture exec playwright install --with-deps chromium
 
       - name: Capture baselines, then run three times against the same commit
-        run: |
-          set -euo pipefail
-          # Any diff across these three runs is a determinism violation, not a
-          # regression in the fixture app. Nothing changed between them.
-          echo "TODO(M3): wire to \`autoqa baseline capture\` + 3x \`autoqa run\`"
-          echo "Acceptance: zero diffs across all screens and all viewports."
+        run: ./scripts/determinism-check.sh
 
       - name: Upload diff artifacts on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: determinism-diffs
-          path: .autoqa/runs/
+          path: |
+            examples/fixture-app/.autoqa/runs/
+            /tmp/determinism-run-*.log
           retention-days: 7
+
+  # The runner image is what makes the guarantee above portable. Building it on
+  # every commit is how a Dockerfile change that breaks the font set gets caught
+  # here rather than as a mysterious diff storm in somebody's PR.
+  runner-image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t autoqa-runner:ci -f images/runner/Dockerfile .

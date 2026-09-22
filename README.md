@@ -62,15 +62,29 @@ node server.js                 # http://localhost:3000
 BREAK=occlusion node server.js # inject one known defect
 ```
 
-**What does not run yet:** `autoqa run` and everything above it. The capture →
-diff → check loop is not wired end to end — that is the rest of M0. The pieces
-it needs all work and are tested independently; see [ROADMAP.md](ROADMAP.md).
-
-Browser capture additionally needs Playwright's pinned browser build:
+Run it against the fixture app, end to end:
 
 ```bash
 pnpm --filter @autoqa/capture exec playwright install chromium
+
+cd examples/fixture-app
+node ../../packages/cli/dist/bin.js run --no-models   # captures baselines
+node ../../packages/cli/dist/bin.js run --no-models   # compares: clean
+
+BREAK=color node server.js &                          # inject one defect
+node ../../packages/cli/dist/bin.js run --no-models   # exit 1, with a diff image
 ```
+
+Verify the determinism guarantee yourself — three runs, same commit, zero diffs:
+
+```bash
+./scripts/determinism-check.sh
+```
+
+**What does not run yet:** `recon`, `baseline`, `findings`, `intent`, `watch`
+and the fix pipeline. Without Recon there is no AppModel, so `run` tests the
+configured entry URL (or whatever `--screens` names) rather than a crawled app.
+See [ROADMAP.md](ROADMAP.md).
 
 Note that capturing baselines outside the pinned runner image is only useful
 for local exploration. `autoqa doctor` warns about this, and it is not a

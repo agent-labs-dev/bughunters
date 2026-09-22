@@ -11,6 +11,13 @@ BREAK=tiny pnpm dev         # usability/tap-target
 BREAK=clipped pnpm dev      # layout/overflow
 ```
 
-Each `BREAK` value maps to exactly one detector. That is what makes this a scoring corpus rather than a demo: a run against `BREAK=contrast` should produce exactly one finding, from exactly one rule, and the acceptance criterion is checkable.
+Each `BREAK` value is designed to trip one *named* detector, which is what makes
+this a scoring corpus rather than a demo: `BREAK=contrast` must produce a
+`usability/contrast` finding, `BREAK=occlusion` a `layout/occlusion` finding,
+and so on.
+
+Every break also trips `visual/pixel-diff`, because every one of them changes
+pixels. That is correct rather than noise — `BREAK=color` changes *only* pixels,
+and it exists to prove the pixel diff catches what no invariant can describe.
 
 `Delete account` carries no `data-autoqa-safe` attribute, so the crawler must classify it as destructive and skip it.

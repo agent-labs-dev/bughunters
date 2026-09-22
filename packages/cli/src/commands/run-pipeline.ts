@@ -1,0 +1,335 @@
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import {
+  ExitCode,
+  fingerprint as makeFingerprint,
+  id,
+  paths,
+  type AutoQAConfig,
+  type ExitCodeValue,
+  type Finding,
+  type Run,
+  type RunMode,
+  type RunTrigger,
+  type Severity,
+  type TestPlanItem,
+} from '@autoqa/core';
+import { evaluateAll, type InvariantViolation, type ScreenSnapshot } from '@autoqa/invariants';
+import { evaluate as evaluateTolerance, type CrossCheckResult } from '@autoqa/diff';
+import {
+  Budget,
+  SCREEN_QUESTIONS,
+  buildState,
+  createDecider,
+  estimateDecisionCost,
+  route as routeDecision,
+  severityFrom,
+  violationsToAssertions,
+} from '@autoqa/decide';
+import { IntentLedger, applyNoiseControls, cluster } from '@autoqa/triage';
+import { renderHtml, toJUnit, toSarif } from '@autoqa/report';
+
+/** One screen, in one viewport, after capture and comparison. */
+export type CapturedScreen = {
+  screenId: string;
+  url: string;
+  viewport: string;
+  snapshot: ScreenSnapshot;
+  baselineSnapshot?: ScreenSnapshot;
+  /** Absent when this run created the baseline rather than comparing to one. */
+  comparison?: CrossCheckResult;
+  baselineCreated: boolean;
+  artifacts: { actual: string; baseline?: string; diff?: string };
+  planReason: TestPlanItem['reason'];
+};
+
+export type PipelineOptions = {
+  root: string;
+  config: AutoQAConfig;
+  mode: RunMode;
+  trigger: RunTrigger;
+  commit: string;
+  noModels: boolean;
+  isFirstRun: boolean;
+  screens: CapturedScreen[];
+  totalScreens: number;
+  notes?: string[];
+};
+
+export type RunResult = {
+  run: Run;
+  findings: Finding[];
+  exitCode: ExitCodeValue;
+  reportPath: string;
+  notes: string[];
+};
+
+export const PIXEL_DIFF_RULE = 'visual/pixel-diff';
+export const BASELINE_MISSING_RULE = 'visual/baseline-missing';
+
+/**
+ * Tier 1 runs first and for free, the decision layer only sees screens that are
+ * already non-clean, then triage, then the report surfaces.
+ *
+ * The rule that shapes all of it: only a tier-1 deterministic regression may
+ * fail a Check. Everything the decision layer produces becomes an issue, a
+ * question, or a suggestion -- never a red build -- so a red Check always means
+ * the same thing.
+ */
+export async function executeRun(options: PipelineOptions): Promise<RunResult> {
+  const { config, root } = options;
+  const runId = id.run(`run_${Date.now().toString(36)}`);
+  const startedAt = new Date();
+
+  const ledger = IntentLedger.load(root);
+  const disabled = ledger.disabledRuleIds();
+  const decider = createDecider(config.decisions, process.env as Record<string, string>, {
+    noModels: options.noModels,
+  });
+  const budget = new Budget(config.decisions.budget.perRunUsd);
+
+  const findings: Finding[] = [];
+  const notes = [...(options.notes ?? [])];
+  let suppressed = 0;
+  let decisionUsd = 0;
+  let incomplete = false;
+
+  const seenDegradations = new Set<string>();
+  for (const screen of options.screens) {
+    const violations = evaluateAll(screen.snapshot, { baseline: screen.baselineSnapshot, disabled });
+    const visual = visualViolations(screen, config);
+    const all = [...visual, ...violations];
+    if (all.length === 0) continue;
+
+    const { text } = buildState({
+      screen: { id: screen.screenId, description: screen.url },
+      product: { summary: '', audience: '', domainVocabulary: [] },
+      assertions: violationsToAssertions(all),
+      diff: screen.comparison
+        ? {
+            changedPixels: screen.comparison.primary.changedPixels,
+            changedPercent: screen.comparison.primary.changedFraction * 100,
+            maskedPercent: screen.comparison.primary.maskedFraction * 100,
+            regions: screen.comparison.primary.regions.length,
+          }
+        : undefined,
+      console: screen.snapshot.consoleErrors,
+      knownIntents: ledger.summaries(),
+    });
+
+    const estimate = estimateDecisionCost(text.length);
+    let answers = {};
+    if (!options.noModels && budget.canSpend(estimate)) {
+      answers = await decider.ask(text, SCREEN_QUESTIONS);
+      budget.record(estimate);
+      decisionUsd += estimate;
+    } else if (!options.noModels) {
+      // Budget exhausted. The run is INCOMPLETE, not green: a tool that
+      // silently converts "I ran out of budget" into "passing" is worse than
+      // no tool (spec 13.3).
+      incomplete = true;
+    }
+
+    for (const violation of all) {
+      const fp = makeFingerprint({
+        screenId: `${screen.screenId}::${screen.viewport}`,
+        ruleId: violation.ruleId,
+        regions: violation.region ? [violation.region] : [],
+      });
+
+      const draft: Finding = {
+        id: id.finding(`fnd_${fp}`),
+        runId,
+        fingerprint: fp,
+        screenId: id.screen(screen.screenId),
+        ruleId: violation.ruleId,
+        tier: 'tier1',
+        classification: classify(violation.ruleId),
+        severity: violation.severity,
+        confidence: 1,
+        route: 'issue',
+        summary: violation.message,
+        evidence: {
+          before: screen.artifacts.baseline ? id.artifact(screen.artifacts.baseline) : undefined,
+          after: id.artifact(screen.artifacts.actual),
+          diff: screen.artifacts.diff ? id.artifact(screen.artifacts.diff) : undefined,
+          console: screen.snapshot.consoleErrors.slice(0, 10),
+        },
+        suspectedFiles: [],
+        status: 'open',
+      };
+
+      if (ledger.match(draft)) {
+        suppressed++;
+        continue;
+      }
+
+      const outcome = routeDecision({
+        answers,
+        thresholds: config.decisions.confidence,
+        hasDeterministicRegression: violation.severity === 'critical' || violation.severity === 'major',
+        matchedLedger: false,
+      });
+
+      findings.push({
+        ...draft,
+        // The decider grades user impact, but it may only ever soften a tier-1
+        // severity that the deterministic layer already established -- it must
+        // not quietly downgrade a critical into a cosmetic.
+        severity: worstOf(violation.severity, severityFrom(answers['severity' as keyof typeof answers])),
+        route: outcome.route === 'escalate' ? 'question' : outcome.route,
+        status: outcome.route === 'question' ? 'question' : 'open',
+      });
+    }
+  }
+
+  const groups = await cluster(findings);
+  const noise = applyNoiseControls(groups, { isFirstRun: options.isFirstRun });
+  notes.push(...noise.notes);
+  if (incomplete) notes.push('Budget exhausted before every screen was decided: this run is INCOMPLETE, not clean.');
+
+  const created = options.screens.filter((s) => s.baselineCreated).length;
+  if (created > 0) {
+    notes.push(`${created} baseline(s) captured for the first time. Nothing can regress against a baseline it just created.`);
+  }
+  for (const screen of options.screens) {
+    // First line only: the underlying loader error can be a dozen lines of
+    // symbol dumps, and the note exists to flag the degradation, not to debug it.
+    if (screen.comparison?.degraded) {
+      const line = screen.comparison.degraded.split('\n')[0]!;
+      if (!seenDegradations.has(line)) {
+        seenDegradations.add(line);
+        notes.push(line);
+      }
+    }
+  }
+
+  const blocking = noise.blockingAllowed ? findings.filter((f) => f.route === 'check') : [];
+  if (!noise.blockingAllowed && findings.some((f) => f.route === 'check')) {
+    notes.push('First run: regressions are reported but do not block.');
+  }
+
+  const exitCode: ExitCodeValue = blocking.length > 0 ? ExitCode.Regression : ExitCode.Clean;
+  const selected = new Set(options.screens.map((s) => s.screenId));
+
+  const run: Run = {
+    id: runId,
+    projectId: id.project('local'),
+    modelVersion: 1,
+    trigger: options.trigger,
+    mode: options.mode,
+    commit: options.commit,
+    changedFiles: [],
+    plan: {
+      items: options.screens.map((s) => ({
+        target: { screenId: id.screen(`${s.screenId} @${s.viewport}`) },
+        reason: s.planReason,
+      })),
+      mappingConfidence: 1,
+      coverage: { screensSelected: selected.size, screensTotal: options.totalScreens },
+    },
+    status: incomplete ? 'incomplete' : blocking.length > 0 ? 'failed' : 'passed',
+    exitCode,
+    startedAt,
+    endedAt: new Date(),
+    cost: { decisionUsd, visionUsd: 0, frontierUsd: 0, tokens: 0 },
+    findingIds: findings.map((f) => f.id),
+    suppressionCount: suppressed,
+  };
+
+  const reportPath = writeArtifacts(root, run, findings, { suppressed, notes });
+  return { run, findings, exitCode, reportPath, notes };
+}
+
+/**
+ * Turns the pixel comparison into tier-1 violations. The tolerance policy owns
+ * the pass/fail call, so the hollow-test and masked-and-relaxed flags it raises
+ * travel with the finding instead of being dropped on the floor.
+ */
+function visualViolations(screen: CapturedScreen, config: AutoQAConfig): InvariantViolation[] {
+  if (screen.baselineCreated) return [];
+  if (!screen.comparison) {
+    return [
+      {
+        ruleId: BASELINE_MISSING_RULE,
+        message: `No baseline exists for "${screen.screenId}" at ${screen.viewport}, so this screen was captured but not verified.`,
+        severity: 'minor',
+      },
+    ];
+  }
+
+  const relaxed = config.tolerance.regions.filter((r) => screen.url.includes(r.screen)).map((r) => r.selector);
+  const verdict = evaluateTolerance(screen.comparison.primary, { relaxedRegionSelectors: relaxed });
+
+  const out: InvariantViolation[] = [];
+  // A flag is worth reporting even when the diff passed -- that is the whole
+  // point of surfacing a green result that is green because the test got weaker.
+  for (const flag of verdict.flags) {
+    out.push({
+      ruleId: `visual/${flag.split(':')[0]}`,
+      message: flag.slice(flag.indexOf(':') + 1).trim(),
+      severity: 'minor',
+      detail: { maskedFraction: screen.comparison.primary.maskedFraction },
+    });
+  }
+
+  if (verdict.pass) return out;
+
+  out.unshift({
+    ruleId: PIXEL_DIFF_RULE,
+    message: `"${screen.screenId}" no longer matches its baseline at ${screen.viewport}: ${verdict.reason}`,
+    severity: screen.comparison.primary.dimensionMismatch ? 'major' : 'major',
+    region: screen.comparison.primary.regions[0],
+    detail: {
+      changedPixels: screen.comparison.primary.changedPixels,
+      changedFraction: screen.comparison.primary.changedFraction,
+      maskedFraction: screen.comparison.primary.maskedFraction,
+      engine: screen.comparison.primary.engine,
+      enginesAgreed: screen.comparison.agreed,
+    },
+  });
+
+  if (!screen.comparison.agreed) {
+    // Two engines that share a colour-distance implementation disagreeing means
+    // something is wrong with the capture, not the app.
+    out.push({
+      ruleId: 'visual/engine-disagreement',
+      message: `The two diff engines disagree on "${screen.screenId}" (${screen.comparison.primary.changedPixels} vs ${screen.comparison.crossCheck?.changedPixels} pixels), which points at the capture rather than the app.`,
+      severity: 'minor',
+    });
+  }
+
+  return out;
+}
+
+function classify(ruleId: string): Finding['classification'] {
+  if (ruleId.startsWith('visual/')) return 'regression';
+  if (ruleId.startsWith('usability/contrast')) return 'a11y';
+  if (ruleId.startsWith('runtime/')) return 'functional-bug';
+  return 'regression';
+}
+
+const SEVERITY_RANK: Record<Severity, number> = { cosmetic: 0, minor: 1, major: 2, critical: 3 };
+
+function worstOf(a: Severity, b: Severity): Severity {
+  return SEVERITY_RANK[a] >= SEVERITY_RANK[b] ? a : b;
+}
+
+function writeArtifacts(
+  root: string,
+  run: Run,
+  findings: Finding[],
+  meta: { suppressed: number; notes: string[] },
+): string {
+  const dir = paths.run(root, run.id);
+  mkdirSync(dir, { recursive: true });
+  const reportPath = join(dir, 'report.html');
+  writeFileSync(
+    reportPath,
+    renderHtml({ run, findings, suppressed: meta.suppressed, quarantined: 0, notes: meta.notes }),
+  );
+  writeFileSync(join(dir, 'junit.xml'), toJUnit(run, findings));
+  writeFileSync(join(dir, 'results.sarif'), toSarif(findings));
+  writeFileSync(join(dir, 'run.json'), `${JSON.stringify({ run, findings }, null, 2)}\n`);
+  return reportPath;
+}

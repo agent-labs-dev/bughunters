@@ -11,3 +11,4 @@ export * from './exit-codes.js';
 export * from './errors.js';
 export * from './fingerprint.js';
 export * from './paths.js';
+export * from './baseline-store.js';

@@ -83,3 +83,21 @@ describe('severityFrom', () => {
     expect(severityFrom(undefined)).toBe('minor');
   });
 });
+
+describe('offline gating', () => {
+  it('still blocks on a deterministic regression when no decider ran', () => {
+    // --no-models must keep working as a merge gate. The decision layer
+    // classifies and suppresses; it does not grant permission to block.
+    const out = route({ ...base, hasDeterministicRegression: true, answers: {} });
+    expect(out.route).toBe('check');
+  });
+
+  it('does not invent a block when tier 1 was clean', () => {
+    expect(route({ ...base, answers: {} }).route).toBe('question');
+  });
+
+  it('lets a high-confidence decider still suppress a deterministic regression', () => {
+    const out = route({ ...base, hasDeterministicRegression: true, answers: { route: choice('intent', 0.95) } });
+    expect(out.route).toBe('intent');
+  });
+});

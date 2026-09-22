@@ -1,0 +1,26 @@
+# Config for AutoQA's own fixture app. Used by scripts/determinism-check.sh.
+version: 1
+
+run:
+  command: node server.js
+  url: http://localhost:3300/
+  ready:
+    selectors: ["[data-testid=app-root]"]
+    forbidConsoleErrors: true
+    timeoutMs: 30000
+
+viewports:
+  - { name: desktop, width: 1024, height: 700 }
+  - { name: mobile,  width: 390,  height: 844 }
+
+mask:
+  # Genuinely unstable: an ISO timestamp written by page script. The clock is
+  # frozen by the determinism contract, so this is masked to prove masking is
+  # accounted for rather than because it is needed.
+  - { selector: "[data-testid=user-avatar]", reason: "not present; asserts masking is tolerant of absent selectors" }
+
+tolerance:
+  default: exact
+
+decisions:
+  decider: heuristic   # no network in CI

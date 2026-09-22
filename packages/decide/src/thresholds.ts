@@ -44,7 +44,13 @@ export function route(input: RoutingInput): RoutingOutcome {
 
   const proposed = answers['route'];
   if (proposed?.kind !== 'choice') {
-    return { route: 'question', reason: 'No routing answer was returned, so a human decides.' };
+    // No decider ran, or it returned nothing usable. A deterministic tier-1
+    // regression still gates: the decision layer exists to classify and to
+    // suppress, not to grant permission to block, and `--no-models` has to
+    // keep working as a merge gate with no network at all.
+    return input.hasDeterministicRegression
+      ? { route: 'check', reason: 'Deterministic tier-1 regression; no decision layer was consulted.' }
+      : { route: 'question', reason: 'No routing answer was returned, so a human decides.' };
   }
 
   // Below the high threshold nothing is ever auto-suppressed or auto-blocked.
