@@ -251,6 +251,9 @@ export const PROBE_SOURCE = String.raw`
       href: resolved,
       text: (anchor.textContent || '').trim().slice(0, 120),
       external: new URL(resolved).origin !== location.origin,
+      // Markup hints that a link is a file or a feed rather than a page.
+      download: anchor.hasAttribute('download'),
+      type: anchor.getAttribute('type') || undefined,
       selector: selectorFor(anchor),
       box: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
     });

@@ -5,6 +5,10 @@ export type ScreenLink = {
   href: string;
   text: string;
   external: boolean;
+  /** The anchor has a `download` attribute. */
+  download?: boolean;
+  /** The anchor's `type` attribute, e.g. application/rss+xml. */
+  type?: string;
   selector: string;
   box: { x: number; y: number; width: number; height: number };
 };
