@@ -166,7 +166,7 @@ export async function executeRun(options: PipelineOptions): Promise<RunResult> {
       knownIntents: ledger.summaries(),
     });
 
-    const estimate = estimateDecisionCost(text.length);
+    const estimate = estimateDecisionCost(text.length, decider.name);
     let answers = {};
     if (!options.noModels && budget.canSpend(estimate)) {
       answers = await decider.ask(text, SCREEN_QUESTIONS);

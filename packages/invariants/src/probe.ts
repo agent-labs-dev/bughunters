@@ -12,14 +12,31 @@ export const PROBE_SOURCE = String.raw`
   const INTERACTIVE = 'a,button,input,select,textarea,summary,[role=button],[role=link],[role=tab],[onclick],[tabindex]:not([tabindex="-1"])';
   const MAX_ELEMENTS = 1500;
 
+  // Declared before the element loop below, which uses them: functions in this
+  // probe hoist, constants do not.
+  // Any CSS colour -> sRGB, via a 1x1 canvas. getComputedStyle returns colours
+  // in whatever space they were written in, and Tailwind v4 writes oklch(), so
+  // a regex over rgb() silently misreads every modern utility colour as absent.
+  const colorCanvas = document.createElement('canvas');
+  colorCanvas.width = colorCanvas.height = 1;
+  const colorCtx = colorCanvas.getContext('2d', { willReadFrequently: true });
+  const colorCache = new Map();
+
+  const OPAQUE_MEDIA = new Set(['IMG', 'VIDEO', 'CANVAS', 'IFRAME', 'SVG', 'PICTURE', 'OBJECT', 'EMBED']);
+
+
   function selectorFor(el) {
-    if (el.dataset && el.dataset.testid) return '[data-testid="' + el.dataset.testid + '"]';
-    if (el.id) return '#' + el.id;
+    // Escaped, so the selector is valid CSS. Tailwind classes such as
+    // text-muted-foreground/60, text-[12px] and md:flex are not valid
+    // selectors raw, which made reported selectors unusable in a mask or an
+    // Intent Ledger scope -- the two places a person pastes them.
+    if (el.dataset && el.dataset.testid) return '[data-testid="' + el.dataset.testid.replace(/"/g, '\\"') + '"]';
+    if (el.id) return '#' + CSS.escape(el.id);
     const parts = [];
     let node = el;
     while (node && node.nodeType === 1 && parts.length < 4) {
       let part = node.tagName.toLowerCase();
-      if (node.classList && node.classList.length > 0) part += '.' + [...node.classList].slice(0, 2).join('.');
+      if (node.classList && node.classList.length > 0) part += '.' + [...node.classList].slice(0, 2).map((c) => CSS.escape(c)).join('.');
       const parent = node.parentElement;
       if (parent) {
         const siblings = [...parent.children].filter((c) => c.tagName === node.tagName);
@@ -76,15 +93,24 @@ export const PROBE_SOURCE = String.raw`
       }
     }
 
+    const background = effectiveBackground(el);
+    // False for display:none (on the element or any ancestor) and
+    // visibility:hidden. A responsive variant hidden with "hidden md:flex" is
+    // 0x0 by design; only an element that IS rendered yet has no box is broken.
+    const rendered = typeof el.checkVisibility === 'function'
+      ? el.checkVisibility({ visibilityProperty: true })
+      : style.display !== 'none' && style.visibility !== 'hidden';
+
     elements.push({
       selector: selectorFor(el),
       box: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
       visible,
+      rendered,
       interactive,
       zIndex: Number(style.zIndex) || 0,
       hitSelector,
-      color: style.color,
-      backgroundColor: effectiveBackground(el),
+      color: background ? effectiveColor(el, background) : style.color,
+      backgroundColor: background ?? undefined,
       fontSize: parseFloat(style.fontSize) || 16,
       overflowHidden: style.overflow === 'hidden' || style.overflowX === 'hidden',
       scrollWidth: el.scrollWidth,
@@ -92,16 +118,80 @@ export const PROBE_SOURCE = String.raw`
     });
   }
 
-  function effectiveBackground(el) {
-    // Walk up until a non-transparent background is found, because contrast is
-    // computed against what is actually rendered behind the text.
-    let node = el;
-    while (node && node.nodeType === 1) {
-      const bg = getComputedStyle(node).backgroundColor;
-      if (bg && bg !== 'transparent' && !bg.startsWith('rgba(0, 0, 0, 0)')) return bg;
-      node = node.parentElement;
+  function parseRgba(value) {
+    if (!value) return null;
+    if (colorCache.has(value)) return colorCache.get(value);
+    let out = null;
+    if (colorCtx) {
+      colorCtx.clearRect(0, 0, 1, 1);
+      colorCtx.fillStyle = 'rgba(0, 0, 0, 0)';
+      colorCtx.fillStyle = value;
+      colorCtx.fillRect(0, 0, 1, 1);
+      const d = colorCtx.getImageData(0, 0, 1, 1).data;
+      out = { r: d[0], g: d[1], b: d[2], a: d[3] / 255 };
     }
-    return 'rgb(255, 255, 255)';
+    colorCache.set(value, out);
+    return out;
+  }
+
+  // The elements actually painted beneath a point, top first. This includes
+  // positioned siblings -- a header over a hero image has the hero behind it,
+  // and no ancestor walk can see that.
+  function paintStackBelow(el) {
+    const rect = el.getBoundingClientRect();
+    const x = rect.left + rect.width / 2;
+    const y = rect.top + rect.height / 2;
+    if (x < 0 || y < 0 || x >= innerWidth || y >= innerHeight) return null;
+    const stack = document.elementsFromPoint(x, y);
+    const index = stack.indexOf(el);
+    if (index === -1) return null;
+    return stack.slice(index);
+  }
+
+  function ancestorsOf(el) {
+    const out = [];
+    for (let node = el; node && node.nodeType === 1; node = node.parentElement) out.push(node);
+    return out;
+  }
+
+  function effectiveBackground(el) {
+    // What is actually painted behind the text: every translucent layer down to
+    // the first opaque one, alpha-composited. Taking the first non-transparent
+    // colour instead read white-on-18%-white-glass as white-on-white (1.00:1)
+    // when it renders as white-on-dark.
+    //
+    // A background image or media element anywhere in that stack means the
+    // colour behind the text is not knowable from computed style. That returns
+    // null and the contrast check is skipped rather than guessed -- a finding
+    // that cannot be explained is worse than no finding (spec 8.8).
+    const stack = paintStackBelow(el) ?? ancestorsOf(el);
+    const layers = [];
+    for (const node of stack) {
+      if (OPAQUE_MEDIA.has(node.tagName.toUpperCase()) && node !== el) return null;
+      const cs = getComputedStyle(node);
+      if (cs.backgroundImage && cs.backgroundImage !== 'none') return null;
+      const c = parseRgba(cs.backgroundColor);
+      if (c && c.a > 0) {
+        layers.push(c);
+        if (c.a >= 0.999) break;
+      }
+    }
+    // The canvas behind an unpainted page is white.
+    let out = { r: 255, g: 255, b: 255 };
+    for (let i = layers.length - 1; i >= 0; i--) {
+      const l = layers[i];
+      out = { r: l.r * l.a + out.r * (1 - l.a), g: l.g * l.a + out.g * (1 - l.a), b: l.b * l.a + out.b * (1 - l.a) };
+    }
+    return 'rgb(' + Math.round(out.r) + ', ' + Math.round(out.g) + ', ' + Math.round(out.b) + ')';
+  }
+
+  function effectiveColor(el, background) {
+    // Translucent text is composited over its background too.
+    const fg = parseRgba(getComputedStyle(el).color);
+    const bg = parseRgba(background);
+    if (!fg || !bg) return getComputedStyle(el).color;
+    const a = fg.a;
+    return 'rgb(' + Math.round(fg.r * a + bg.r * (1 - a)) + ', ' + Math.round(fg.g * a + bg.g * (1 - a)) + ', ' + Math.round(fg.b * a + bg.b * (1 - a)) + ')';
   }
 
   // Outgoing links. These are what the app-graph is drawn from: every one is a
@@ -150,6 +240,8 @@ export const PROBE_SOURCE = String.raw`
       scrollHeight: document.documentElement.scrollHeight,
       clientHeight: document.documentElement.clientHeight,
       hasStylesheets: document.styleSheets.length > 0,
+      scrollX: window.scrollX,
+      scrollY: window.scrollY,
     },
   };
 })()

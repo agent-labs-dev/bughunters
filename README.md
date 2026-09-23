@@ -101,7 +101,7 @@ run state or race the CLI.
 Verify the determinism guarantee yourself — three runs, same commit, zero diffs:
 
 ```bash
-./scripts/determinism-check.sh
+bash scripts/determinism-check.sh
 ```
 
 **What does not run yet:** `recon`, `baseline`, `findings`, `intent`, `watch`

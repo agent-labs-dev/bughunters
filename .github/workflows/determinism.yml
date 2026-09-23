@@ -22,8 +22,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # No `version:` here: it is read from package.json's packageManager,
+      # and pinning it twice makes the action refuse to run at all.
       - uses: pnpm/action-setup@v4
-        with: { version: 9 }
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -35,7 +36,9 @@ jobs:
         run: pnpm --filter @autoqa/capture exec playwright install --with-deps chromium
 
       - name: Capture baselines, then run three times against the same commit
-        run: ./scripts/determinism-check.sh
+        # Invoked through bash: file modes do not survive the signed publish
+        # path, so the executable bit cannot be relied on.
+        run: bash scripts/determinism-check.sh
 
       - name: Upload diff artifacts on failure
         if: failure()

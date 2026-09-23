@@ -52,3 +52,8 @@ export function parseColor(value: string | undefined): [number, number, number] 
   }
   return undefined;
 }
+
+/** WCAG 2.x AA: 3:1 for large text (>= 24px), 4.5:1 otherwise. */
+export function requiredContrast(fontSize: number | undefined): number {
+  return (fontSize ?? 16) >= 24 ? 3 : 4.5;
+}

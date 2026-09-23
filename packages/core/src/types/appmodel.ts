@@ -13,12 +13,22 @@ export type ElementGeometry = {
   selector: string;
   box: { x: number; y: number; width: number; height: number };
   visible: boolean;
+  /**
+   * Takes part in rendering at all. False for display:none on the element or an
+   * ancestor, and for visibility:hidden. Absent on snapshots from older probes.
+   */
+  rendered?: boolean;
   interactive: boolean;
   zIndex: number;
   /** Result of document.elementFromPoint at the box centre -- drives occlusion. */
   hitSelector?: string;
   color?: string;
   backgroundColor?: string;
+  /**
+   * Contrast measured on the screenshot, set only when the DOM-computed ratio
+   * failed. The rendered pixels are the authority when the two disagree.
+   */
+  pixelContrast?: number;
   fontSize?: number;
   overflowHidden?: boolean;
   scrollWidth?: number;
