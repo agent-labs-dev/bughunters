@@ -1,5 +1,5 @@
 import type { InvariantRule, InvariantViolation } from '../types.js';
-import { contrastRatio, parseColor, visibleInteractive } from './geometry.js';
+import { contrastRatio, parseColor, requiredContrast, visibleInteractive } from './geometry.js';
 
 /** WCAG 2.2 Success Criterion 2.5.8 (AA). */
 const MIN_TAP_TARGET_PX = 24;
@@ -38,17 +38,31 @@ export const contrast: InvariantRule = {
       const bg = parseColor(e.backgroundColor);
       if (!fg || !bg) continue;
       const size = e.fontSize ?? 16;
-      // WCAG treats >=24px, or >=18.66px bold, as "large text".
-      const required = size >= 24 ? 3 : 4.5;
+      const required = requiredContrast(size);
       const ratio = contrastRatio(fg, bg);
       if (ratio >= required) continue;
+
+      // The rendered pixels overrule the DOM. They are a lower bound on the
+      // true contrast, so a pixel measurement that passes proves the DOM
+      // reading wrong -- typically a background layer the DOM cannot place.
+      if (e.pixelContrast !== undefined && e.pixelContrast >= required) continue;
+
+      const measured = e.pixelContrast ?? ratio;
       out.push({
         ruleId: contrast.id,
-        message: `Text in "${e.selector}" has a contrast ratio of ${ratio.toFixed(2)}:1 against its background, below the ${required}:1 minimum, so it is hard to read.`,
+        message:
+          `Text in "${e.selector}" has a contrast ratio of ${measured.toFixed(2)}:1 against its background, below the ${required}:1 minimum, so it is hard to read.` +
+          (e.pixelContrast !== undefined ? ' Confirmed on the rendered pixels.' : ''),
         severity: 'minor',
         selector: e.selector,
         region: e.box,
-        detail: { ratio, required, fontSize: size },
+        detail: {
+          ratio: measured,
+          domRatio: ratio,
+          pixelConfirmed: e.pixelContrast !== undefined,
+          required,
+          fontSize: size,
+        },
       });
     }
     return out;

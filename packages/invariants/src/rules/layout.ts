@@ -65,7 +65,9 @@ export const zeroSizeInteractive: InvariantRule = {
   changeAware: false,
   evaluate(snapshot) {
     return snapshot.elements
-      .filter((e) => e.interactive && (e.box.width < 1 || e.box.height < 1))
+      // Only elements that are actually rendered. A display:none responsive
+      // variant is 0x0 on purpose and unreachable by design, not broken.
+      .filter((e) => e.interactive && e.rendered !== false && (e.box.width < 1 || e.box.height < 1))
       .map((e) => ({
         ruleId: zeroSizeInteractive.id,
         message: `"${e.selector}" is interactive but renders at ${Math.round(e.box.width)}x${Math.round(e.box.height)}px, so nobody can click it.`,

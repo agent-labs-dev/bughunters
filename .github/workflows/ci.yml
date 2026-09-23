@@ -13,12 +13,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # No `version:` here: it is read from package.json's packageManager,
+      # and pinning it twice makes the action refuse to run at all.
       - uses: pnpm/action-setup@v4
-        with: { version: 9 }
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
+      # The capture tests drive a real browser, because font loading and layout
+      # only mean anything against a real rendering engine.
+      - run: pnpm --filter @autoqa/capture exec playwright install --with-deps chromium
       - run: pnpm test

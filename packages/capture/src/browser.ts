@@ -1,7 +1,7 @@
 import { chromium, type Browser, type BrowserContext, type Page } from 'playwright';
 import type { AutoQAConfig, ViewportConfig } from '@autoqa/core';
 import { InfrastructureError } from '@autoqa/core';
-import { DETERMINISTIC_CHROMIUM_ARGS, STABILITY_STYLESHEET, buildFreezeScript, FONT_AUDIT_SOURCE } from './determinism.js';
+import { DETERMINISTIC_CHROMIUM_ARGS, STABILITY_STYLESHEET, buildFreezeScript, FONT_AUDIT_SOURCE, type FontAudit } from './determinism.js';
 
 export type CaptureSession = {
   browser: Browser;
@@ -76,17 +76,24 @@ async function blockThirdParty(context: BrowserContext, appUrl: string): Promise
   });
 }
 
-export async function auditFonts(page: Page): Promise<{ requested: string[]; missing: string[] }> {
-  return (await page.evaluate(FONT_AUDIT_SOURCE)) as { requested: string[]; missing: string[] };
+export async function auditFonts(page: Page): Promise<FontAudit> {
+  return (await page.evaluate(FONT_AUDIT_SOURCE)) as FontAudit;
 }
 
 export async function assertNoFontFallback(page: Page, failOnFallback: boolean): Promise<string[]> {
   const audit = await auditFonts(page);
-  if (audit.missing.length > 0 && failOnFallback) {
+  const problems = [...new Set([...audit.missing, ...audit.failed])];
+  if (problems.length > 0 && failOnFallback) {
+    const detail = [
+      audit.missing.length > 0 ? `rendered in a substitute: ${audit.missing.join(', ')}` : '',
+      audit.failed.length > 0 ? `failed to load: ${audit.failed.join(', ')}` : '',
+    ]
+      .filter(Boolean)
+      .join('; ');
     throw new InfrastructureError(
-      `These font families are not available in the pinned image and fell back to a substitute: ${audit.missing.join(', ')}. ` +
-        'Bundle them in the runner image, or baselines will drift between machines.',
+      `Visible text did not render in its intended font (${detail}). ` +
+        'Bundle these in the runner image or fix the font request, or baselines will drift between machines.',
     );
   }
-  return audit.missing;
+  return problems;
 }

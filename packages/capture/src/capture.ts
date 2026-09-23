@@ -7,6 +7,7 @@ import { PROBE_SOURCE, type ScreenSnapshot } from '@autoqa/invariants';
 import { STABILITY_STYLESHEET } from './determinism.js';
 import { waitForStableFrame } from './stability-gate.js';
 import { assertNoFontFallback } from './browser.js';
+import { confirmContrastWithPixels } from './pixel-contrast.js';
 
 export type CaptureRequest = {
   screenId: string;
@@ -53,7 +54,17 @@ export async function captureScreen(
     mask: masks.map((m) => page.locator(m.selector)),
   });
 
-  const probe = (await page.evaluate(PROBE_SOURCE)) as Omit<ScreenSnapshot, 'screenId' | 'viewport' | 'consoleErrors'>;
+  const probe = (await page.evaluate(PROBE_SOURCE)) as Omit<ScreenSnapshot, 'screenId' | 'viewport' | 'consoleErrors'> & {
+    document: ScreenSnapshot['document'] & { scrollX?: number; scrollY?: number };
+  };
+
+  // Element boxes are viewport-relative; the full-page screenshot is in page
+  // coordinates, so the scroll offset joins them.
+  confirmContrastWithPixels(probe.elements, buffer, {
+    deviceScaleFactor: request.viewport.deviceScaleFactor ?? 1,
+    masks,
+    scroll: { x: probe.document.scrollX ?? 0, y: probe.document.scrollY ?? 0 },
+  });
 
   return {
     screenId: request.screenId,

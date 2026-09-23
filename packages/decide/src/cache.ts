@@ -1,4 +1,4 @@
-import type { Answer, DecisionRecord } from '@autoqa/core';
+import type { Answer, DeciderName, DecisionRecord } from '@autoqa/core';
 
 /**
  * Keyed on the state hash. This is the single largest cost and latency saving
@@ -61,7 +61,17 @@ export class Budget {
 /** Jev pricing: $0.042 per million input tokens, output free (spec 4.2). */
 export const JEV_USD_PER_INPUT_TOKEN = 0.042 / 1_000_000;
 
-export function estimateDecisionCost(stateChars: number): number {
+/**
+ * What one decision on a state of this size costs with a given decider.
+ *
+ * Only Jev has real pricing wired up. The heuristic and local deciders make no
+ * network call, and ModelDecider currently degrades to the heuristic -- charging
+ * any of them at Jev's rate reported model spend for runs that never contacted
+ * a model, which is exactly the number someone checks to see whether they need
+ * an API key.
+ */
+export function estimateDecisionCost(stateChars: number, decider: DeciderName = 'jev'): number {
+  if (decider !== 'jev') return 0;
   // ~4 chars per token is close enough for a budget guard.
   return (stateChars / 4) * JEV_USD_PER_INPUT_TOKEN;
 }

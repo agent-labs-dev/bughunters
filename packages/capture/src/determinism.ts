@@ -70,24 +70,84 @@ export function buildFreezeScript(config: DeterminismConfig): string {
 })();`;
 }
 
-export type FontAudit = { requested: string[]; missing: string[] };
+export type FontAudit = {
+  /** Primary families actually rendering visible text. */
+  requested: string[];
+  /** Families whose declared face never loaded, so the text rendered in a substitute. */
+  missing: string[];
+  /** Faces that failed outright (404, CORS, corrupt file) AND that visible text depends on. */
+  failed: string[];
+};
 
 /**
  * A glyph falling back to an unbundled family is a determinism violation, not a
  * diff. It fails the run loudly (spec 7.1) rather than producing a mysterious
  * text-shaped diff on another machine.
+ *
+ * The question this answers is narrow on purpose: for each piece of VISIBLE
+ * TEXT, did the font it asked for FIRST actually render? Three things that
+ * look like fallbacks are not:
+ *
+ *  - Later families in a stack. `"Inter", "Inter Fallback", sans-serif` only
+ *    ever renders the fallback while Inter is loading. next/font generates
+ *    exactly this pattern for every font, so flagging stack members made every
+ *    Next.js app fail its own determinism check.
+ *  - Faces that have not loaded yet. The audit awaits `document.fonts.ready`
+ *    first, because the browser only fetches a webfont once text needs it.
+ *  - Other weights. The check uses the element's real weight and style, since
+ *    a loaded 400 face says nothing about whether the 700 face arrived.
+ *
+ * System fonts have no FontFace, and the FontFace API cannot tell whether one is
+ * installed -- `check()` returns true when no face matches. Those are covered
+ * structurally by the pinned image and its bundled font set instead.
  */
 export const FONT_AUDIT_SOURCE = String.raw`
-(() => {
-  const requested = new Set();
-  for (const el of document.querySelectorAll('*')) {
-    const family = getComputedStyle(el).fontFamily;
-    if (family) for (const part of family.split(',')) requested.add(part.trim().replace(/^["']|["']$/g, ''));
+(async () => {
+  await document.fonts.ready;
+
+  const GENERIC = new Set(['serif', 'sans-serif', 'monospace', 'cursive', 'fantasy', 'system-ui',
+    'ui-serif', 'ui-sans-serif', 'ui-monospace', 'ui-rounded', 'emoji', 'math', 'fangsong']);
+  const clean = (f) => f.trim().replace(/^["']|["']$/g, '');
+  const norm = (f) => clean(f).toLowerCase();
+
+  const declared = new Map();
+  const failed = new Set();
+  for (const face of document.fonts) {
+    const key = norm(face.family);
+    declared.set(key, (declared.get(key) || 0) + 1);
+    if (face.status === 'error') failed.add(clean(face.family));
   }
-  const missing = [...requested].filter((family) => {
-    if (!family || family.startsWith('-') || ['serif','sans-serif','monospace','cursive','fantasy','system-ui'].includes(family)) return false;
-    return !document.fonts.check('12px "' + family + '"');
-  });
-  return { requested: [...requested], missing };
+
+  function rendersText(el) {
+    for (const child of el.childNodes) {
+      if (child.nodeType === 3 && child.textContent.trim().length > 0) return true;
+    }
+    return false;
+  }
+
+  const requested = new Set();
+  const missing = new Set();
+  for (const el of document.querySelectorAll('body *')) {
+    if (!rendersText(el)) continue;
+    const style = getComputedStyle(el);
+    if (style.visibility === 'hidden' || style.display === 'none') continue;
+    const rect = el.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) continue;
+
+    const primary = clean(style.fontFamily.split(',')[0] || '');
+    if (!primary || primary.startsWith('-') || GENERIC.has(primary.toLowerCase())) continue;
+    requested.add(primary);
+
+    // Only a family with a declared face can be verified here.
+    if (!declared.has(primary.toLowerCase())) continue;
+    const probe = style.fontStyle + ' ' + style.fontWeight + ' 16px "' + primary + '"';
+    if (!document.fonts.check(probe)) missing.add(primary);
+  }
+
+  // A face that errored but that no visible text asks for first -- next/font's
+  // local("Arial")-style fallbacks on a machine without Arial -- changes no
+  // pixel, so it is not a determinism problem.
+  const relevantFailures = [...failed].filter((f) => requested.has(f));
+  return { requested: [...requested], missing: [...missing], failed: relevantFailures };
 })()
 `;
