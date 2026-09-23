@@ -61,7 +61,7 @@ export type ScreenTrace = {
   maskedSelectors: string[];
   missingFonts: string[];
   consoleErrors: string[];
-  links: Array<{ href: string; text: string; external: boolean }>;
+  links: Array<{ href: string; text: string; external: boolean; download?: boolean; type?: string }>;
   diff?: DiffTrace;
   /** Every rule that ran, including the ones that found nothing. */
   checks: CheckOutcome[];
@@ -114,7 +114,7 @@ export type LiveProgress = {
     actual: string;
     baselineCreated: boolean;
     changedPixels?: number;
-    links: Array<{ href: string; text: string; external: boolean }>;
+    links: Array<{ href: string; text: string; external: boolean; download?: boolean; type?: string }>;
   }>;
   /** Set when the run ended, so the UI can stop showing a spinner. */
   finishedRunId?: string;

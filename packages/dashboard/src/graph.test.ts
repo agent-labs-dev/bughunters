@@ -124,3 +124,57 @@ describe('buildGraph', () => {
     expect(graph.nodes.map((n) => n.id)).toEqual(['/done']);
   });
 });
+
+import { isPageLink, problemKey } from './graph.js';
+
+describe('isPageLink', () => {
+  const at = (path: string) => ({ href: `http://localhost:3000${path}` });
+
+  it('treats ordinary routes as screens', () => {
+    for (const path of ['/', '/pricing', '/features/channels', '/download/ios', '/learn/first-agent']) {
+      expect(isPageLink(at(path))).toBe(true);
+    }
+  });
+
+  it('excludes feeds, API endpoints and files', () => {
+    // nebula-web's changelog links /api/changelog/rss with no type attribute.
+    for (const path of ['/api/changelog/rss', '/feed', '/rss.xml', '/sitemap.xml', '/brand.zip', '/docs.pdf', '/og.png']) {
+      expect(isPageLink(at(path))).toBe(false);
+    }
+  });
+
+  it('honours markup hints when a page provides them', () => {
+    expect(isPageLink({ href: 'http://localhost:3000/export', download: true })).toBe(false);
+    expect(isPageLink({ href: 'http://localhost:3000/updates', type: 'application/rss+xml' })).toBe(false);
+    expect(isPageLink({ href: 'http://localhost:3000/about', type: 'text/html' })).toBe(true);
+  });
+});
+
+describe('buildGraph: non-page links and repeated findings', () => {
+  it('does not draw a feed as an unvisited screen, and says so', () => {
+    const graph = buildGraph(undefined, record({
+      screens: [screenTrace('/changelog', [{ href: 'http://localhost:3000/api/changelog/rss' }, { href: 'http://localhost:3000/pricing' }])],
+    }));
+    expect(graph.nodes.map((n) => n.id).sort()).toEqual(['/changelog', '/pricing']);
+    expect(graph.notes.join(' ')).toContain('not screens');
+  });
+
+  it('counts one problem once, however many elements and viewports repeat it', () => {
+    const repeated = (sel: string) => ({
+      screenId: '/changelog', route: 'question', severity: 'minor', ruleId: 'usability/contrast',
+      summary: `Text in "${sel}" has a contrast ratio of 2.51:1 against its background.`,
+    });
+    const graph = buildGraph(undefined, record(
+      { screens: [screenTrace('/changelog')] },
+      [...Array.from({ length: 84 }, (_, i) => repeated(`span:nth-of-type(${i})`)), repeated('span.other')],
+    ));
+    const node = graph.nodes.find((n) => n.id === '/changelog')!;
+    expect(node.findings.questions).toBe(1);
+    expect(node.totalFindings).toBe(85);
+  });
+
+  it('keeps genuinely different claims apart', () => {
+    expect(problemKey('usability/contrast', 'Text in "a" has 2.51:1'))
+      .not.toBe(problemKey('usability/contrast', 'Text in "a" has 2.85:1'));
+  });
+});

@@ -172,7 +172,7 @@ class LiveProgressWriter {
       actual: screen.artifacts.actual,
       baselineCreated: screen.baselineCreated,
       changedPixels: screen.comparison?.primary.changedPixels,
-      links: (screen.snapshot.links ?? []).map((l) => ({ href: l.href, text: l.text, external: l.external })),
+      links: (screen.snapshot.links ?? []).map((l) => ({ href: l.href, text: l.text, external: l.external, download: l.download, type: l.type })),
     });
     this.flush();
   }

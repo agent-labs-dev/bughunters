@@ -195,3 +195,23 @@ describe('executeRun', () => {
     expect(result.run.plan.coverage).toEqual({ screensSelected: 1, screensTotal: 40 });
   });
 });
+
+describe('finding identity', () => {
+  it('gives two violations of one rule in the same grid cell distinct ids', async () => {
+    // Two small tap targets side by side land in one 32px fingerprint cell.
+    // Without the element in the fingerprint they shared an id.
+    const tiny = (selector: string, x: number) => ({
+      selector, box: { x, y: 0, width: 12, height: 12 }, visible: true, rendered: true,
+      interactive: true, zIndex: 0, hitSelector: selector,
+    });
+    const result = await executeRun({
+      ...base,
+      root,
+      isFirstRun: false,
+      screens: [screen({ snapshot: snapshot({ elements: [tiny('#a', 0), tiny('#b', 14)] }) })],
+    });
+    const taps = result.findings.filter((f) => f.ruleId === 'usability/tap-target');
+    expect(taps).toHaveLength(2);
+    expect(new Set(taps.map((f) => f.id)).size).toBe(2);
+  });
+});

@@ -136,7 +136,7 @@ export async function executeRun(options: PipelineOptions): Promise<RunResult> {
       maskedSelectors: screen.maskedSelectors ?? [],
       missingFonts: screen.missingFonts ?? [],
       consoleErrors: screen.snapshot.consoleErrors,
-      links: (screen.snapshot.links ?? []).map((l) => ({ href: l.href, text: l.text, external: l.external })),
+      links: (screen.snapshot.links ?? []).map((l) => ({ href: l.href, text: l.text, external: l.external, download: l.download, type: l.type })),
       diff: screen.comparison ? toDiffTrace(screen.comparison) : undefined,
       checks: describeChecks(all, disabled),
       findingIds: [],
@@ -204,6 +204,11 @@ export async function executeRun(options: PipelineOptions): Promise<RunResult> {
         screenId: `${screen.screenId}::${screen.viewport}`,
         ruleId: violation.ruleId,
         regions: violation.region ? [violation.region] : [],
+        // The element, not just where it is: two violations of one rule inside
+        // a single 32px grid cell otherwise shared a fingerprint, and with it a
+        // finding id, a ledger entry and a dashboard slot. Safe now that probe
+        // selectors are unique in the document.
+        domNodeSignature: violation.selector,
       });
 
       const draft: Finding = {

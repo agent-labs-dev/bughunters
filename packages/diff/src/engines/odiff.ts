@@ -20,9 +20,23 @@ import { InfrastructureError } from '@autoqa/core';
  */
 export class OdiffUnavailableError extends Error {
   constructor(cause: unknown) {
-    super(`odiff's native binary cannot run on this host: ${cause instanceof Error ? cause.message : String(cause)}`);
+    super(`odiff's native binary cannot run on this host (${summarizeLoaderError(cause)})`, { cause });
     this.name = 'OdiffUnavailableError';
   }
+}
+
+/**
+ * The dynamic loader reports a missing symbol version once per library, each
+ * with two absolute paths -- a dozen lines that ended up verbatim in the
+ * report. The one fact worth surfacing is what the binary needs.
+ */
+export function summarizeLoaderError(cause: unknown): string {
+  const text = cause instanceof Error ? cause.message : String(cause);
+  const versions = [...new Set(text.match(/GLIBC_[\d.]+/g) ?? [])];
+  if (versions.length > 0) return `needs ${versions.join(', ')}, which this system's C library does not provide`;
+  if (/ENOENT/.test(text)) return 'binary not found';
+  if (/Exec format/i.test(text)) return 'built for a different CPU architecture';
+  return text.split('\n')[0]!.slice(0, 160);
 }
 
 export async function diffWithOdiff(req: DiffRequest): Promise<DiffResult> {

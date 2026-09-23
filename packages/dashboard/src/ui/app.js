@@ -158,8 +158,15 @@ function renderDetail() {
     byScreen.get(key).push(finding);
   }
 
+  // A trace screen is one page at one viewport, and it records exactly which
+  // findings it produced. Grouping by page alone listed the mobile findings
+  // under desktop too, so every finding appeared twice.
+  const byId = new Map(findings.map((f) => [f.id, f]));
   for (const screen of trace?.screens ?? []) {
-    children.push(renderScreen(screen, byScreen.get(screen.screenId) ?? [], trace));
+    const own = Array.isArray(screen.findingIds)
+      ? screen.findingIds.map((id) => byId.get(id)).filter(Boolean)
+      : byScreen.get(screen.screenId) ?? [];
+    children.push(renderScreen(screen, own, trace));
   }
 
   if (trace?.suppressed?.length) {
@@ -200,10 +207,37 @@ function renderScreen(screen, findings, trace) {
       ...passed.map((c) => el('span', { class: 'chk', title: 'ran, found nothing', text: c.ruleId })),
     ]),
 
-    ...findings.map((f) => renderFinding(f, trace)),
+    ...groupFindings(findings).map((group) => renderGroup(group, trace)),
 
     renderReasoning(screen),
   ]);
+}
+
+/** Same rule, same claim, different element: one problem. Mirrors graph.ts. */
+function problemKey(finding) {
+  return `${finding.ruleId}|${finding.route}|${(finding.summary ?? '').replace(/"[^"]*"/, '"…"')}`;
+}
+
+function groupFindings(findings) {
+  const groups = new Map();
+  for (const finding of findings) {
+    const key = problemKey(finding);
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(finding);
+  }
+  return [...groups.values()];
+}
+
+function renderGroup(group, trace) {
+  if (group.length === 1) return renderFinding(group[0], trace);
+  const first = group[0];
+  const card = renderFinding({ ...first, summary: first.summary.replace(/"[^"]*"/, `${group.length} elements`) }, trace);
+  const selectors = group.map((f) => (f.summary.match(/"([^"]*)"/) ?? [])[1]).filter(Boolean);
+  card.append(el('details', { class: 'members' }, [
+    el('summary', { text: `The same problem on ${group.length} elements` }),
+    el('ul', {}, selectors.map((sel) => el('li', {}, [el('code', { text: sel })]))),
+  ]));
+  return card;
 }
 
 function renderFinding(finding, trace) {
@@ -234,7 +268,8 @@ function renderReasoning(screen) {
       : `${d.changedPixels} px across ${d.regionCount} region(s) — ${(d.changedFraction * 100).toFixed(3)}% of compared area (${d.engine})`);
     add('Masked', `${(d.maskedFraction * 100).toFixed(1)}% of the screen, ${d.maskedRegionCount} region(s)`);
     if (!d.enginesAgreed) add('Engines disagreed', `cross-check saw ${d.crossCheckChangedPixels} px`);
-    if (d.degraded) add('Degraded', d.degraded);
+    // First line only: older runs stored the loader's full multi-line dump.
+    if (d.degraded) add('Degraded', d.degraded.split('\n')[0].replace(/(: \/\S+)+.*$/, ''));
     if (d.dimensionMismatch) add('Dimensions changed', `${d.dimensionMismatch.baseline.join('x')} → ${d.dimensionMismatch.actual.join('x')}`);
   }
 
@@ -295,25 +330,65 @@ function renderGraph() {
     });
   }
 
-  const width = (columns.size - 1) * (NODE_W + GAP_X) + NODE_W;
-  const height = Math.max(1, maxRows) * (NODE_H + GAP_Y);
+  // Only links between ADJACENT columns are drawn directly: they cross nothing
+  // but the empty gap between the two columns. Every other link -- back to an
+  // earlier column (every page links home and to the nav), within a column, or
+  // skipping columns -- used to be drawn straight through the cards in its way.
+  // Those now travel only through empty space: out into the gap beside their
+  // own column, up to a gutter above the map, across, and down the gap beside
+  // the target's column. A lane offset keeps parallel links from stacking.
+  const colOf = (at) => Math.round(at.x / (NODE_W + GAP_X));
+  const routed = graph.edges.filter((e) => {
+    const f = position.get(e.from);
+    const t = position.get(e.to);
+    return f && t && colOf(t) !== colOf(f) + 1;
+  }).length;
+  const gutter = routed > 0 ? Math.min(140, 28 + routed * 2) : 0;
+  const padX = GAP_X / 2;
+  for (const at of position.values()) {
+    at.y += gutter;
+    at.x += padX;
+  }
+
+  const width = padX + (columns.size - 1) * (NODE_W + GAP_X) + NODE_W + padX;
+  const height = gutter + Math.max(1, maxRows) * (NODE_H + GAP_Y);
 
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   svg.setAttribute('width', String(width));
   svg.setAttribute('height', String(height));
+  const laneSpan = GAP_X / 2 - 6;
+  let lane = 0;
   for (const edge of graph.edges) {
     const from = position.get(edge.from);
     const to = position.get(edge.to);
     if (!from || !to) continue;
     const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-    const x1 = from.x + NODE_W;
     const y1 = from.y + NODE_H / 2;
-    const x2 = to.x;
     const y2 = to.y + NODE_H / 2;
-    const mid = (x1 + x2) / 2;
-    path.setAttribute('d', `M ${x1} ${y1} C ${mid} ${y1}, ${mid} ${y2}, ${x2} ${y2}`);
+    let d;
+    let indirect = false;
+    if (colOf(to) === colOf(from) + 1) {
+      const x1 = from.x + NODE_W;
+      const x2 = to.x;
+      const mid = (x1 + x2) / 2;
+      d = `M ${x1} ${y1} C ${mid} ${y1}, ${mid} ${y2}, ${x2} ${y2}`;
+    } else {
+      indirect = true;
+      const i = lane++;
+      const offset = (i * 5) % laneSpan - laneSpan / 2;
+      const outX = from.x + NODE_W + GAP_X / 2 + offset;
+      const inX = to.x - GAP_X / 2 + offset;
+      const topY = Math.max(6, gutter - 10 - ((i * 4) % Math.max(10, gutter - 20)));
+      d = `M ${from.x + NODE_W} ${y1} L ${outX} ${y1} L ${outX} ${topY} L ${inX} ${topY} L ${inX} ${y2} L ${to.x} ${y2}`;
+    }
+    path.setAttribute('d', d);
     const target = graph.nodes.find((n) => n.id === edge.to);
-    path.setAttribute('class', target && target.state !== 'visited' ? 'edge dim' : 'edge');
+    const cls = ['edge'];
+    if (target && target.state !== 'visited') cls.push('dim');
+    if (indirect) cls.push('back');
+    path.setAttribute('class', cls.join(' '));
+    path.dataset.from = edge.from;
+    path.dataset.to = edge.to;
     svg.append(path);
   }
 
@@ -328,6 +403,9 @@ function renderGraph() {
     const card = renderNode(node);
     card.style.left = `${at.x}px`;
     card.style.top = `${at.y}px`;
+    // Hover a screen to see only its links; everything else fades.
+    card.addEventListener('mouseenter', () => highlightEdges(svg, node.id));
+    card.addEventListener('mouseleave', () => highlightEdges(svg, null));
     canvas.append(card);
   }
 
@@ -345,6 +423,13 @@ function renderGraph() {
   return el('div', { class: 'graphwrap' }, [notes, legend, canvas]);
 }
 
+function highlightEdges(svg, id) {
+  svg.classList.toggle('focused', id !== null);
+  for (const path of svg.querySelectorAll('path')) {
+    path.classList.toggle('hot', id !== null && (path.dataset.from === id || path.dataset.to === id));
+  }
+}
+
 function renderNode(node) {
   const shot = Object.values(node.screenshots)[0];
   const viewport = Object.keys(node.screenshots)[0];
@@ -360,7 +445,7 @@ function renderNode(node) {
 
   return el('div', {
     class: `node ${node.state}${node.findings.blocking ? ' has-blocking' : ''}`,
-    title: node.title || node.url,
+    title: `${node.title || node.url}${node.totalFindings ? ` — ${node.totalFindings} finding(s) across all elements and viewports` : ''}`,
   }, [
     media,
     el('div', { class: 'cap' }, [
