@@ -25,16 +25,48 @@ export const PROBE_SOURCE = String.raw`
   const OPAQUE_MEDIA = new Set(['IMG', 'VIDEO', 'CANVAS', 'IFRAME', 'SVG', 'PICTURE', 'OBJECT', 'EMBED']);
 
 
+  // Selectors must be UNIQUE in the document. Change-aware rules pair baseline
+  // and current elements by selector, and masks and Intent Ledger scopes match
+  // by selector. A depth-capped path is not unique on any page with repeated
+  // structure -- 652 of 766 elements on a changelog shared a selector, one of
+  // them 84 times -- so shift detection compared unrelated elements and
+  // reported 1,246 moves on pixel-identical screenshots.
+  //
+  // Escaped, so the selector is valid CSS: Tailwind classes such as
+  // text-muted-foreground/60, text-[12px] and md:flex are not valid raw.
+  const selectorCache = new WeakMap();
+
+  function isUnique(selector) {
+    try {
+      return document.querySelectorAll(selector).length === 1;
+    } catch {
+      return false;
+    }
+  }
+
   function selectorFor(el) {
-    // Escaped, so the selector is valid CSS. Tailwind classes such as
-    // text-muted-foreground/60, text-[12px] and md:flex are not valid
-    // selectors raw, which made reported selectors unusable in a mask or an
-    // Intent Ledger scope -- the two places a person pastes them.
-    if (el.dataset && el.dataset.testid) return '[data-testid="' + el.dataset.testid.replace(/"/g, '\\"') + '"]';
-    if (el.id) return '#' + CSS.escape(el.id);
+    const cached = selectorCache.get(el);
+    if (cached) return cached;
+    const result = buildSelector(el);
+    selectorCache.set(el, result);
+    return result;
+  }
+
+  function buildSelector(el) {
+    if (el.dataset && el.dataset.testid) {
+      const byTestId = '[data-testid="' + el.dataset.testid.replace(/"/g, '\\"') + '"]';
+      if (isUnique(byTestId)) return byTestId;
+    }
+    if (el.id && isUnique('#' + CSS.escape(el.id))) return '#' + CSS.escape(el.id);
+
     const parts = [];
     let node = el;
-    while (node && node.nodeType === 1 && parts.length < 4) {
+    while (node && node.nodeType === 1) {
+      // An ancestor with a unique id is a stable anchor: stop there.
+      if (node !== el && node.id && isUnique('#' + CSS.escape(node.id))) {
+        parts.unshift('#' + CSS.escape(node.id));
+        break;
+      }
       let part = node.tagName.toLowerCase();
       if (node.classList && node.classList.length > 0) part += '.' + [...node.classList].slice(0, 2).map((c) => CSS.escape(c)).join('.');
       const parent = node.parentElement;
@@ -43,6 +75,10 @@ export const PROBE_SOURCE = String.raw`
         if (siblings.length > 1) part += ':nth-of-type(' + (siblings.indexOf(node) + 1) + ')';
       }
       parts.unshift(part);
+      const candidate = parts.join(' > ');
+      // Shortest suffix that names exactly this element, so selectors stay
+      // readable where the page allows it.
+      if (isUnique(candidate)) return candidate;
       node = node.parentElement;
     }
     return parts.join(' > ');

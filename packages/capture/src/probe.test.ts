@@ -155,3 +155,54 @@ describe('probe: selectors', () => {
     expect(found).toBe('Label');
   });
 });
+
+describe('probe: selectors are unique in the document', () => {
+  // The nebula-web /changelog pattern: dozens of release entries with identical
+  // structure. A depth-capped selector named them all the same thing.
+  const changelog = (entries: number) =>
+    '<main>' +
+    Array.from({ length: entries }, (_, i) =>
+      `<article class="entry"><div class="meta"><div class="row"><div class="tags"><span class="tag">#tag${i}</span></div></div></div></article>`,
+    ).join('') +
+    '</main>';
+
+  it('gives every element a selector that matches only that element', async () => {
+    const s = await snapshot(changelog(40));
+    const selectors = s.elements.map((e) => e.selector);
+    expect(new Set(selectors).size).toBe(selectors.length);
+    for (const selector of selectors.slice(0, 10)) {
+      const count = await page.evaluate((sel) => document.querySelectorAll(sel).length, selector);
+      expect(count).toBe(1);
+    }
+  });
+
+  it('reports no layout shift when nothing moved, however repetitive the page', async () => {
+    // Regression: pairing baseline and current elements by a shared selector
+    // compared unrelated elements and reported 1,246 moves on pixel-identical
+    // screenshots.
+    const baseline = await snapshot(changelog(40));
+    const current = await snapshot(changelog(40));
+    const shifts = evaluateAll(current, { baseline }).filter((v) => v.ruleId === 'layout/shift-versus-baseline');
+    expect(shifts).toEqual([]);
+  });
+
+  it('still detects a real shift in a repeated structure', async () => {
+    const baseline = await snapshot(changelog(5));
+    await page.setContent(`<!doctype html><html><body style="margin:0">${changelog(5).replace('<main>', '<main style="padding-top:40px">')}</body></html>`);
+    const probe = (await page.evaluate(PROBE_SOURCE)) as Omit<ScreenSnapshot, 'screenId' | 'viewport' | 'consoleErrors'>;
+    const current: ScreenSnapshot = { ...probe, screenId: '/', viewport: { name: 'desktop', width: 1024, height: 700 }, consoleErrors: [] };
+    const shifts = evaluateAll(current, { baseline }).filter((v) => v.ruleId === 'layout/shift-versus-baseline');
+    expect(shifts.length).toBe(5);
+  });
+
+  it('prefers a short selector when one is already unique', async () => {
+    const s = await snapshot('<div><p class="only">Alone</p></div>');
+    expect(s.elements.find((e) => e.selector.includes('only'))!.selector).toBe('p.only');
+  });
+
+  it('falls back to structure when a test id is duplicated', async () => {
+    const s = await snapshot('<button data-testid="row-action">A</button><button data-testid="row-action">B</button>');
+    const selectors = s.elements.filter((e) => e.interactive).map((e) => e.selector);
+    expect(new Set(selectors).size).toBe(2);
+  });
+});
