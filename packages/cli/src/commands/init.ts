@@ -73,6 +73,11 @@ determinism:
 
 decisions:
   decider: jev                 # jev | model | local | heuristic
+  jev:
+    via: auto                  # auto | typesafe | openrouter | vercel
+  model:
+    via: auto                  # auto | openrouter | vercel | openai | anthropic | custom
+    name: ""                   # optional model id override
   confidence: { high: 0.85, low: 0.55 }
   budget:
     perRunUsd: 0.50

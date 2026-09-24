@@ -48,7 +48,16 @@ export class JevDecider implements Decider {
         },
         // Every question is evaluated against the same state in one call, so
         // the entire per-screen analysis is a single round trip.
-        body: JSON.stringify({ model: this.model, state, questions }),
+        body: JSON.stringify({
+          model: this.model,
+          state,
+          questions: Object.fromEntries(Object.entries(questions).map(([id, question]) => [
+            id,
+            question.type === 'score'
+              ? { type: 'score', instructions: question.instructions, criteria: question.legend }
+              : question,
+          ])),
+        }),
         signal: controller.signal,
       });
 
@@ -76,9 +85,9 @@ async function safeText(response: Response): Promise<string> {
 }
 
 /**
- * Answers are schema-constrained upstream, but this re-validates anyway: a
- * malformed answer must surface as an error rather than silently becoming a
- * routing decision in someone's repo.
+ * Answers are schema-constrained upstream, but re-validated here: a malformed
+ * answer must never silently become a routing decision. Invalid individual
+ * answers are omitted so the caller's conservative route applies.
  */
 export function normalizeAnswers(
   raw: Record<string, unknown>,
@@ -86,38 +95,68 @@ export function normalizeAnswers(
 ): Record<string, Answer> {
   const out: Record<string, Answer> = {};
   for (const [key, question] of Object.entries(questions)) {
-    const value = raw[key] as Record<string, unknown> | undefined;
-    if (!value) continue;
-    const confidence = num(value['confidence'], 0);
+    const value = raw[key];
+    if (!isObject(value)) continue;
     switch (question.type) {
-      case 'noul':
-        out[key] = { kind: 'noul', value: num(value['value'], 0), confidence };
+      case 'noul': {
+        const probability = finite(value['noul'] ?? value['value']);
+        if (probability === undefined) break;
+        const p = clamp(probability);
+        out[key] = { kind: 'noul', value: p, confidence: Math.max(p, 1 - p) };
         break;
+      }
       case 'choice': {
-        const chosen = String(value['value'] ?? '');
-        if (!(chosen in question.criteria)) break; // never invent an option
+        const chosen = value['choice'] ?? value['value'];
+        const confidence = finite(value['confidence']);
+        if (typeof chosen !== 'string' || !Object.hasOwn(question.criteria, chosen) || confidence === undefined) break;
+        const probabilities: Record<string, number> = {};
+        if (isObject(value['probabilities'])) {
+          for (const option of Object.keys(question.criteria)) {
+            const p = finite(value['probabilities'][option]);
+            if (p !== undefined) probabilities[option] = clamp(p);
+          }
+        }
         out[key] = {
           kind: 'choice',
           value: chosen,
-          probabilities: (value['probabilities'] as Record<string, number>) ?? {},
-          confidence,
+          probabilities,
+          confidence: clamp(confidence),
         };
         break;
       }
-      case 'score':
+      case 'score': {
+        const score = finite(value['score'] ?? value['value']);
+        const confidence = finite(value['confidence']);
+        if (score === undefined || confidence === undefined) break;
+        const rawProbabilities = value['probabilities'];
+        const probabilities = question.legend.map((_, index) => {
+          const p = Array.isArray(rawProbabilities)
+            ? finite(rawProbabilities[index])
+            : isObject(rawProbabilities) ? finite(rawProbabilities[String(index)]) : undefined;
+          return p === undefined ? 0 : clamp(p);
+        });
         out[key] = {
           kind: 'score',
-          value: num(value['value'], 0),
-          probabilities: (value['probabilities'] as number[]) ?? [],
-          confidence,
+          value: score,
+          probabilities,
+          confidence: clamp(confidence),
           legend: question.legend,
         };
         break;
+      }
     }
   }
   return out;
 }
 
-function num(value: unknown, fallback: number): number {
-  return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function finite(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+}
+
+function clamp(value: number): number {
+  return Math.max(0, Math.min(1, value));
 }

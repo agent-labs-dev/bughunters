@@ -32,6 +32,15 @@ export function route(input: RoutingInput): RoutingOutcome {
     return { route: 'intent', reason: 'A ledger entry already covers this finding.' };
   }
 
+  // The gate is decided before any answer is read. A decider is
+  // non-deterministic, so letting it suppress or escalate a tier-1 regression
+  // would make the same pixels pass on one run and block on the next -- and a
+  // red Check must always mean the same pixels changed (spec, "Routing").
+  // Only a human-approved ledger entry, checked above, may silence one.
+  if (input.hasDeterministicRegression) {
+    return { route: 'check', reason: 'Deterministic tier-1 regression; the decision layer cannot override the gate.' };
+  }
+
   const anomalous = answers['is_anomalous'];
   if (anomalous?.kind === 'noul' && anomalous.value < 0.5 && anomalous.confidence >= thresholds.high) {
     return { route: 'ignore', reason: 'Confidently not anomalous versus the modelled product.' };
@@ -44,13 +53,7 @@ export function route(input: RoutingInput): RoutingOutcome {
 
   const proposed = answers['route'];
   if (proposed?.kind !== 'choice') {
-    // No decider ran, or it returned nothing usable. A deterministic tier-1
-    // regression still gates: the decision layer exists to classify and to
-    // suppress, not to grant permission to block, and `--no-models` has to
-    // keep working as a merge gate with no network at all.
-    return input.hasDeterministicRegression
-      ? { route: 'check', reason: 'Deterministic tier-1 regression; no decision layer was consulted.' }
-      : { route: 'question', reason: 'No routing answer was returned, so a human decides.' };
+    return { route: 'question', reason: 'No routing answer was returned, so a human decides.' };
   }
 
   // Below the high threshold nothing is ever auto-suppressed or auto-blocked.
@@ -68,15 +71,12 @@ export function route(input: RoutingInput): RoutingOutcome {
   }
 
   if (proposed.value === 'check') {
-    // Only a tier-1 deterministic regression may fail a Check. A red build must
-    // always mean the same thing: the same pixels changed, and nothing else.
-    if (!input.hasDeterministicRegression) {
-      return {
-        route: 'issue',
-        reason: 'Routed to a check, but no deterministic regression backs it, so it files an issue instead.',
-      };
-    }
-    return { route: 'check', reason: 'High-confidence regression with a deterministic tier-1 failure behind it.' };
+    // Only a tier-1 deterministic regression may fail a Check, and those
+    // returned above. A red build must always mean the same thing.
+    return {
+      route: 'issue',
+      reason: 'Routed to a check, but no deterministic regression backs it, so it files an issue instead.',
+    };
   }
 
   return { route: proposed.value as Route, reason: 'High-confidence routing decision.' };

@@ -79,6 +79,11 @@ export const toleranceSchema = z
 export const decisionsSchema = z
   .object({
     decider: z.enum(['jev', 'model', 'local', 'heuristic']).default('jev'),
+    jev: z.object({ via: z.enum(['auto', 'typesafe', 'openrouter', 'vercel']).default('auto') }).default({}),
+    model: z.object({
+      via: z.enum(['auto', 'openrouter', 'vercel', 'openai', 'anthropic', 'custom']).default('auto'),
+      name: z.string().default(''),
+    }).default({}),
     confidence: z
       .object({ high: z.number().min(0).max(1).default(0.85), low: z.number().min(0).max(1).default(0.55) })
       .default({}),
