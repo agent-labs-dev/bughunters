@@ -95,21 +95,23 @@ node ../../packages/cli/dist/bin.js run --no-models   # exit 1, with a diff imag
 ### The dashboard
 
 ```bash
-cd examples/fixture-app
+cd examples/nebula-desktop                        # or any workspace
 node ../../packages/cli/dist/bin.js dashboard     # http://127.0.0.1:4311
 ```
 
-Two views, both fed by the same local watcher:
+The dashboard is the bird's-eye view of the agents. It updates live from the
+files under `.autoqa/`:
 
-- **Runs** — every run, with expected/actual/diff for each screen, every check
-  that ran (including the ones that found nothing), and a *How AutoQA reached
-  this* panel per screen: how the capture settled, what the diff measured, how
-  much was masked, what the decision layer was asked and answered, and the
-  sentence that decided where each finding surfaced.
-- **App map** — the application as a graph, screenshots as nodes. Solid borders
-  are screens AutoQA captured; dashed are linked from a tested screen but
-  **never captured**; dotted are external links, recorded and never followed.
-  It updates live as a run walks the app.
+- **Overview** — the explorer, the judge and the fixer: what each one does now
+  and what it spent today; the open issues that need a human; the live screen
+  and the last actions of a running session; the screens found so far.
+- **Issues** — each issue with its evidence, the routine and steps that
+  reproduce it, the judge's reason, and the fixer's proposal with its diff.
+- **Activity** — each session as a one-line-per-action timeline. The agent's
+  reasoning is one click away, not in the way.
+- **Screens** — every screen the explorer found, with its latest screenshot.
+- **Checks** — the deterministic `autoqa run` gate: expected/actual/diff per
+  screen, and only the checks that fired.
 
 It binds to loopback only, on purpose: screenshots are of a real application and
 routinely contain real data. It is also read-only — a browser tab cannot mutate
@@ -121,14 +123,70 @@ Verify the determinism guarantee yourself — three runs, same commit, zero diff
 bash scripts/determinism-check.sh
 ```
 
-**What does not run yet:** `recon`, `baseline`, `findings`, `intent`, `watch`
-and the fix pipeline. Without Recon there is no AppModel, so `run` tests the
-configured entry URL (or whatever `--screens` names) rather than a crawled app.
-See [ROADMAP.md](ROADMAP.md).
+**What does not run yet:** `recon`, `baseline`, `findings`, `intent` and
+`watch`. See [ROADMAP.md](ROADMAP.md).
 
 Note that capturing baselines outside the pinned runner image is only useful
 for local exploration. `autoqa doctor` warns about this, and it is not a
 formality — see [ADR 0002](docs/adr/0002-determinism-is-a-contract.md).
+
+## The agents
+
+AutoQA uses the app like a QA team does, on any platform (ADR 0005):
+
+| Role | Job | Default |
+| --- | --- | --- |
+| Explorer | Operates the app, maps its screens, learns replayable routines, reports what looks wrong | model loop, `z-ai/glm-5.3-flash` via OpenRouter |
+| Decider | Fast typed calls on each finding: is it anomalous, where it goes, how severe | Jev |
+| Judge | Reviews what the decider cannot settle, and writes the issues | model loop, `z-ai/glm-5.3-flash` via OpenRouter |
+| Fixer | Writes a fix for an issue in its own git worktree | `claude -p` (off until enabled) |
+
+Each role runs on a model loop or on a CLI agent that you choose. A CLI agent
+gets the prompt on stdin and in `{prompt}`, and the role's tools over MCP in
+`{mcp}` or `{mcpUrl}`:
+
+```yaml
+agents:
+  explorer:
+    use: { runtime: model, via: openrouter, model: z-ai/glm-5.3-flash }   # or anthropic, openai, vercel, custom
+  judge:
+    use: { runtime: cli, command: 'claude -p --mcp-config {mcp}' }
+  fixer:
+    enabled: true
+    use: { runtime: cli, command: 'codex exec --full-auto' }
+```
+
+The app itself is described once, in plain terms:
+
+```yaml
+app:
+  platform: electron             # web | electron | ios | android
+  source: ../my-desktop-app      # the repo the fixer edits
+  setup:                         # your own commands: build, launch, mint a test session
+    - run: ./scripts/launch-test-app.sh
+      capture: { CDP_PORT: 'CDP :(\d+)' }   # values the next steps and the explorer can use
+  teardown:
+    - run: ./scripts/stop-test-app.sh
+  connect: { cdp: 'http://127.0.0.1:${CDP_PORT}' }   # or url, or appId (+ device) for mobile
+  instructions: instructions.md  # how to sign in, what the app is, what never to do
+```
+
+Login works with any auth system: the setup commands do the parts only your
+team knows (a test-login route, a seeded user, a session file), and
+`instructions.md` tells the explorer the rest in plain English. Secrets and
+captured values reach the model only as `{{NAME}}` placeholders, and they are
+redacted from every log.
+
+```bash
+autoqa explore [--goal "..."] [--steps N]   # one explorer session
+autoqa judge [--session <id>]               # judge the newest explorer session
+autoqa fix [--issue <id>]                   # propose fixes for open issues
+autoqa replay <routine-id>                  # replay a learned routine, no model
+autoqa patrol [--once]                      # explore, judge, fix, repeat
+```
+
+`examples/nebula-desktop` (Electron over CDP) and `examples/nebula-mobile` (iOS
+through Maestro) are complete, real configurations.
 
 ## Install (once published)
 
@@ -147,6 +205,7 @@ autoqa run [--all | --smoke | --screens /a,/b] [--no-models]
 autoqa baseline capture | pull | push | accept
 autoqa findings list | explain <id> | accept <id> --reason "..."
 autoqa intent list | export | prune
+autoqa explore | judge | fix | replay <id> | patrol [--once]
 autoqa dashboard [--port N]
 autoqa report --open
 autoqa export --format junit|sarif|json
@@ -188,9 +247,11 @@ Only tier 1 may fail a check, so a red build always means the same thing: the sa
 | `@autoqa/decide` | The `Decider` interface, state digest, confidence routing |
 | `@autoqa/triage` | Clustering, the Intent Ledger, noise control |
 | `@autoqa/report` | HTML report, sticky PR comment, JUnit, SARIF |
+| `@autoqa/drivers` | One `Driver` interface for web, Electron (CDP), iOS and Android (Maestro) |
+| `@autoqa/agents` | The explorer, judge and fixer; model and CLI runtimes; routines, patrol, workspace state |
 | `@autoqa/recon` | Bring-up, crawl safety, change mapping |
 | `@autoqa/github-app` | Checks, issues, slash commands, least-privilege permissions |
-| `@autoqa/dashboard` | The local UI: run history, the app map, live watching |
+| `@autoqa/dashboard` | The local UI: the agents' overview, issues, activity, screens, and gate runs |
 | `@autoqa/cli` | The `autoqa` command surface |
 
 ## Build vs adopt

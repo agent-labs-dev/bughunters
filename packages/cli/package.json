@@ -16,10 +16,12 @@
     "build": "tsc --build"
   },
   "dependencies": {
+    "@autoqa/agents": "workspace:*",
     "@autoqa/capture": "workspace:*",
     "@autoqa/core": "workspace:*",
     "@autoqa/decide": "workspace:*",
     "@autoqa/diff": "workspace:*",
+    "@autoqa/drivers": "workspace:*",
     "@autoqa/github-app": "workspace:*",
     "@autoqa/invariants": "workspace:*",
     "@autoqa/recon": "workspace:*",

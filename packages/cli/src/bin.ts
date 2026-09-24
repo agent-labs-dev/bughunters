@@ -6,6 +6,8 @@ import { writeInitialConfig } from './commands/init.js';
 import { runCommand, exitCodeForError } from './commands/run.js';
 import { parseRunFlags, formatRunSummary } from './commands/run-cli.js';
 import { startDashboard } from '@autoqa/dashboard';
+import { runAgentCommand } from './commands/agents.js';
+import { runIssueCommand } from './commands/issue.js';
 
 const [command, ...args] = process.argv.slice(2);
 const root = process.cwd();
@@ -54,6 +56,22 @@ try {
       });
       process.stdout.write(formatRunSummary(result));
       process.exit(result.exitCode);
+      break;
+    }
+
+    case 'explore':
+    case 'judge':
+    case 'fix':
+    case 'patrol':
+    case 'replay': {
+      const config = loadConfig(root);
+      await runAgentCommand(command, args, root, config,
+        (message) => process.stdout.write(`${message}\n`));
+      break;
+    }
+
+    case 'issue': {
+      await runIssueCommand(args, root, (line) => process.stdout.write(`${line}\n`));
       break;
     }
 

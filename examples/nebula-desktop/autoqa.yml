@@ -1,0 +1,52 @@
+# AutoQA on the Nebula desktop app (Electron), against the deployed dev backend.
+#
+# The nebula-desktop E2E harness does the parts only the app's own team knows:
+# it mints a session through /auth/test-login and launches the dev app with
+# the token and a CDP port. AutoQA captures the run id and the port from the
+# output, connects over CDP, and the explorer does everything after that.
+version: 1
+
+app:
+  platform: electron
+  source: ../../../nebula-desktop
+  setup:
+    - run: bun run e2e env up --backend dev
+      cwd: ../../../nebula-desktop
+      capture:
+        E2E_RUN_ID: 'run (e2e-[0-9A-Za-z-]+) on'
+    - run: bun run e2e identity mint a
+      cwd: ../../../nebula-desktop
+    - run: bun run e2e app launch --identity a
+      cwd: ../../../nebula-desktop
+      capture:
+        CDP_PORT: 'CDP :(\d+)'
+  teardown:
+    # Quits the app it launched and deletes the identity, its workspace and
+    # its Channels on dev. Nothing else.
+    - run: bun run e2e env down
+      cwd: ../../../nebula-desktop
+  connect:
+    cdp: http://127.0.0.1:${CDP_PORT}
+  instructions: instructions.md
+
+agents:
+  explorer:
+    maxSteps: 80
+    budgetUsd: 0.5
+    use: { runtime: model, via: openrouter, model: z-ai/glm-5.3-flash }
+  judge:
+    use: { runtime: model, via: openrouter, model: z-ai/glm-5.3-flash }
+  fixer:
+    enabled: true
+    # nebula-desktop's commit hook requires one of its scopes.
+    commitMessage: 'fix(app): {title}'
+    # The fixer edits files in its own git worktree. It may install
+    # dependencies and run the checks, and nothing else in the shell.
+    use:
+      runtime: cli
+      command: >-
+        claude -p --permission-mode acceptEdits
+        --allowedTools "Bash(bun:*)" "Bash(git diff:*)" "Bash(git status:*)"
+
+decisions:
+  decider: jev

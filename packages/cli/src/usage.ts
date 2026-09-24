@@ -16,6 +16,14 @@ Running
   autoqa run --screens /a,/b           explicit selection
   autoqa run --no-models               deterministic tier only, fully offline
 
+Agents
+  autoqa explore [--goal "..."] [--steps N]
+  autoqa judge [--session <id>...]
+  autoqa fix [--issue <id>...]
+  autoqa patrol [--once]
+  autoqa replay <routine-id>
+  autoqa issue list | dismiss <id> --reason "..." [--by name] | reopen <id>
+
 Baselines
   autoqa baseline capture              (re)capture baselines in the pinned image
   autoqa baseline pull|push            sync with object storage

@@ -4,6 +4,7 @@ import { extname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { paths } from '@autoqa/core';
 import { ProjectReader } from './project.js';
+import { AgentReader } from './agents.js';
 import { buildGraph } from './graph.js';
 
 export type DashboardOptions = {
@@ -36,17 +37,17 @@ export async function startDashboard(options: DashboardOptions): Promise<Dashboa
   const root = resolve(options.root);
   const host = options.host ?? '127.0.0.1';
   const reader = new ProjectReader(root);
+  const agents = new AgentReader(root);
   const clients = new Set<ServerResponse>();
 
   const server = createServer((req, res) => {
-    handle(req, res, { root, reader, clients }).catch((error) => {
+    handle(req, res, { root, reader, agents, clients }).catch((error) => {
       send(res, 500, { 'content-type': 'application/json' }, JSON.stringify({ error: String(error) }));
     });
   });
 
-  const watcher = watchProject(root, () => broadcast(clients, 'changed', { at: Date.now() }));
-
   const port = await listen(server, options.port ?? 4311, host);
+  const watcher = watchProject(root, () => broadcast(clients, 'changed', { at: Date.now() }));
   const url = `http://${host}:${port}`;
   options.onReady?.(url);
 
@@ -63,12 +64,35 @@ export async function startDashboard(options: DashboardOptions): Promise<Dashboa
 async function handle(
   req: IncomingMessage,
   res: ServerResponse,
-  ctx: { root: string; reader: ProjectReader; clients: Set<ServerResponse> },
+  ctx: { root: string; reader: ProjectReader; agents: AgentReader; clients: Set<ServerResponse> },
 ): Promise<void> {
   const url = new URL(req.url ?? '/', 'http://localhost');
   const path = url.pathname;
 
   if (path === '/api/events') return streamEvents(res, ctx.clients);
+
+  if (path === '/api/overview') return json(res, ctx.agents.overview());
+  if (path === '/api/issues') return json(res, ctx.agents.issues());
+  if (path.startsWith('/api/issues/')) {
+    const detail = ctx.agents.issue(decodeURIComponent(path.slice('/api/issues/'.length)));
+    return detail ? json(res, detail) : json(res, { error: 'no such issue' }, 404);
+  }
+  if (path === '/api/sessions') {
+    const requested = Number(url.searchParams.get('limit') ?? 50);
+    const limit = Number.isFinite(requested) ? Math.max(0, Math.min(200, Math.floor(requested))) : 50;
+    return json(res, ctx.agents.sessions(limit));
+  }
+  if (path.startsWith('/api/sessions/')) {
+    const detail = ctx.agents.session(decodeURIComponent(path.slice('/api/sessions/'.length)));
+    return detail ? json(res, detail) : json(res, { error: 'no such session' }, 404);
+  }
+  if (path === '/api/appmap') return json(res, ctx.agents.screens());
+  if (path === '/api/routines') return json(res, ctx.agents.routines().map((routine) => ({
+    id: routine.id,
+    description: routine.description,
+    steps: routine.steps.length,
+    lastReplay: routine.lastReplay,
+  })));
 
   if (path === '/api/state') {
     const runs = ctx.reader.listRuns();
@@ -202,16 +226,49 @@ function broadcast(clients: Set<ServerResponse>, event: string, data: unknown): 
  * several files in quick succession and a client that re-fetches per file
  * would hammer the server for one logical change.
  */
-function watchProject(root: string, onChange: () => void): FSWatcher | undefined {
+export function watchProject(root: string, onChange: () => void): { close(): void } | undefined {
   const dir = paths.dir(root);
-  if (!existsSync(dir)) return undefined;
-
   let timer: NodeJS.Timeout | undefined;
+  let probe: NodeJS.Timeout | undefined;
+  let fallback: NodeJS.Timeout | undefined;
+  let watcher: FSWatcher;
+  const changed = (): void => {
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(onChange, 250);
+  };
+  const attach = (): void => {
+    if (!existsSync(dir)) return;
+    try {
+      const next = watch(dir, { recursive: true }, changed);
+      next.on('error', () => {
+        next.close();
+        fallback = setInterval(changed, 5000);
+      });
+      watcher.close();
+      watcher = next;
+      if (probe) clearInterval(probe);
+      changed();
+    } catch {
+      // Keep the root watcher if recursive watching is unavailable.
+    }
+  };
   try {
-    return watch(dir, { recursive: true }, () => {
-      if (timer) clearTimeout(timer);
-      timer = setTimeout(onChange, 250);
+    watcher = existsSync(dir)
+      ? watch(dir, { recursive: true }, changed)
+      : watch(root, { recursive: false }, () => {
+        if (existsSync(dir)) attach();
+      });
+    watcher.on('error', () => {
+      watcher.close();
+      fallback = setInterval(changed, 5000);
     });
+    if (!existsSync(dir)) probe = setInterval(() => { if (existsSync(dir)) attach(); }, 100);
+    return { close() {
+      watcher.close();
+      if (timer) clearTimeout(timer);
+      if (probe) clearInterval(probe);
+      if (fallback) clearInterval(fallback);
+    } };
   } catch {
     // Recursive watch is not available on every platform; the UI also polls.
     return undefined;
@@ -219,7 +276,10 @@ function watchProject(root: string, onChange: () => void): FSWatcher | undefined
 }
 
 function json(res: ServerResponse, body: unknown, status = 200): void {
-  send(res, status, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-cache' }, JSON.stringify(body));
+  send(res, status, {
+    'content-type': 'application/json; charset=utf-8',
+    'cache-control': 'no-cache',
+  }, JSON.stringify(body));
 }
 
 function send(res: ServerResponse, status: number, headers: Record<string, string>, body: string): void {

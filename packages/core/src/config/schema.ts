@@ -152,9 +152,124 @@ export const determinismSchema = z
   })
   .default({});
 
+/**
+ * One setup or teardown command (ADR 0005). `capture` pulls values out of the
+ * command's output by regex, first group; later commands, `connect`, and the
+ * explorer's `{{NAME}}` placeholders can use them. Captured values are treated
+ * as secrets: they are redacted from every log and never sent to a model.
+ */
+export const appCommandSchema = z.object({
+  run: z.string(),
+  cwd: z.string().optional(),
+  capture: z.record(z.string()).default({}),
+  /** Keep the process alive for the session instead of waiting for it to exit. */
+  background: z.boolean().default(false),
+  /** Background only: wait until this regex matches the output. */
+  readyWhen: z.string().optional(),
+  timeoutMs: z.number().int().positive().default(10 * 60 * 1000),
+});
+
+export const appSchema = z
+  .object({
+    platform: z.enum(['web', 'electron', 'ios', 'android']).default('web'),
+    /** The source repository the fixer edits. Relative to the config file. */
+    source: z.string().default('.'),
+    setup: z.array(appCommandSchema).default([]),
+    teardown: z.array(appCommandSchema).default([]),
+    connect: z
+      .object({
+        /** Web: defaults to run.url. May use ${NAME} from env or captures. */
+        url: z.string().optional(),
+        /** Electron: the CDP endpoint, e.g. http://127.0.0.1:${CDP_PORT}. */
+        cdp: z.string().optional(),
+        /** Mobile: the bundle id or package name. */
+        appId: z.string().optional(),
+        /** Mobile: the simulator UDID or emulator serial. Default: the booted one. */
+        device: z.string().optional(),
+      })
+      .default({}),
+    /** Plain-English guide for the explorer: login, onboarding, never-do list. */
+    instructions: z.string().optional(),
+    /** Names of env vars the explorer may use as {{NAME}} placeholders. */
+    secrets: z.array(z.string()).default([]),
+  })
+  .default({});
+
+const modelRuntimeSchema = z.object({
+  runtime: z.literal('model'),
+  via: z.enum(['openrouter', 'vercel', 'openai', 'anthropic', 'custom']).default('openrouter'),
+  model: z.string().default('z-ai/glm-5.3-flash'),
+  /** Custom route only: an OpenAI-compatible chat-completions URL. */
+  endpoint: z.string().optional(),
+});
+
+const cliRuntimeSchema = z.object({
+  runtime: z.literal('cli'),
+  /**
+   * A shell command. Placeholders: {prompt} (a file holding the prompt),
+   * {mcp} (an MCP config file for the AutoQA tools), {mcpUrl}, {workdir}.
+   * The prompt also goes to stdin.
+   */
+  command: z.string(),
+});
+
+const runtimeSchema = z.discriminatedUnion('runtime', [modelRuntimeSchema, cliRuntimeSchema]);
+
+const roleBase = {
+  enabled: z.boolean().default(true),
+  maxSteps: z.number().int().positive().default(60),
+  budgetUsd: z.number().nonnegative().default(0.5),
+  timeoutMs: z.number().int().positive().default(20 * 60 * 1000),
+};
+
+export const agentsSchema = z
+  .object({
+    explorer: z
+      .object({ ...roleBase, use: runtimeSchema.default({ runtime: 'model' }) })
+      .default({}),
+    judge: z
+      .object({
+        ...roleBase,
+        use: runtimeSchema.default({ runtime: 'model' }),
+        /** Where accepted issues go. */
+        fileTo: z.enum(['dashboard', 'github']).default('dashboard'),
+      })
+      .default({}),
+    fixer: z
+      .object({
+        ...roleBase,
+        use: runtimeSchema.default({ runtime: 'cli', command: 'claude -p --permission-mode acceptEdits' }),
+        /** Off until a team opts in: a fixer writes code. */
+        enabled: z.boolean().default(false),
+        openPRs: z.enum(['off', 'draft']).default('off'),
+        /** Run after the change; a non-zero exit marks the fix failed. */
+        verify: z.string().optional(),
+        minSeverity: z.enum(['cosmetic', 'minor', 'major', 'critical']).default('minor'),
+        /**
+         * The local commit on the fix branch. {title} is the issue title. Set a
+         * scope when the repo's commit hook requires one, e.g. 'fix(app): {title}'.
+         */
+        commitMessage: z.string().default('fix: {title}'),
+        /** At most this many fixes per patrol cycle, worst issues first. */
+        maxPerCycle: z.number().int().positive().default(2),
+      })
+      .default({}),
+    patrol: z
+      .object({
+        intervalMinutes: z.number().positive().default(30),
+        /** Stop after this many cycles; 0 means run until stopped. */
+        cycles: z.number().int().nonnegative().default(0),
+      })
+      .default({}),
+  })
+  .default({});
+
 export const autoqaConfigSchema = z.object({
   version: z.literal(1),
-  run: runSchema,
+  /** Web only: how to start and reach the app. Other platforms use `app`. */
+  run: runSchema.optional(),
+  app: appSchema,
+  agents: agentsSchema,
   auth: authSchema.default({ kind: 'none' }),
   viewports: z
     .array(viewportSchema)
@@ -176,9 +291,17 @@ export const autoqaConfigSchema = z.object({
   determinism: determinismSchema,
   surfaces: surfacesSchema,
   production: productionSchema,
+}).superRefine((config, ctx) => {
+  if (config.app.platform === 'web' && !config.run && !config.app.connect.url) {
+    ctx.addIssue({ code: 'custom', path: ['run'], message: 'A web app needs `run` (command and url) or `app.connect.url`.' });
+  }
 });
 
 export type AutoQAConfig = z.infer<typeof autoqaConfigSchema>;
+export type AppConfig = z.infer<typeof appSchema>;
+export type AppCommand = z.infer<typeof appCommandSchema>;
+export type AgentsConfig = z.infer<typeof agentsSchema>;
+export type RoleRuntime = z.infer<typeof runtimeSchema>;
 export type ViewportConfig = z.infer<typeof viewportSchema>;
 export type MaskConfig = z.infer<typeof maskSchema>;
 export type ToleranceConfig = z.infer<typeof toleranceSchema>;

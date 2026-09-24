@@ -2,6 +2,8 @@ import { readFileSync, existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { parse as parseYaml } from 'yaml';
 import { autoqaConfigSchema, type AutoQAConfig } from './schema.js';
+import type { z } from 'zod';
+import type { runSchema } from './schema.js';
 import { ConfigError } from '../errors.js';
 
 export const CONFIG_FILENAME = 'autoqa.yml';
@@ -63,4 +65,16 @@ export function resolveSecretRefs<T>(value: T, env: NodeJS.ProcessEnv = process.
     return out as T;
   }
   return value;
+}
+
+/**
+ * The `run` block, for commands that start a web app themselves. Only
+ * `autoqa run` and the web driver need it; other platforms start through
+ * `app.setup` (ADR 0005).
+ */
+export function requireRun(config: AutoQAConfig): z.infer<typeof runSchema> {
+  if (!config.run) {
+    throw new ConfigError('This command needs a `run` block (command and url) in autoqa.yml.');
+  }
+  return config.run;
 }

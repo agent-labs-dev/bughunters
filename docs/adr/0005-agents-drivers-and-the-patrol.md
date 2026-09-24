@@ -1,0 +1,164 @@
+# ADR 0005 — Agents, drivers, and the patrol
+
+**Status:** Accepted
+**Date:** 2026-09-24
+**Amends:** ADR 0001 (the agent no longer navigates only once)
+
+## Context
+
+AutoQA must test any app: a website, an Electron or native desktop app, and a
+React Native or native mobile app. It must also work with any auth system.
+A fixed crawler with fixed login strategies cannot do this. The goal is a QA
+team that uses the app all the time, judges what it sees, reports issues, and
+proposes fixes.
+
+ADR 0001 is still correct about the merge gate. A model must never decide if a
+build passes. But ADR 0001 also said that the agent navigates only once, during
+Recon. That rule is too strict for a tool that must use the app continuously.
+
+## Decision
+
+### 1. Four roles, one contract each
+
+| Role | Job | Default runtime |
+|---|---|---|
+| **Explorer** | Operates the app. Finds screens, records them, learns routines, reports what looks wrong. | model loop |
+| **Decider** (Jev) | Answers fast typed questions: is this anomalous, what route, what severity. | Jev (ADR 0003) |
+| **Judge** | Reviews the candidates that the decider cannot settle. Writes issues. | model loop |
+| **Fixer** | Writes a code change for an issue in a git worktree. | CLI agent |
+
+Each role (except the decider) has a **runtime**:
+
+- `model`: AutoQA runs its own tool-use loop. The provider is `openrouter`,
+  `vercel`, `openai`, `anthropic`, or `custom`, and the model name is free text.
+- `cli`: AutoQA starts a user-supplied command, for example `claude -p` or
+  `codex exec`. AutoQA gives the command the prompt and an MCP endpoint that
+  exposes the same tools that the model loop uses.
+
+The tool set is the contract, not the runtime. A role has one tool registry,
+and both runtimes use it. So a user can change the runtime of a role without
+any other change.
+
+### 2. Drivers: one interface for every platform
+
+A `Driver` gives the explorer two operations: `observe()` and `act()`.
+`observe()` returns a screenshot, a normalised element list with bounds, and
+a location (URL, route, window, or app id). `act()` does one action, for
+example a tap on an element, text input, a key, a scroll, back, or a URL or
+deep link.
+
+| Platform | Driver | Transport |
+|---|---|---|
+| `web` | Playwright page | Playwright |
+| `electron` | Playwright over CDP | `connect.cdp` |
+| `ios`, `android` | Maestro | `maestro mcp` over stdio |
+
+The driver also converts an observation to a `ScreenSnapshot`. So the
+geometry invariants (tap target, off-viewport, overlap), the pixel diff, and
+the decider work on every platform. The DOM-only rules run only when a DOM is
+present.
+
+### 3. The app lifecycle belongs to the user
+
+AutoQA does not guess how to start a native app or how to log in. The config
+has `app.setup` commands, `app.connect`, and `app.teardown`. A setup command
+can capture values from its output, for example a CDP port or a login deep
+link. `app.instructions` is a Markdown file in plain English. It tells the
+explorer how to log in, how to finish onboarding, what the product is, and
+what it must never do.
+
+Secrets never go to a model. The instructions and the tools use
+`{{NAME}}` placeholders. AutoQA puts in the real value at the moment the
+driver types or opens it. The event log redacts every captured and secret
+value.
+
+### 4. The agent writes the scripts, AutoQA replays them
+
+The explorer records each action with a stable locator (test id, role and
+name, or text) and a fallback point. When the explorer finds a screen, the
+action trail becomes a **routine**: a replayable path to that screen. The
+explorer can also save a named routine, for example `login` or
+`finish-onboarding`.
+
+Later sessions replay routines with no model. A replay that fails does not
+become a finding. It goes back to the explorer, which repairs the routine.
+Nothing in AutoQA hardcodes an app-specific script.
+
+### 5. The patrol
+
+`autoqa patrol` repeats one cycle until it is stopped:
+
+1. Run `app.setup` and connect the driver.
+2. Replay known routines and capture known screens (no model).
+3. Explore with a step and cost budget, to find new screens and bugs.
+4. Evaluate each capture: invariants, pixel diff, then the decider.
+5. The judge reviews the candidates that the decider sent to it.
+6. The fixer proposes a change for each accepted issue, if it is enabled.
+7. Run `app.teardown`.
+
+`autoqa explore`, `autoqa judge`, and `autoqa fix` run one step alone.
+
+### 6. The gate does not change
+
+`autoqa run` stays deterministic. Only a tier-1 regression fails it (ADR 0001,
+spec "Routing"). The patrol never fails a build. It produces issues and fix
+proposals.
+
+### 7. Surfaces
+
+Issues and fixes go to the dashboard by default. GitHub issues and draft PRs
+are opt-in in the config. The judge opens an issue only for a candidate it
+accepted. The fixer opens a PR only for an issue that has a fix it verified.
+
+### 8. State on disk
+
+All agent state is files under `.autoqa/`, so the dashboard can read it and a
+human can audit it:
+
+| Path | Content |
+|---|---|
+| `appmap.json` | Screens that the explorer found, with the routine to each one |
+| `routines/*.json` | Replayable action lists |
+| `issues/*.json` | Judged issues, with evidence and status |
+| `fixes/*.json` | Fix proposals: branch, diff, verification |
+| `sessions/<id>/events.jsonl` | Each agent step: tool call, result, cost |
+| `sessions/<id>/*.png` | Screenshots for each step |
+| `triage.json` | The judge's decisions, by fingerprint |
+| `agent-baselines/` | The baseline screenshot and snapshot of each screen |
+| `agents.json` | The current status of each role |
+
+### 9. Noise control
+
+The live runs on the two Nebula apps showed that the judge spends most of
+its effort on noise unless AutoQA removes it first. These rules apply
+before a candidate reaches the judge:
+
+- The absolute checks run on the first capture of a screen, so a problem
+  that is present from the start shows once, and not later as a "change".
+- One rule on one screen makes one candidate, with the elements listed in
+  it. Eleven labels with low contrast are one decision.
+- `triage.json` records each fingerprint that the judge filed or dismissed.
+  A dismissed fingerprint is not raised again. A filed fingerprint adds an
+  occurrence to its issue. Pixel diffs are not recorded, because an
+  accepted visual change moves the baseline.
+- The judge first looks for one shared cause. When many screens fail in the
+  same way, it files one issue that lists the screens.
+- The fixer takes at most `agents.fixer.maxPerCycle` issues in each cycle,
+  worst first.
+- Each status record has the writer's process ID. The dashboard shows work
+  from a process that is not alive as stopped.
+
+## Consequences
+
+**Good.** One codebase tests web, desktop, and mobile apps. A new platform
+needs only a new driver. A user can change any role to a better model or to a
+local CLI agent without code changes. The merge gate keeps its guarantees.
+
+**Costly.** A patrol costs money all the time. Each role has a budget per
+session, and the dashboard shows the spend. Native captures are less
+deterministic than a pinned browser, so native pixel diffs go to the decider
+and the judge and never to a gate.
+
+**Rejected alternative:** hardcoded strategies for each auth system and each
+platform. This works only for the apps that the authors know, and the goal is
+any app.

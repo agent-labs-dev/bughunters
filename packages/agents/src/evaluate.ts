@@ -1,0 +1,300 @@
+import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { randomUUID } from 'node:crypto';
+import { join } from 'node:path';
+import { fingerprint, paths, shortHash, type Candidate } from '@autoqa/core';
+import {
+  buildState,
+  estimateDecisionCost,
+  resolveDecider,
+  route,
+  SCREEN_QUESTIONS,
+  violationsToAssertions,
+  Budget,
+} from '@autoqa/decide';
+import { diff } from '@autoqa/diff';
+import type { Observation } from '@autoqa/drivers';
+import { evaluateAll, type InvariantViolation, type ScreenSnapshot } from '@autoqa/invariants';
+import type { AgentSession } from './session.js';
+
+const NATIVE_DISABLED = [
+  'layout/overflow',
+  'layout/horizontal-scroll',
+  'rendering/unstyled-content',
+  'rendering/broken-imagery',
+  'usability/contrast',
+  'layout/occlusion',
+];
+
+type Entry = {
+  source: Candidate['source'];
+  ruleId: string;
+  summary: string;
+  detail?: string;
+  severity: Candidate['severity'];
+  /** Part of the fingerprint: the elements, or the changed region. */
+  signature: string;
+  region?: { x: number; y: number; width: number; height: number };
+};
+
+type Baseline = { png: string; snapshotFile: string; snapshot?: ScreenSnapshot };
+
+const SEVERITY_RANK: Record<Candidate['severity'], number> = { cosmetic: 0, minor: 1, major: 2, critical: 3 };
+
+/**
+ * Turns one capture into the candidates a judge should see, and no more.
+ *
+ * - The first capture of a screen becomes its baseline. The absolute checks
+ *   still run on it, so a problem that is there from the start shows once.
+ * - Violations of one rule on one screen become ONE candidate that lists the
+ *   elements. Eleven low-contrast labels are one decision, not eleven.
+ * - A fingerprint the judge already decided (triage.json) is not raised
+ *   again; a filed one adds an occurrence to its issue instead.
+ */
+export async function evaluateScreen(
+  session: AgentSession,
+  input: { screenId: string; observation: Observation; snapshot: ScreenSnapshot },
+): Promise<Candidate[]> {
+  const { screenId, observation, snapshot } = input;
+  const screenshot = session.lastObservation === observation && session.lastScreenshot
+    ? session.lastScreenshot
+    : await session.capture(observation, screenId);
+  await writeFile(
+    join(paths.session(session.root, session.sessionId), `${screenId}.snapshot.json`),
+    JSON.stringify(snapshot, null, 2) + '\n',
+  );
+
+  const baseline = await readBaseline(session, screenId);
+  const firstSight = !baseline.snapshot;
+  if (firstSight) await saveBaseline(session, baseline, screenshot, snapshot);
+
+  const native = observation.platform === 'ios' || observation.platform === 'android';
+  const violations = evaluateAll(snapshot, {
+    baseline: baseline.snapshot,
+    disabled: native ? NATIVE_DISABLED : [],
+  });
+  const entries = groupViolations(violations);
+
+  let diffPath: string | undefined;
+  let visual: Awaited<ReturnType<typeof diff>>['primary'] | undefined;
+  if (!firstSight) {
+    diffPath = join(paths.session(session.root, session.sessionId), `${screenId}-diff.png`);
+    const comparison = await diff({
+      baselinePath: baseline.png,
+      actualPath: join(session.root, screenshot),
+      diffOutPath: diffPath,
+      threshold: 0.1,
+      masks: observation.volatileRegions.map((region) => ({ ...region, selector: region.reason })),
+    });
+    visual = comparison.primary;
+    const pixelEntry = visualEntry(visual);
+    if (pixelEntry) entries.push(pixelEntry);
+    else diffPath = undefined;
+  }
+
+  const fresh = await dropDecided(session, screenId, entries);
+  if (fresh.length === 0) return [];
+
+  const routeResult = await decide(session, screenId, snapshot, violations, visual);
+  const candidates: Candidate[] = [];
+  for (const entry of fresh) {
+    const candidate = toCandidate(session, screenId, entry, {
+      screenshot,
+      baseline: firstSight ? undefined : baseline.png,
+      diff: entry.source === 'pixel-diff' ? diffPath : undefined,
+      route: routeResult,
+    });
+    await session.workspace.appendCandidate(session.sessionId, candidate);
+    session.emit({ kind: 'candidate', summary: candidate.summary, screenId, screenshot });
+    candidates.push(candidate);
+  }
+  return candidates;
+}
+
+async function readBaseline(session: AgentSession, screenId: string): Promise<Baseline> {
+  const png = paths.agentBaseline(session.root, screenId);
+  const snapshotFile = paths.agentBaselineSnapshot(session.root, screenId);
+  try {
+    await readFile(png);
+    const snapshot = JSON.parse(await readFile(snapshotFile, 'utf8')) as ScreenSnapshot;
+    return { png, snapshotFile, snapshot };
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+    return { png, snapshotFile };
+  }
+}
+
+async function saveBaseline(
+  session: AgentSession,
+  baseline: Baseline,
+  screenshot: string,
+  snapshot: ScreenSnapshot,
+): Promise<void> {
+  await mkdir(paths.agentBaselines(session.root), { recursive: true });
+  await copyFile(join(session.root, screenshot), baseline.png);
+  await writeFile(baseline.snapshotFile, JSON.stringify(snapshot, null, 2) + '\n');
+}
+
+/** One entry per rule; the elements go in the detail and the fingerprint. */
+export function groupViolations(violations: InvariantViolation[]): Entry[] {
+  const byRule = new Map<string, InvariantViolation[]>();
+  for (const violation of violations) {
+    const group = byRule.get(violation.ruleId) ?? [];
+    group.push(violation);
+    byRule.set(violation.ruleId, group);
+  }
+
+  const entries: Entry[] = [];
+  for (const [ruleId, group] of byRule) {
+    const worst = group.reduce((a, b) => (SEVERITY_RANK[b.severity] > SEVERITY_RANK[a.severity] ? b : a));
+    const selectors = [...new Set(group.map((item) => item.selector ?? ''))].sort();
+    const summary = group.length === 1
+      ? worst.message
+      : `${group.length} elements break ${ruleId}. For example: ${worst.message}`;
+    entries.push({
+      source: 'invariant',
+      ruleId,
+      summary,
+      detail: group.slice(0, 8).map((item) => `- ${item.message}`).join('\n'),
+      severity: worst.severity,
+      signature: selectors.join('|'),
+      region: worst.region,
+    });
+  }
+  return entries;
+}
+
+/** This is not the merge gate, so small changes stay quiet (ADR 0005). */
+function visualEntry(visual: Awaited<ReturnType<typeof diff>>['primary']): Entry | undefined {
+  const changed = Boolean(visual.dimensionMismatch) || visual.changedFraction > 0.005;
+  if (!changed) return undefined;
+  return {
+    source: 'pixel-diff',
+    ruleId: 'pixel-diff',
+    summary: visual.dimensionMismatch
+      ? 'The screen size changed'
+      : `${(visual.changedFraction * 100).toFixed(1)}% of the screen changed`,
+    severity: 'minor',
+    signature: 'screen',
+    region: visual.regions[0],
+  };
+}
+
+function entryFingerprint(screenId: string, entry: Entry): string {
+  return fingerprint({ screenId, ruleId: entry.ruleId, domNodeSignature: entry.signature });
+}
+
+/**
+ * Drops what the judge already decided. A filed fingerprint bumps its issue
+ * once per session, so the dashboard's "x3" means three sessions saw it.
+ */
+async function dropDecided(session: AgentSession, screenId: string, entries: Entry[]): Promise<Entry[]> {
+  const triage = await session.workspace.readTriage();
+  const fresh: Entry[] = [];
+  for (const entry of entries) {
+    const decided = triage.fingerprints[entryFingerprint(screenId, entry)];
+    if (!decided || entry.source === 'pixel-diff') {
+      fresh.push(entry);
+      continue;
+    }
+    if (decided.decision === 'filed' && decided.issueId) await addOccurrence(session, decided.issueId);
+  }
+  return fresh;
+}
+
+async function addOccurrence(session: AgentSession, issueId: string): Promise<void> {
+  if (session.seenIssues.has(issueId)) return;
+  session.seenIssues.add(issueId);
+  const issue = await session.workspace.readIssue(issueId);
+  if (!issue || issue.status === 'dismissed' || issue.status === 'fixed') return;
+  await session.workspace.saveIssue({
+    ...issue,
+    occurrences: issue.occurrences + 1,
+    lastSeenAt: new Date().toISOString(),
+  });
+  session.emit({ kind: 'issue', summary: `Seen again: ${issue.title}` });
+}
+
+function toCandidate(
+  session: AgentSession,
+  screenId: string,
+  entry: Entry,
+  extra: { screenshot: string; baseline?: string; diff?: string; route: NonNullable<Candidate['route']> },
+): Candidate {
+  const fp = entryFingerprint(screenId, entry);
+  return {
+    id: `can_${shortHash(`${session.sessionId}:${fp}:${randomUUID()}`)}`,
+    sessionId: session.sessionId,
+    screenId,
+    source: entry.source,
+    ruleId: entry.ruleId,
+    fingerprint: fp,
+    summary: entry.summary,
+    detail: entry.detail,
+    severity: entry.severity,
+    evidence: {
+      screenshot: extra.screenshot,
+      baseline: extra.baseline,
+      diff: extra.diff,
+      routineId: session.anchor.routineId,
+      steps: session.trail.slice(session.anchor.index),
+    },
+    route: extra.route,
+    createdAt: new Date().toISOString(),
+  };
+}
+
+async function decide(
+  session: AgentSession,
+  screenId: string,
+  snapshot: ScreenSnapshot,
+  violations: InvariantViolation[],
+  visual: Awaited<ReturnType<typeof diff>>['primary'] | undefined,
+): Promise<NonNullable<Candidate['route']>> {
+  const config = session.config.decisions;
+  const { decider } = resolveDecider(config, process.env);
+  const { text } = buildState({
+    screen: { id: screenId, description: snapshot.title ?? snapshot.url },
+    product: { summary: '', audience: '', domainVocabulary: [] },
+    assertions: violationsToAssertions(violations),
+    diff: visual
+      ? {
+        changedPixels: visual.changedPixels,
+        changedPercent: visual.changedFraction * 100,
+        maskedPercent: visual.maskedFraction * 100,
+        regions: visual.regions.length,
+      }
+      : undefined,
+    console: snapshot.consoleErrors,
+  });
+  const budget = new Budget(config.budget.perRunUsd);
+  budget.record(session.decisionSpentUsd);
+  const estimate = estimateDecisionCost(text.length, decider.name);
+  if (!budget.canSpend(estimate)) {
+    return { to: 'judge', reason: 'decider budget exhausted' };
+  }
+  try {
+    const answers = await decider.ask(text, SCREEN_QUESTIONS);
+    session.decisionSpentUsd += estimate;
+    const result = route({
+      answers,
+      thresholds: config.confidence,
+      hasDeterministicRegression: false,
+      matchedLedger: false,
+    });
+    session.emit({
+      kind: 'tool-result',
+      tool: 'decider',
+      summary: `Decider routed ${screenId} to ${result.route}`,
+      costUsd: estimate,
+    });
+    const choice = answers['route'];
+    const confidence = choice?.confidence;
+    return {
+      to: result.route === 'ignore' || result.route === 'intent' ? 'ignore' : 'judge',
+      reason: result.reason,
+      confidence,
+    };
+  } catch {
+    return { to: 'judge', reason: 'decider unavailable' };
+  }
+}
