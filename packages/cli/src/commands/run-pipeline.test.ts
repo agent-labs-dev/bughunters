@@ -80,6 +80,7 @@ describe('executeRun', () => {
     const result = await executeRun({ ...base, root, isFirstRun: false, screens: [screen()] });
     expect(result.exitCode).toBe(ExitCode.Clean);
     expect(result.findings).toHaveLength(0);
+    expect(result.notes).toContain('Decider: heuristic because --no-models was set.');
   });
 
   it('blocks on a pixel regression even with no decision layer', async () => {
@@ -95,6 +96,22 @@ describe('executeRun', () => {
     const blocking = result.findings.filter((f) => f.route === 'check');
     expect(blocking).toHaveLength(1);
     expect(blocking[0]!.ruleId).toBe(PIXEL_DIFF_RULE);
+  });
+
+  it('still blocks on a pixel regression when a decider answers', async () => {
+    // A live decider answered "question" / "needs_frontier" on a real
+    // BREAK=color run and the gate went green. The heuristic decider gives the
+    // same low-confidence answers with no network.
+    const result = await executeRun({
+      ...base,
+      root,
+      noModels: false,
+      config: { ...config, decisions: { ...config.decisions, decider: 'heuristic' } },
+      isFirstRun: false,
+      screens: [screen({ comparison: comparison(2400) })],
+    });
+    expect(result.exitCode).toBe(ExitCode.Regression);
+    expect(result.findings.filter((f) => f.route === 'check').map((f) => f.ruleId)).toEqual([PIXEL_DIFF_RULE]);
   });
 
   it('never blocks on a run that just created the baseline', async () => {

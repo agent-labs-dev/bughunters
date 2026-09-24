@@ -96,8 +96,22 @@ describe('offline gating', () => {
     expect(route({ ...base, answers: {} }).route).toBe('question');
   });
 
-  it('lets a high-confidence decider still suppress a deterministic regression', () => {
-    const out = route({ ...base, hasDeterministicRegression: true, answers: { route: choice('intent', 0.95) } });
+  it('never lets a decider suppress or escalate a deterministic regression', () => {
+    // The gate must be reproducible: the same pixels must block on every run,
+    // whatever a non-deterministic decider answers.
+    const answerSets: Record<string, Answer>[] = [
+      { route: choice('intent', 0.99) },
+      { route: choice('ignore', 0.99) },
+      { route: choice('question', 0.22), needs_frontier: noul(0.62, 0.62) },
+      { is_anomalous: noul(0.01, 0.99) },
+    ];
+    for (const answers of answerSets) {
+      expect(route({ ...base, hasDeterministicRegression: true, answers }).route).toBe('check');
+    }
+  });
+
+  it('lets only a ledger entry silence a deterministic regression', () => {
+    const out = route({ ...base, hasDeterministicRegression: true, matchedLedger: true, answers: {} });
     expect(out.route).toBe('intent');
   });
 });

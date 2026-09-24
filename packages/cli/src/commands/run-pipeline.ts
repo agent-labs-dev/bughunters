@@ -24,7 +24,7 @@ import {
   Budget,
   SCREEN_QUESTIONS,
   buildState,
-  createDecider,
+  resolveDecider,
   estimateDecisionCost,
   route as routeDecision,
   severityFrom,
@@ -103,13 +103,15 @@ export async function executeRun(options: PipelineOptions): Promise<RunResult> {
 
   const ledger = IntentLedger.load(root);
   const disabled = ledger.disabledRuleIds();
-  const decider = createDecider(config.decisions, process.env as Record<string, string>, {
+  const resolution = resolveDecider(config.decisions, process.env as Record<string, string>, {
     noModels: options.noModels,
   });
+  const { decider } = resolution;
   const budget = new Budget(config.decisions.budget.perRunUsd);
 
   const findings: Finding[] = [];
   const notes = [...(options.notes ?? [])];
+  notes.push(resolution.reason);
   let suppressed = 0;
   let decisionUsd = 0;
   let incomplete = false;

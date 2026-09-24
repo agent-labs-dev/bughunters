@@ -46,6 +46,23 @@ pnpm build
 pnpm test            # 114 tests
 ```
 
+### Model providers
+
+Set `decisions.decider` to `jev` (default), `model`, `local`, or `heuristic` in `autoqa.yml`. Available model routes are tried in the order shown:
+
+| Decider | Environment variable | Route |
+| --- | --- | --- |
+| Jev | `TYPESAFE_API_KEY` | `api.typesafe.ai` |
+| Jev | `OPENROUTER_API_KEY` | OpenRouter |
+| Jev | `AI_GATEWAY_API_KEY` | Vercel AI Gateway |
+| General model | `OPENROUTER_API_KEY` | OpenRouter |
+| General model | `AI_GATEWAY_API_KEY` | Vercel AI Gateway |
+| General model | `OPENAI_API_KEY` | OpenAI |
+| General model | `ANTHROPIC_API_KEY` | Anthropic |
+| General model | `AUTOQA_MODEL_ENDPOINT` + `AUTOQA_MODEL_API_KEY` | Custom endpoint |
+
+Set `decisions.jev.via` or `decisions.model.via` to select a route, and `decisions.model.name` to override the default model ID. The run note says which decider ran and why; when no usable key is set, the run uses the heuristic decider. `--no-models` always selects that offline path.
+
 Try the CLI against any repo:
 
 ```bash

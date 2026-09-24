@@ -64,16 +64,15 @@ export const JEV_USD_PER_INPUT_TOKEN = 0.042 / 1_000_000;
 /**
  * What one decision on a state of this size costs with a given decider.
  *
- * Only Jev has real pricing wired up. The heuristic and local deciders make no
- * network call, and ModelDecider currently degrades to the heuristic -- charging
- * any of them at Jev's rate reported model spend for runs that never contacted
- * a model, which is exactly the number someone checks to see whether they need
- * an API key.
+ * Jev uses its published input rate. The general model estimate assumes the
+ * spec 4.8 mid-tier frontier rate ($3/M input, $15/M output), including prompt
+ * and output tokens. Heuristic and local make no paid call.
  */
 export function estimateDecisionCost(stateChars: number, decider: DeciderName = 'jev'): number {
-  if (decider !== 'jev') return 0;
   // ~4 chars per token is close enough for a budget guard.
-  return (stateChars / 4) * JEV_USD_PER_INPUT_TOKEN;
+  if (decider === 'jev') return (stateChars / 4) * JEV_USD_PER_INPUT_TOKEN;
+  if (decider === 'model') return ((stateChars / 4 + 1500) * 3 + 900 * 15) / 1_000_000;
+  return 0;
 }
 
 export function answersSummary(answers: Record<string, Answer>): string {
