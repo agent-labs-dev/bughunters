@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -36,5 +36,41 @@ describe('startApp', () => {
     const app = appSchema.parse({ setup: [{ run: 'echo secret-value; exit 3' }] });
     await expect(startApp(app, { root: process.cwd(), vars })).rejects.toBeInstanceOf(InfrastructureError);
     await expect(startApp(app, { root: process.cwd(), vars })).rejects.toThrow('{{TOKEN}}');
+  });
+
+  it('runs the teardown when a setup command fails', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'autoqa-teardown-'));
+    try {
+      const app = appSchema.parse({
+        setup: [{ run: 'echo up > state' }, { run: 'exit 2' }],
+        teardown: [{ run: 'echo down > state' }],
+      });
+      await expect(startApp(app, { root, vars: new Vars() })).rejects.toBeInstanceOf(InfrastructureError);
+      expect((await readFile(join(root, 'state'), 'utf8')).trim()).toBe('down');
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('swaps only source commands into the worktree and sets AUTOQA_SOURCE for every command', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'autoqa-source-'));
+    const source = join(root, 'source');
+    const worktree = join(root, 'fix');
+    const other = join(root, 'other');
+    const { mkdir } = await import('node:fs/promises');
+    try {
+      await Promise.all([mkdir(source), mkdir(worktree), mkdir(other)]);
+      const app = appSchema.parse({ source: 'source', setup: [
+        { run: 'pwd > source-cwd; echo "$AUTOQA_SOURCE" > source-env', cwd: './source' },
+        { run: 'pwd > other-cwd; echo "$AUTOQA_SOURCE" > other-env', cwd: 'other' },
+      ] });
+      await (await startApp(app, { root, vars: new Vars(), source: worktree })).stop();
+      expect((await readFile(join(worktree, 'source-cwd'), 'utf8')).trim()).toBe(await realpath(worktree));
+      expect((await readFile(join(other, 'other-cwd'), 'utf8')).trim()).toBe(await realpath(other));
+      expect((await readFile(join(other, 'other-env'), 'utf8')).trim()).toBe(worktree);
+      await (await startApp(app, { root, vars: new Vars() })).stop();
+      expect((await readFile(join(source, 'source-env'), 'utf8')).trim()).toBe(source);
+      expect((await readFile(join(other, 'other-env'), 'utf8')).trim()).toBe(source);
+    } finally { await rm(root, { recursive: true, force: true }); }
   });
 });

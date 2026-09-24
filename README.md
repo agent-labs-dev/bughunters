@@ -141,6 +141,8 @@ AutoQA uses the app like a QA team does, on any platform (ADR 0005):
 | Judge | Reviews what the decider cannot settle, and writes the issues | model loop, `z-ai/glm-5.3-flash` via OpenRouter |
 | Fixer | Writes a fix for an issue in its own git worktree | `claude -p` (off until enabled) |
 
+After a fix, AutoQA starts the app from the fix worktree. The explorer repeats the issue flow and captures an after screenshot. The judge compares it with the original and decides if the fix worked. A failed verdict returns to the fixer for another attempt, up to the configured limit.
+
 Each role runs on a model loop or on a CLI agent that you choose. A CLI agent
 gets the prompt on stdin and in `{prompt}`, and the role's tools over MCP in
 `{mcp}` or `{mcpUrl}`:

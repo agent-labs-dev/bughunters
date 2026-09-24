@@ -7,7 +7,7 @@ import { startApp } from './lifecycle.js';
 import { AgentSession } from './session.js';
 import { runExplorer } from './roles/explorer.js';
 import { runJudge } from './roles/judge.js';
-import { runFixer } from './roles/fixer.js';
+import { runFixCycle } from './roles/retest.js';
 
 export type PatrolOptions = {
   root: string;
@@ -70,12 +70,6 @@ export async function runPatrol(options: PatrolOptions): Promise<void> {
           activeSession = session;
           await runJudge(session, runtime(config.agents.judge.use), { sessionIds: [explorerId] });
         }
-        if (config.agents.fixer.enabled && !interrupted) {
-          const record = await workspace.startSession('fixer');
-          const session = new AgentSession(root, config, vars, record.id, 'fixer', undefined, options.onLog);
-          activeSession = session;
-          await runFixer(session, runtime(config.agents.fixer.use));
-        }
       } finally {
         try {
           await driver?.close();
@@ -83,6 +77,13 @@ export async function runPatrol(options: PatrolOptions): Promise<void> {
           await app?.stop();
         }
       }
+      if (!interrupted) await runFixCycle(root, config, {
+        createDriver: options.createDriver,
+        createRuntime: options.createRuntime,
+        onLog: options.onLog,
+        onSession: (session) => { activeSession = session; },
+        isInterrupted: () => interrupted,
+      });
       const nextAt = new Date(Date.now() + config.agents.patrol.intervalMinutes * 60_000).toISOString();
       await workspace.setPatrol({ state: 'stopped', nextAt });
       if (options.once || interrupted) {

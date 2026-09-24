@@ -62,6 +62,7 @@ try {
     case 'explore':
     case 'judge':
     case 'fix':
+    case 'retest':
     case 'patrol':
     case 'replay': {
       const config = loadConfig(root);

@@ -3,17 +3,20 @@ import { resolve } from 'node:path';
 import { InfrastructureError, type AppCommand, type AppConfig } from '@autoqa/core';
 import { Vars } from './vars.js';
 
-type Options = { root: string; vars: Vars; emit?: (summary: string) => void };
+type Options = { root: string; vars: Vars; emit?: (summary: string) => void; source?: string };
 
-/** Shell commands belong to the app configuration; output is redacted at the boundary. */
+/** Shell commands belong to the app configuration. A source override swaps commands rooted at app.source into the worktree; every command receives AUTOQA_SOURCE. Output is redacted. */
 export async function startApp(app: AppConfig, opts: Options): Promise<{ vars: Vars; stop(): Promise<void> }> {
   const children: ChildProcess[] = [];
   const report = (message: string) => opts.emit?.(opts.vars.redact(message) as string);
+  const configuredSource = resolve(opts.root, app.source);
+  const effectiveSource = opts.source ?? configuredSource;
 
   async function run(command: AppCommand, phase: 'Setup' | 'Teardown'): Promise<void> {
     const shell = opts.vars.resolve(command.run);
-    const cwd = resolve(opts.root, opts.vars.resolve(command.cwd ?? '.'));
-    const env = { ...process.env, ...Object.fromEntries(opts.vars.entries()) };
+    const configuredCwd = resolve(opts.root, opts.vars.resolve(command.cwd ?? '.'));
+    const cwd = opts.source && configuredCwd === configuredSource ? opts.source : configuredCwd;
+    const env = { ...process.env, ...Object.fromEntries(opts.vars.entries()), AUTOQA_SOURCE: effectiveSource };
     const started = Date.now();
     const child = spawn('/bin/sh', ['-c', shell], {
       cwd,
@@ -100,6 +103,15 @@ export async function startApp(app: AppConfig, opts: Options): Promise<{ vars: V
       await run(command, 'Setup');
     }
   } catch (error) {
+    // A setup that fails halfway may already hold resources (a test run, an
+    // identity). Teardown undoes what it can before the error goes up.
+    for (const command of app.teardown) {
+      try {
+        await run(command, 'Teardown');
+      } catch (cause) {
+        report(String(cause));
+      }
+    }
     for (const child of children) {
       killGroup(child);
     }

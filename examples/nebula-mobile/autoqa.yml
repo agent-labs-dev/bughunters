@@ -10,11 +10,8 @@ app:
   platform: ios
   source: ../../../nebula-mobile
   setup:
-    # Metro for this checkout. Port 8082, because another checkout often holds
-    # 8081. An already-running server on 8082 is reused.
-    - run: >-
-        if curl -sf http://localhost:8082/status >/dev/null; then echo METRO-READY; exec sleep 86400;
-        else CI=1 exec npx expo start --port 8082; fi
+    # Start Metro for this checkout on 8082. A reused server may serve another checkout.
+    - run: CI=1 exec npx expo start --port 8082
       cwd: ../../../nebula-mobile
       background: true
       readyWhen: 'METRO-READY|Waiting on http'
@@ -42,6 +39,7 @@ agents:
     use: { runtime: model, via: openrouter, model: z-ai/glm-5.3-flash }
   fixer:
     enabled: true
+    retest: { prepare: pnpm install --frozen-lockfile --prefer-offline }
     # The fixer edits files in its own git worktree. It may install
     # dependencies and run the checks, and nothing else in the shell.
     use:

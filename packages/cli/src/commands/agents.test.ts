@@ -8,6 +8,7 @@ describe('agent command flags', () => {
     expect(parseAgentFlags('judge', ['--session', 'a', 'b', '--session', 'c']))
       .toEqual({ session: ['a', 'b', 'c'] });
     expect(parseAgentFlags('fix', ['--issue', 'x', 'y'])).toEqual({ issue: ['x', 'y'] });
+    expect(parseAgentFlags('retest', ['--issue', 'x'])).toEqual({ issue: ['x'] });
     expect(parseAgentFlags('patrol', ['--once'])).toEqual({ once: true });
     expect(parseAgentFlags('replay', ['enter-app'])).toEqual({ id: 'enter-app' });
   });

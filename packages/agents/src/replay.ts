@@ -5,11 +5,43 @@ import type { AgentSession } from './session.js';
 /** Carries a replay failure back to the explorer without creating a finding. */
 export type ReplayResult = { ok: boolean; failedStep?: number; error?: string; degraded: boolean };
 
+/** Replay issue-local steps from the current screen; the first failure stops the path. */
+export async function replaySteps(
+  session: AgentSession, steps: RoutineStep[], opts: { windowMs?: number } = {},
+): Promise<ReplayResult> {
+  const result = await runSteps(session, steps, opts.windowMs ?? 30_000, false);
+  return { ok: !result.error, failedStep: result.failedStep, error: result.error, degraded: result.degraded };
+}
+
+async function runSteps(session: AgentSession, steps: RoutineStep[], windowMs: number, skippable: boolean) {
+  const driver = session.driver as Driver;
+  let degraded = false;
+  let failedStep: number | undefined;
+  let error: string | undefined;
+  const skipped: number[] = [];
+  for (let index = 0; index < steps.length; index++) {
+    if (session.cancelled) { failedStep = index; error = 'Interrupted'; break; }
+    const step = steps[index]!;
+    try {
+      const result = await actWhenReady(driver, toAction(step, session), session, windowMs);
+      degraded ||= Boolean(result.degraded);
+      if (!result.ok) {
+        if (skippable && isTargeted(step)) { skipped.push(index); continue; }
+        failedStep = index;
+        error = result.error ?? 'Action failed';
+        break;
+      }
+      await driver.settle();
+    } catch (cause) { failedStep = index; error = String(cause); break; }
+  }
+  return { degraded, failedStep, error, skipped };
+}
+
 /** Dependencies are replayed once; a failed path is a repair task, never a finding. */
 export async function replayRoutine(
   session: AgentSession,
   id: string,
-  options: { seen?: Set<string>; dependency?: boolean; windowMs?: number } = {},
+  options: { seen?: Set<string>; dependency?: boolean; windowMs?: number; save?: boolean } = {},
 ): Promise<ReplayResult> {
   const seen = options.seen ?? new Set<string>();
   if (options.dependency && session.completedRoutines.has(id)) {
@@ -27,7 +59,8 @@ export async function replayRoutine(
   let failedStep: number | undefined;
   let error: string | undefined;
   for (const dependency of routine.requires ?? []) {
-    const result = await replayRoutine(session, dependency, { seen, dependency: true, windowMs: options.windowMs });
+    const result = await replayRoutine(session, dependency, { seen, dependency: true,
+      windowMs: options.windowMs, save: options.save });
     degraded ||= result.degraded;
     if (!result.ok) {
       error = `Required routine ${dependency}: ${result.error}`;
@@ -36,39 +69,16 @@ export async function replayRoutine(
   }
   const skipped: number[] = [];
   if (!error) {
-    const driver = session.driver as Driver;
     // With an end check, a missing target may be a banner that did not show or
     // a detour; the check at the end decides. Without one, the first miss fails.
     const skippable = Boolean(routine.expect);
-    for (let index = 0; index < routine.steps.length; index++) {
-      if (session.cancelled) {
-        failedStep = index;
-        error = 'Interrupted';
-        break;
-      }
-      const step = routine.steps[index]!;
-      try {
-        const windowMs = options.windowMs ?? (skippable ? 10_000 : 30_000);
-        const result = await actWhenReady(driver, toAction(step, session), session, windowMs);
-        degraded ||= Boolean(result.degraded);
-        if (!result.ok) {
-          if (skippable && isTargeted(step)) {
-            skipped.push(index);
-            continue;
-          }
-          failedStep = index;
-          error = result.error ?? 'Action failed';
-          break;
-        }
-        await driver.settle();
-      } catch (cause) {
-        failedStep = index;
-        error = String(cause);
-        break;
-      }
-    }
+    const result = await runSteps(session, routine.steps, options.windowMs ?? (skippable ? 10_000 : 30_000), skippable);
+    degraded ||= result.degraded;
+    failedStep = result.failedStep;
+    error = result.error;
+    skipped.push(...result.skipped);
     if (!error && skipped.length) {
-      const arrived = await endsWhereExpected(driver, routine.expect!.elements);
+      const arrived = await endsWhereExpected(session.driver as Driver, routine.expect!.elements);
       if (arrived) {
         degraded = true;
       } else {
@@ -77,7 +87,7 @@ export async function replayRoutine(
       }
     }
   }
-  await session.workspace.saveRoutine({
+  if (options.save !== false) await session.workspace.saveRoutine({
     ...routine,
     lastReplay: {
       at: new Date().toISOString(),

@@ -20,6 +20,7 @@ Agents
   autoqa explore [--goal "..."] [--steps N]
   autoqa judge [--session <id>...]
   autoqa fix [--issue <id>...]
+  autoqa retest --issue <id>
   autoqa patrol [--once]
   autoqa replay <routine-id>
   autoqa issue list | dismiss <id> --reason "..." [--by name] | reopen <id>

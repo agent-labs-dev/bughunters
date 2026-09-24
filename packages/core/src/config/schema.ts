@@ -244,6 +244,16 @@ export const agentsSchema = z
         openPRs: z.enum(['off', 'draft']).default('off'),
         /** Run after the change; a non-zero exit marks the fix failed. */
         verify: z.string().optional(),
+        /** After a fix, start the app from the fix worktree and repeat the issue's flow. */
+        retest: z.object({
+          enabled: z.boolean().default(true),
+          /** Shell command run in the worktree before the app starts, e.g. `bun install`. */
+          prepare: z.string().optional(),
+          /** Fix attempts in total; each attempt after the first gets the last verdict as feedback. */
+          attempts: z.number().int().positive().default(2),
+          maxSteps: z.number().int().positive().default(30),
+          budgetUsd: z.number().nonnegative().default(0.2),
+        }).default({}),
         minSeverity: z.enum(['cosmetic', 'minor', 'major', 'critical']).default('minor'),
         /**
          * The local commit on the fix branch. {title} is the issue title. Set a

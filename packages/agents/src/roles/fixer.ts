@@ -1,8 +1,8 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { mkdir, readFile, readdir, realpath, writeFile } from 'node:fs/promises';
-import { join, relative, resolve, sep } from 'node:path';
-import { paths, type FixProposal, type Issue, type RoutineStep } from '@autoqa/core';
+import { lstat, mkdir, readFile, readdir, realpath, symlink, writeFile } from 'node:fs/promises';
+import { basename, dirname, join, relative, resolve, sep } from 'node:path';
+import { judgedRetests, paths, type FixProposal, type Issue, type RoutineStep } from '@autoqa/core';
 import type { AgentSession } from '../session.js';
 import type { RoleOutcome, Runtime, Tool } from '../types.js';
 import { fixerSystem } from '../prompts.js';
@@ -140,6 +140,37 @@ async function commitFix(
 }
 
 /**
+ * Links each .env file that git ignores in the source checkout into the
+ * worktree, at the same path. Git does not copy ignored files, and an app or
+ * its E2E harness often reads its keys from them. A link, not a copy, so a
+ * key that changes in the checkout changes in every worktree. A file that the
+ * worktree already has stays as it is.
+ */
+export async function linkEnvFiles(source: string, worktree: string): Promise<string[]> {
+  let listed: string;
+  try {
+    listed = await git(source, 'ls-files', '--others', '--ignored', '--exclude-standard', '--', ':(glob)**/.env*');
+  } catch {
+    return [];
+  }
+  const linked: string[] = [];
+  for (const file of listed.split('\n').filter(Boolean)) {
+    if (!/^\.env(\.|$)/.test(basename(file)) || file.split('/').includes('node_modules')) continue;
+    const target = join(worktree, file);
+    try {
+      await lstat(target);
+      continue;
+    } catch {
+      // Not in the worktree yet.
+    }
+    await mkdir(dirname(target), { recursive: true });
+    await symlink(join(source, file), target);
+    linked.push(file);
+  }
+  return linked;
+}
+
+/**
  * Reads the issue again before the write. A fix takes minutes, and a human
  * may close the issue meanwhile; a human decision is never overwritten.
  */
@@ -164,11 +195,15 @@ export async function runFixer(
   const failed = new Set(fixes
     .filter((fix) => fix.status === 'failed' || abandoned(fix))
     .map((fix) => fix.issueId));
+  const retry = new Map(fixes.filter((fix) =>
+    ['proposed', 'retesting'].includes(fix.status)
+    && fix.retests?.at(-1)?.outcome === 'not-fixed'
+    && judgedRetests(fix.retests).length < config.retest.attempts).map((fix) => [fix.issueId, fix]));
   const eligible = all.filter((issue) => {
-    if (opts.issueIds) return opts.issueIds.includes(issue.id);
-    const pending = ['new', 'filed'].includes(issue.status) || failed.has(issue.id);
     if (issue.status === 'dismissed') return false;
-    return pending && (!issue.fixId || failed.has(issue.id))
+    if (opts.issueIds && !opts.issueIds.includes(issue.id)) return false;
+    const pending = ['new', 'filed'].includes(issue.status) || failed.has(issue.id) || retry.has(issue.id);
+    return pending && (!issue.fixId || failed.has(issue.id) || retry.has(issue.id))
       && ranks[issue.severity] >= ranks[config.minSeverity];
   });
   // A fixer run is minutes of a coding agent. The worst issues go first, and
@@ -198,7 +233,10 @@ export async function runFixer(
       await git(worktree, 'reset', '--hard', base);
       await git(worktree, 'clean', '-fd');
     }
+    await linkEnvFiles(source, worktree);
+    const previous = retry.get(issue.id);
     const proposal: FixProposal = {
+      ...previous,
       version: 1,
       id: `fix_${issue.id}`,
       issueId: issue.id,
@@ -207,23 +245,37 @@ export async function runFixer(
       repo: source,
       branch,
       worktree,
-      startedAt: new Date().toISOString(),
+      startedAt: previous?.startedAt ?? new Date().toISOString(),
+      error: undefined,
     };
     await session.workspace.saveFix(proposal);
     await session.workspace.saveIssue({ ...issue, status: 'fixing' });
     session.emit({ kind: 'fix', summary: `Fixing ${issue.title}` });
     try {
-      const outcome = await runOne(session, runtime, issue, worktree);
+      const outcome = await runOne(session, runtime, issue, worktree, previous?.retests?.at(-1));
       if (outcome.stop !== 'done') {
         throw new Error(outcome.error ?? `Fixer stopped: ${outcome.stop}`);
       }
-      proposal.costUsd = outcome.costUsd;
+      proposal.costUsd = (previous?.costUsd ?? 0) + outcome.costUsd;
       proposal.summary = outcome.summary;
       await git(worktree, 'add', '-A');
-      proposal.diffStat = await git(worktree, 'diff', '--cached', '--stat');
-      proposal.diff = Buffer.from(await git(worktree, 'diff', '--cached'))
+      const newDiff = await git(worktree, 'diff', '--cached');
+      const sourceHead = await git(source, 'rev-parse', 'HEAD');
+      const base = await git(worktree, 'merge-base', 'HEAD', sourceHead);
+      proposal.diffStat = await git(worktree, 'diff', '--cached', '--stat', base);
+      proposal.diff = Buffer.from(await git(worktree, 'diff', '--cached', base))
         .subarray(0, 200_000).toString('utf8');
-      if (!proposal.diff) {
+      if (!newDiff && previous) {
+        // A refix that changes nothing keeps the earlier change: it is still
+        // the proposal, and the retest verdict tells the team it did not work.
+        proposal.status = 'proposed';
+        proposal.endedAt = new Date().toISOString();
+        await session.workspace.saveFix(proposal);
+        await updateIssue(session, issue.id, { status: 'fix-proposed', fixId: proposal.id });
+        proposals.push(proposal);
+        continue;
+      }
+      if (!newDiff) {
         // No change plus an explanation is a finding too: the fixer read the
         // code and says the report is wrong or the behaviour is intended.
         proposal.status = outcome.summary ? 'declined' : 'failed';
@@ -254,18 +306,9 @@ export async function runFixer(
         // and AutoQA never bypasses a hook with --no-verify.
         proposal.error = `Left uncommitted in the worktree: ${committed.reason}`;
       }
-      if (committed.ok && config.openPRs === 'draft') {
-        await git(worktree, 'push', '-u', 'origin', branch);
-        const output = await exec('gh', ['pr', 'create', '--draft', '--title', issue.title,
-          '--body', issue.body], { cwd: worktree });
-        const url = output.stdout.trim();
-        proposal.pr = {
-          url,
-          number: Number(url.split('/').pop()),
-          draft: true,
-        };
-        proposal.status = 'opened';
-      }
+      if (committed.ok && config.retest.enabled && session.config.agents.explorer.enabled
+        && session.config.agents.judge.enabled
+        && (issue.evidence.routineId || issue.evidence.steps?.length || issue.candidateIds.length)) proposal.status = 'retesting';
       await updateIssue(session, issue.id, { status: 'fix-proposed', fixId: proposal.id });
     } catch (error) {
       proposal.status = 'failed';
@@ -284,7 +327,20 @@ export async function runFixer(
   return proposals;
 }
 
-async function runOne(session: AgentSession, runtime: Runtime, issue: Issue, worktree: string): Promise<RoleOutcome> {
+/** Publish only a completed proposal, after any app retest has ended. */
+export async function openFixPR(config: AgentSession['config'], issue: Issue, proposal: FixProposal): Promise<void> {
+  if (config.agents.fixer.openPRs !== 'draft' || proposal.pr
+    || proposal.error?.startsWith('Left uncommitted')
+    || !['verified', 'proposed'].includes(proposal.status)) return;
+  await git(proposal.worktree, 'push', '-u', 'origin', proposal.branch);
+  const output = await exec('gh', ['pr', 'create', '--draft', '--title', issue.title,
+    '--body', issue.body], { cwd: proposal.worktree });
+  const url = output.stdout.trim();
+  proposal.pr = { url, number: Number(url.split('/').pop()), draft: true };
+}
+
+async function runOne(session: AgentSession, runtime: Runtime, issue: Issue, worktree: string,
+  last?: NonNullable<FixProposal['retests']>[number]): Promise<RoleOutcome> {
   const config = session.config.agents.fixer;
   const evidencePaths = Object.entries(issue.evidence)
     .filter(([key]) => ['screenshot', 'baseline', 'diff'].includes(key))
@@ -292,13 +348,16 @@ async function runOne(session: AgentSession, runtime: Runtime, issue: Issue, wor
   const evidence = evidencePaths.join('\n');
   const steps = (issue.evidence.steps ?? []).map((step, index) => `${index + 1}. ${stepWords(step)}`);
   const repro = `Run the routine ${issue.evidence.routineId ?? '(none)'}, then:\n${steps.join('\n')}`;
+  const after = last?.shots?.length
+    ? last.shots.map((shot) => `${shot.screenId ?? '(unknown screen)'}: ${shot.after ? resolve(session.root, shot.after) : '(unavailable)'}`).join('\n')
+    : last?.after ? resolve(session.root, last.after) : '(unavailable)';
   return runtime.run({
     role: 'fixer',
     sessionId: session.sessionId,
     workdir: worktree,
     system: fixerSystem(),
     prompt: `Issue: ${issue.title}\nSeverity: ${issue.severity}\n${issue.body}\nEvidence:\n${evidence}\n` +
-      `Reproduction: ${repro}`,
+      `Reproduction: ${repro}` + (last ? `\nYour last change did not fix the issue. The QA lead said: ${last.reason}. After screenshots:\n${after}\nFix it now.` : ''),
     tools: runtime.label.startsWith('cli:') ? [finishTool()] : [...modelTools(worktree), finishTool()],
     maxSteps: config.maxSteps,
     budgetUsd: config.budgetUsd,
@@ -306,7 +365,7 @@ async function runOne(session: AgentSession, runtime: Runtime, issue: Issue, wor
   }, session.emit);
 }
 
-function stepWords(step: RoutineStep): string {
+export function stepWords(step: RoutineStep): string {
   if (step.kind === 'tap') {
     return `Tap ${step.target.name ?? step.target.testId ?? step.target.text ?? step.target.selector ?? 'target'}`;
   }

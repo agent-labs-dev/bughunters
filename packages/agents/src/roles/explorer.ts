@@ -24,7 +24,7 @@ function sessionSummary(outcome: RoleOutcome, screens: number, candidates: numbe
     + `It knows ${screens} screen(s) and raised ${candidates} candidate(s).`;
 }
 
-function stopOnCancellation(session: AgentSession, tool: Tool): Tool {
+export function stopOnCancellation(session: AgentSession, tool: Tool): Tool {
   return {
     ...tool,
     async run(input) {

@@ -148,6 +148,12 @@ before a candidate reaches the judge:
 - Each status record has the writer's process ID. The dashboard shows work
   from a process that is not alive as stopped.
 
+### 10. Retest
+
+After the fixer commits a change, AutoQA stops the patrol app. It starts the app from the fix worktree. A setup command runs in the worktree when its resolved directory matches `app.source`. Every command receives `AUTOQA_SOURCE` with the effective source directory.
+
+The explorer repeats the issue flow and captures an after screenshot. The judge compares it with the issue screenshot and gives a verdict. If the issue remains, the fixer gets the verdict and tries again, up to `agents.fixer.retest.attempts` total attempts. The fixer only changes code. The explorer uses the app, and the judge decides the result.
+
 ## Consequences
 
 **Good.** One codebase tests web, desktop, and mobile apps. A new platform

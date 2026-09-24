@@ -1,7 +1,7 @@
 import { ConfigError, InfrastructureError, type AutoQAConfig } from '@autoqa/core';
 import { createDriver } from '@autoqa/drivers';
 import { AgentSession, Vars, Workspace, createRuntime, replayRoutine, runExplorer, runJudge,
-  runFixer, runPatrol, startApp } from '@autoqa/agents';
+  applyRetest, openFixPR, runFixCycle, runPatrol, retestFix, startApp } from '@autoqa/agents';
 
 type AgentFlags = Record<string, string | string[] | boolean | number>;
 
@@ -18,6 +18,7 @@ export function parseAgentFlags(command: string, args: string[]): AgentFlags {
     explore: ['--goal', '--steps'],
     judge: ['--session'],
     fix: ['--issue'],
+    retest: ['--issue'],
     patrol: [],
   };
   if (!values[command]) throw new ConfigError(`Unknown agent command ${command}`);
@@ -83,12 +84,26 @@ export async function runAgentCommand(
     return;
   }
   if (command === 'fix') {
-    const record = await workspace.startSession('fixer');
-    const session = new AgentSession(root, config, vars, record.id, 'fixer', undefined, log);
-    const proposals = await runFixer(session, createRuntime(config.agents.fixer.use), {
+    const proposals = await runFixCycle(root, config, { onLog: log,
       issueIds: flags.issue as string[] | undefined,
     });
     log(`${proposals.length} fix proposal(s)`);
+    return;
+  }
+  if (command === 'retest') {
+    const ids = flags.issue as string[] | undefined;
+    if (ids?.length !== 1) throw new ConfigError('retest needs --issue <id>');
+    const issue = await workspace.readIssue(ids[0]!);
+    const fix = issue?.fixId ? await workspace.readFix(issue.fixId) : undefined;
+    if (!issue || !fix) throw new ConfigError(`No existing fix for ${ids[0]}`);
+    const result = await retestFix(root, config, issue, fix, (fix.retests?.length ?? 0) + 1, { onLog: log });
+    applyRetest(config, fix, result);
+    await workspace.saveFix(fix);
+    if (fix.status !== 'retesting') {
+      await openFixPR(config, issue, fix);
+      await workspace.saveFix(fix);
+    }
+    log(`Retest: ${result.outcome} — ${result.reason}`);
     return;
   }
   let app: Awaited<ReturnType<typeof startApp>> | undefined;

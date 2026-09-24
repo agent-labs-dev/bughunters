@@ -7,7 +7,7 @@ import { AgentSession } from './session.js';
 import { Vars } from './vars.js';
 import { Workspace } from './workspace.js';
 import { FakeDriver, type FakeScreen } from './testing/fake-driver.js';
-import { replayRoutine } from './replay.js';
+import { replayRoutine, replaySteps } from './replay.js';
 
 const config = parseConfig({ version: 1, app: { connect: { url: 'fake://home' } }, decisions: { decider: 'heuristic' } });
 const button = (ref: string, name: string) => ({
@@ -69,5 +69,28 @@ describe('replayRoutine end check', () => {
   it('fails at the first miss when the routine has no end check', async () => {
     const { result } = await replay(routine());
     expect(result).toMatchObject({ ok: false, failedStep: 0 });
+  });
+});
+
+describe('replaySteps', () => {
+  it('replays a path from the current screen', async () => {
+    const record = await new Workspace(root).startSession('explorer');
+    const driver = new FakeDriver(screens);
+    const session = new AgentSession(root, config, new Vars(), record.id, 'explorer', driver);
+    const result = await replaySteps(session, [{ kind: 'tap', target: { role: 'button', name: 'Open settings' } }], { windowMs: 50 });
+    expect(result).toMatchObject({ ok: true, degraded: false });
+    expect(driver.current).toBe('settings');
+  });
+
+  it('stops at the first failed step without skipping it', async () => {
+    const record = await new Workspace(root).startSession('explorer');
+    const driver = new FakeDriver(screens);
+    const session = new AgentSession(root, config, new Vars(), record.id, 'explorer', driver);
+    const result = await replaySteps(session, [
+      { kind: 'tap', target: { role: 'button', name: 'Missing' } },
+      { kind: 'tap', target: { role: 'button', name: 'Open settings' } },
+    ], { windowMs: 50 });
+    expect(result).toMatchObject({ ok: false, failedStep: 0 });
+    expect(driver.current).toBe('home');
   });
 });

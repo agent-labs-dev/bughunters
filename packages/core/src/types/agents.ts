@@ -146,7 +146,42 @@ export type Issue = {
 };
 
 /** `declined`: the fixer read the code and found no bug to fix; its summary says why. */
-export type FixStatus = 'running' | 'proposed' | 'declined' | 'failed' | 'verified' | 'opened';
+export type FixStatus = 'running' | 'retesting' | 'proposed' | 'declined' | 'failed' | 'verified' | 'opened';
+
+export type RetestOutcome = 'fixed' | 'not-fixed' | 'unclear' | 'error' | 'skipped';
+/**
+ * The retests that count as fix attempts: the ones with a verdict. A retest
+ * that stopped on a setup error or was skipped says nothing about the fix.
+ */
+export function judgedRetests(retests: Retest[] = []): Retest[] {
+  return retests.filter((retest) => retest.outcome !== 'error' && retest.outcome !== 'skipped');
+}
+
+export type RetestShot = {
+  /** The screen the issue saw the problem on; undefined when unknown. */
+  screenId?: string;
+  routineId?: string;
+  before?: string;
+  after?: string;
+  note?: string;
+  reached?: boolean;
+};
+
+export type Retest = {
+  attempt: number;
+  outcome: RetestOutcome;
+  reason: string;
+  /** What the explorer saw when it captured the after screenshot. */
+  note?: string;
+  explorerSessionId?: string;
+  judgeSessionId?: string;
+  /** Workspace-relative screenshot paths, same form as Issue.evidence.screenshot. */
+  before?: string;
+  after?: string;
+  shots?: RetestShot[];
+  at: string;
+  costUsd?: number;
+};
 
 export type FixProposal = {
   version: 1;
@@ -165,6 +200,7 @@ export type FixProposal = {
   startedAt: string;
   endedAt?: string;
   costUsd?: number;
+  retests?: Retest[];
   pr?: { number: number; url: string; draft: boolean };
 };
 

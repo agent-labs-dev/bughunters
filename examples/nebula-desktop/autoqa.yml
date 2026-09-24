@@ -38,6 +38,7 @@ agents:
     use: { runtime: model, via: openrouter, model: z-ai/glm-5.3-flash }
   fixer:
     enabled: true
+    retest: { prepare: bun install --frozen-lockfile }
     # nebula-desktop's commit hook requires one of its scopes.
     commitMessage: 'fix(app): {title}'
     # The fixer edits files in its own git worktree. It may install
