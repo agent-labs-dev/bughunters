@@ -570,11 +570,18 @@ function renderIssueDetail() {
     candidates.length
       ? el('p', { class: 'muted', text: `From ${candidates.map((candidate) => candidate.id).join(', ')}` })
       : null,
-    fix ? el('section', { class: 'fix' }, [title('Fix', fix.status),
+    fix ? el('section', { class: 'fix' }, [
+      el('div', { class: 'section-title' }, [el('h2', { text: 'Proposed fix' }), fixBadge(fix)]),
       markdown(fix.summary || 'No summary yet.'),
-      el('div', { class: 'kv' }, [el('span', { text: fix.branch }), el('code', { text: fix.worktree })]),
+      ...(fix.retests?.length ? [retestBlock(fix.retests.at(-1), issue),
+        fix.retests.length > 1 ? el('details', { class: 'earlier-retests' }, [
+          el('summary', { text: `Earlier attempts (${fix.retests.length - 1})` }),
+          ...fix.retests.slice(0, -1).reverse().map((retest) => retestBlock(retest, issue)),
+        ]) : null] : []),
+      title('Code change'),
       fix.diffStat ? el('pre', { text: fix.diffStat }) : null,
-      fix.diff ? el('details', {}, [el('summary', { text: 'Full diff' }), diffBlock(fix.diff)]) : null,
+      fix.diff ? diffBlock(fix.diff) : null,
+      el('div', { class: 'kv' }, [el('span', { text: fix.branch }), el('code', { text: fix.worktree })]),
     ]) : null,
   ]);
 }
@@ -590,6 +597,9 @@ function firstSentence(text) {
 
 function issueStatus(issue, fix) {
   if (issue.status === 'dismissed') return issue.closedBy ? `Dismissed by ${issue.closedBy.by}` : 'Dismissed';
+  if (fix?.status === 'verified') return 'Fix verified in the app';
+  if (fix?.status === 'retesting') return 'Retesting the fix';
+  if (fix?.status === 'proposed' && fix.retests?.at(-1)?.outcome === 'not-fixed') return 'Fix not verified';
   if (fix && ['proposed', 'verified', 'opened'].includes(fix.status)) return 'Fix proposed';
   // The fixer read the code and found nothing to fix: a human should look.
   if (fix && fix.status === 'declined') return 'Fixer: not a bug?';
@@ -609,8 +619,48 @@ function stepWords(step) {
 }
 
 function diffBlock(diff) {
-  return el('pre', { class: 'diff-block' }, diff.split('\n').map((line) =>
-    el('span', { class: line.startsWith('+') ? 'added' : line.startsWith('-') ? 'removed' : '', text: `${line}\n` })));
+  return el('div', { class: 'diff-files' }, diff.split(/(?=^diff --git )/m).filter(Boolean).map((section) => {
+    const lines = section.split('\n');
+    const file = lines[0]?.match(/^diff --git a\/.* b\/(.*)$/)?.[1] ?? 'Patch';
+    return el('section', { class: 'diff-file' }, [el('h3', { text: file }),
+      el('pre', { class: 'diff-block' }, lines.map((line) => el('span', {
+        class: line.startsWith('+') && !line.startsWith('+++') ? 'added'
+          : line.startsWith('-') && !line.startsWith('---') ? 'removed'
+            : line.startsWith('@@') ? 'hunk' : '', text: line || ' ',
+      })))]);
+  }));
+}
+
+function fixBadge(fix) {
+  const last = fix.retests?.at(-1);
+  const label = fix.status === 'verified' ? 'Verified in the app'
+    : fix.status === 'retesting' ? 'Retesting…'
+      : fix.status === 'declined' ? 'Declined'
+        : fix.status === 'failed' ? 'Failed'
+          : last && last.outcome !== 'fixed' ? 'Not verified' : 'Proposed';
+  const kind = fix.status === 'verified' ? 'pass' : ['declined', 'failed'].includes(fix.status) ? 'fail' : 'warn';
+  return el('span', { class: `badge ${kind}`, text: label });
+}
+
+function retestBlock(retest, issue) {
+  const before = retest.before ?? issue.evidence?.screenshot;
+  const pair = (shot) => el('div', { class: 'retest-shot-pair' }, [
+    retest.shots?.length ? el('h4', { text: screenName(shot.screenId) }) : null,
+    shot.reached === false ? el('span', { class: 'muted', text: 'Not reached' }) : null,
+    shot.note ? el('p', { class: 'muted', text: shot.note }) : null,
+    el('div', { class: 'retest-shots' }, [
+      el('figure', {}, [image(shot.before, 'Before'), el('figcaption', { text: 'Before' })]),
+      el('figure', {}, [image(shot.after, 'After (with the fix)'),
+        el('figcaption', { text: 'After (with the fix)' })]),
+    ]),
+  ]);
+  return el('div', { class: 'retest-block' }, [
+    el('h3', { text: `Retest ${retest.attempt}: ${retest.outcome}` }),
+    el('p', { text: retest.reason }),
+    retest.shots?.length
+      ? retest.shots.map((shot) => pair(shot))
+      : pair({ before, after: retest.after, note: retest.note }),
+  ]);
 }
 
 function markdown(source = '') {

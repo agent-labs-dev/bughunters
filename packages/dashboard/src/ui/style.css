@@ -287,6 +287,9 @@ h1 { font-size: 1.35rem; line-height: 1.25; margin: 0; }
 }
 .filter.active { border-color: var(--accent); color: var(--fg); background: var(--panel-2); }
 .detail-heading { justify-content: space-between; align-items: flex-start; margin-bottom: .75rem; }
+/* A grid item grows to its widest child; a long diff line must scroll in its
+   own block, not widen the page. */
+.master-detail > * { min-width: 0; }
 .issue-detail .section-title { margin-top: 1.2rem; }
 .issue-detail .kv { margin-bottom: 1rem; }
 .markdown p { margin: .5rem 0; }
@@ -301,9 +304,23 @@ h1 { font-size: 1.35rem; line-height: 1.25; margin: 0; }
 .evidence-grid figure { margin: 0; }
 .evidence-grid img { width: 100%; height: 180px; object-fit: contain; background: var(--panel-2); cursor: zoom-in; }
 .evidence-grid figcaption { color: var(--muted); text-align: center; font-size: .75rem; }
-.diff-block span { display: block; min-height: 1em; }
-.diff-block .added { color: #54a968; }
-.diff-block .removed { color: #e16b72; }
+.diff-file { border: 1px solid var(--line); border-radius: 6px; margin: .6rem 0; overflow: hidden; }
+.diff-file h3 { padding: .5rem .6rem; margin: 0; background: var(--panel-2); overflow-wrap: anywhere; }
+.diff-block { margin: 0; border-radius: 0; }
+.diff-block span { display: block; min-height: 1em; white-space: pre; }
+.diff-block .added { background: color-mix(in srgb, var(--ok) 18%, transparent); }
+.diff-block .removed { background: color-mix(in srgb, var(--critical) 18%, transparent); }
+.diff-block .hunk { color: var(--muted); }
+.retest-block { border-top: 1px solid var(--line); padding: .75rem 0; }
+.retest-block p { margin: .35rem 0; }
+.retest-shot-pair { margin: .7rem 0; }
+.retest-shot-pair h4 { font-size: .85rem; margin: 0 0 .25rem; }
+.retest-shots { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .6rem; }
+.retest-shots figure { margin: 0; min-width: 0; }
+.retest-shots img, .retest-shots .image-empty { width: 100%; height: 220px; object-fit: contain; background: var(--panel-2); cursor: zoom-in; }
+.retest-shots figcaption { text-align: center; color: var(--muted); font-size: .75rem; }
+.earlier-retests summary { cursor: pointer; color: var(--muted); }
+@media (max-width: 600px) { .retest-shots { grid-template-columns: 1fr; } }
 .toggle { display: flex; align-items: center; gap: .4rem; margin-bottom: .5rem; }
 .candidate {
   display: flex;
