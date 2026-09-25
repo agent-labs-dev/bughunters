@@ -278,7 +278,7 @@ The dashboard is the bird's-eye view of the agents. It reads the files under `.a
 - **Overview**: what each agent does now and what it spent, the issues that need a human, the live screen, and the screens found so far.
 - **Issues**: each issue with its screenshots and steps, the judge's reason, the fix with its diff, the retest with before and after screenshots, and the PR or issue on GitHub with its state.
 - **Activity**: each session as a timeline, one line for each action.
-- **Screens**: each screen that the explorer found, with its latest screenshot.
+- **Screens**: a graph shows how screens connect. Switch to the grid to see each latest screenshot.
 - **Memory**: the lessons that the agents learned.
 - **Checks**: the results of `autoqa run` (shown only when there are runs).
 

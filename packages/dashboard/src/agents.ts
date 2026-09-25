@@ -6,6 +6,10 @@ import { paths, type AgentEvent, type AgentRole, type AgentStatus, type AgentsFi
 const roles: AgentRole[] = ['explorer', 'judge', 'fixer'];
 const severity = { critical: 0, major: 1, minor: 2, cosmetic: 3 };
 const open = new Set(['new', 'filed', 'fixing', 'fix-proposed']);
+type ScreenEdge = { from: string; to: string; kind: 'tap' | 'open' | 'back' | 'other' | 'route';
+  via?: string; count: number; steps: number };
+type DashboardScreen = (AppMap['screens'][number] & { openIssues: number; virtual?: false }) |
+  { id: '__start'; name: 'App start'; virtual: true; openIssues: 0 };
 
 /** Files are written by live agents; a torn or missing read is ordinary, not a server failure. */
 function readJson<T>(file: string): T | undefined {
@@ -149,13 +153,46 @@ export class AgentReader {
     return { issue, fix, candidates, routine };
   }
 
-  screens(): Omit<AppMap, 'screens'> & { screens: (AppMap['screens'][number] & { openIssues: number })[] } {
+  screens(): Omit<AppMap, 'screens'> & { screens: DashboardScreen[];
+    edges: ScreenEdge[];
+    entryId?: string } {
     const map = this.appmap();
     const issues = this.issues().filter((issue) => open.has(issue.status));
-    return { ...map, screens: map.screens.map((screen) => ({
+    const ids = new Set(map.screens.map((screen) => screen.id));
+    const routines = this.routines();
+    const byRoutine = new Map(routines.map((routine) => [routine.id, routine]));
+    const screenByRoutine = new Map(map.screens.filter((screen) => screen.routineId)
+      .map((screen) => [screen.routineId!, screen.id]));
+    for (const routine of routines) if (routine.screenId && ids.has(routine.screenId) && !screenByRoutine.has(routine.id)) {
+      screenByRoutine.set(routine.id, routine.screenId);
+    }
+    const edges = map.screens.flatMap<ScreenEdge>((screen) => {
+      if (screen.transitions?.length) return screen.transitions.map((edge) => ({
+        from: screen.id, to: edge.to, kind: edge.kind, via: edge.via, count: edge.count, steps: edge.steps,
+      }));
+      const routine = byRoutine.get(screen.routineId ?? '') ?? byRoutine.get(`screen-${screen.id}`)
+        ?? routines.find((item) => item.screenId === screen.id);
+      if (routine?.requires?.length) return routine.requires.flatMap((id) => {
+        const from = screenByRoutine.get(id);
+        return from ? [{ from, to: screen.id, kind: 'route' as const, via: 'route', count: 1, steps: 0 }] : [];
+      });
+      return screen.links.map((to) => ({ from: screen.id, to, kind: 'other' as const,
+        via: undefined, count: 1, steps: 0 }));
+    }).filter((edge) => edge.from !== edge.to && ids.has(edge.from) && ids.has(edge.to));
+    for (const screen of map.screens) {
+      if (edges.some((edge) => edge.to === screen.id && edge.kind !== 'back')) continue;
+      const routine = byRoutine.get(screen.routineId ?? '') ?? byRoutine.get(`screen-${screen.id}`);
+      if (!routine) continue;
+      if (!routine.requires?.length || routine.requires.some((id) => !screenByRoutine.has(id))) {
+        edges.push({ from: '__start', to: screen.id, kind: 'route', via: 'route', count: 1, steps: 0 });
+      }
+    }
+    const screens: DashboardScreen[] = map.screens.map((screen) => ({
       ...screen,
       openIssues: issues.filter((issue) => issue.screenId === screen.id).length,
-    })) };
+    }));
+    if (screens.length) screens.push({ id: '__start', name: 'App start', virtual: true, openIssues: 0 });
+    return { ...map, screens, edges, entryId: screens.length ? '__start' : undefined };
   }
 
   overview(now = new Date()): object {

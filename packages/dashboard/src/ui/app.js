@@ -1,6 +1,7 @@
 // AutoQA dashboard. Vanilla ES modules on purpose: no build step means the UI
 // is served straight from source, so `autoqa dashboard` works from a clone with
 // nothing compiled but the CLI itself.
+import { layoutGraph } from './graph-layout.js';
 
 const view = document.getElementById('view');
 const tabs = document.getElementById('tabs');
@@ -29,6 +30,11 @@ const state = {
   live: null,
   root: '',
 };
+
+let screenMode = 'graph';
+try { screenMode = localStorage.getItem('autoqa-screen-mode') === 'grid' ? 'grid' : 'graph'; } catch { /* storage may be disabled */ }
+const graphCamera = { box: null, key: '' };
+let showBackLinks = false;
 
 // ---------------------------------------------------------------- data
 
@@ -94,8 +100,7 @@ async function refresh({ keepSelection = true } = {}) {
     state.appmap = await getJson('/api/appmap');
     state.issues = await getJson('/api/issues');
     state.routines = await getJson('/api/routines');
-    // The tab opens on the list. A detail shows only after a click, and it
-    // closes if its screen goes away.
+    // A detail shows only after a click and closes if its screen goes away.
     if (!state.appmap?.screens.some((screen) => screen.id === state.selectedScreenId)) {
       state.selectedScreenId = null;
     }
@@ -142,6 +147,17 @@ function el(tag, props = {}, children = []) {
     else if (value !== undefined && value !== null) node.setAttribute(key, String(value));
   }
   for (const child of [].concat(children)) if (child) node.append(child);
+  return node;
+}
+
+function svgEl(tag, props = {}, children = []) {
+  const node = document.createElementNS('http://www.w3.org/2000/svg', tag);
+  for (const [key, value] of Object.entries(props)) {
+    if (key === 'text') node.textContent = value;
+    else if (key.startsWith('on')) node.addEventListener(key.slice(2).toLowerCase(), value);
+    else if (value !== undefined && value !== null) node.setAttribute(key, String(value));
+  }
+  for (const child of children) if (child) node.append(child);
   return node;
 }
 
@@ -803,7 +819,9 @@ async function openScreen(id) {
 }
 
 function renderScreens() {
-  const screens = state.appmap?.screens ?? [];
+  const graphScreens = state.appmap?.screens ?? [];
+  const screens = graphScreens.filter((screen) => !screen.virtual);
+  const edges = state.appmap?.edges ?? [];
   const selected = screens.find((screen) => screen.id === state.selectedScreenId);
   if (selected) {
     const routine = state.routines.find((entry) => entry.id === selected.routineId);
@@ -819,14 +837,28 @@ function renderScreens() {
       el('p', { text: routine
         ? `${routine.id} · ${routine.description} · ${routine.steps} steps`
         : selected.routineId || 'No routine' }),
+      ...[['Comes from', edges.filter((edge) => edge.to === selected.id), 'from'],
+        ['Goes to', edges.filter((edge) => edge.from === selected.id), 'to']].map(([heading, links, end]) =>
+        el('section', { class: 'screen-links' }, [title(heading), ...links.map((edge) =>
+          el('button', { class: 'list-row', onclick: () => openScreen(edge[end]) }, [
+            el('strong', { text: screenName(edge[end]) }),
+            edge.via ? el('small', { class: 'muted', text: edge.via }) : null,
+          ]))])),
       title('Open issues', `${selected.openIssues}`),
       ...issues.map((issue) => el('button', { class: 'list-row', onclick: () => openIssue(issue.id) }, [
         el('strong', { text: issue.title }), severityChip(issue.severity),
       ])),
     ]);
   }
+  const toggle = el('div', { class: 'screen-mode', role: 'group', 'aria-label': 'Screen view' },
+    ['graph', 'grid'].map((mode) => el('button', { class: screenMode === mode ? 'active' : '',
+      text: mode === 'graph' ? 'Graph' : 'Grid', 'aria-pressed': screenMode === mode,
+      onclick: () => { screenMode = mode; try { localStorage.setItem('autoqa-screen-mode', mode); } catch { /* disabled */ } render(); },
+    })));
   return el('div', {}, [title('Screens', `${screens.length} found`),
-    el('div', { class: 'screen-grid' }, screens.map((screen) => el('button', {
+    toggle,
+    screens.length === 0 ? el('div', { class: 'empty', text: 'No screens found yet.' })
+      : screenMode === 'graph' ? renderScreenGraph(graphScreens, edges) : el('div', { class: 'screen-grid' }, screens.map((screen) => el('button', {
       class: 'card screen-card', onclick: () => openScreen(screen.id),
     }, [image(screen.lastScreenshot, screen.name), el('div', { class: 'screen-copy' }, [
       el('strong', { text: screen.name }),
@@ -834,6 +866,125 @@ function renderScreens() {
       el('small', { class: 'muted', text: `${relativeTime(screen.lastSeenAt)} · ${screen.visits} visits` }),
       screen.openIssues ? el('span', { class: 'issue-count', text: `${screen.openIssues} open` }) : null,
     ])])))]);
+}
+
+function renderScreenGraph(screens, allEdges) {
+  const layout = layoutGraph(screens, allEdges, state.appmap?.entryId);
+  const key = `${screens.map((screen) => screen.id).join('|')}|${allEdges.length}`;
+  const canvas = svgEl('svg', { class: 'screen-graph', role: 'group', 'aria-label': 'Map of app screens' });
+  const marker = svgEl('marker', { id: 'graph-arrow', markerWidth: 9, markerHeight: 9, refX: 8, refY: 4.5,
+    orient: 'auto', markerUnits: 'userSpaceOnUse' }, [svgEl('path', { d: 'M 0 0 L 9 4.5 L 0 9 Z' })]);
+  const mutedMarker = svgEl('marker', { id: 'graph-arrow-muted', markerWidth: 9, markerHeight: 9,
+    refX: 8, refY: 4.5, orient: 'auto', markerUnits: 'userSpaceOnUse' },
+  [svgEl('path', { d: 'M 0 0 L 9 4.5 L 0 9 Z' })]);
+  canvas.append(svgEl('defs', {}, [marker, mutedMarker]));
+  const edgeNodes = layout.edges.filter((edge) => showBackLinks || edge.kind !== 'back').map((edge) => {
+    const path = svgEl('path', { d: edge.path, class: `graph-edge ${edge.kind}`,
+      'data-from': edge.from, 'data-to': edge.to,
+      'marker-end': `url(#graph-arrow${['route', 'other', 'back'].includes(edge.kind) ? '-muted' : ''})`,
+      'stroke-width': ['route', 'other'].includes(edge.kind) ? 1 : 1.5 + Math.min(4, Math.log2(edge.count || 1)) });
+    path.append(svgEl('title', { text: edge.via || edge.kind }));
+    return path;
+  });
+  canvas.append(svgEl('g', { class: 'graph-edges' }, edgeNodes));
+  if (layout.unlinkedX !== null) canvas.append(svgEl('text', { x: layout.unlinkedX, y: layout.unlinkedY + 20,
+    class: 'graph-unlinked', text: 'Not linked' }));
+  const screenById = new Map(screens.map((screen) => [screen.id, screen]));
+  let dragMoved = false;
+  for (const node of layout.nodes) {
+    const screen = screenById.get(node.id);
+    if (screen.virtual) {
+      canvas.append(svgEl('g', { class: 'graph-start', 'aria-label': 'App start' }, [
+        svgEl('rect', { x: node.x, y: node.y, width: node.w, height: node.h, rx: node.h / 2 }),
+        svgEl('text', { x: node.x + node.w / 2, y: node.y + node.h / 2 + 5,
+          'text-anchor': 'middle', text: 'App start' }),
+      ]));
+      continue;
+    }
+    const card = svgEl('g', { class: 'graph-node', role: 'button', tabindex: 0,
+      'aria-label': `${screen.name}${screen.openIssues ? `, ${screen.openIssues} open issues` : ''}`,
+      onclick: () => { if (!dragMoved) openScreen(node.id); },
+      onkeydown: (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openScreen(node.id); } },
+      onpointerenter: () => { for (const path of edgeNodes) path.classList.toggle('faded',
+        path.getAttribute('data-from') !== node.id && path.getAttribute('data-to') !== node.id); },
+      onpointerleave: () => edgeNodes.forEach((path) => path.classList.remove('faded')),
+    });
+    card.append(svgEl('rect', { x: node.x, y: node.y, width: node.w, height: node.h, rx: 9,
+      class: 'graph-card' }));
+    if (screen.lastScreenshot) card.append(svgEl('image', { x: node.x + 5, y: node.y + 5,
+      width: node.w - 10, height: 104, href: artifact(screen.lastScreenshot), preserveAspectRatio: 'xMidYMin slice' }));
+    card.append(svgEl('text', { x: node.x + 10, y: node.y + 134, class: 'graph-name',
+      text: screen.name.length > 24 ? `${screen.name.slice(0, 23)}…` : screen.name }));
+    if (screen.openIssues) {
+      card.append(svgEl('circle', { cx: node.x + node.w - 12, cy: node.y + 12, r: 12, class: 'graph-issue' }));
+      card.append(svgEl('text', { x: node.x + node.w - 12, y: node.y + 16,
+        'text-anchor': 'middle', class: 'graph-issue-text', text: screen.openIssues }));
+    }
+    card.append(svgEl('title', { text: screen.name }));
+    canvas.append(card);
+  }
+  let box = graphCamera.key === key ? graphCamera.box : null;
+  const setBox = (next) => { box = next; graphCamera.box = next; graphCamera.key = key;
+    canvas.setAttribute('viewBox', `${next.x} ${next.y} ${next.w} ${next.h}`); };
+  const fit = () => {
+    const width = canvas.clientWidth, height = canvas.clientHeight;
+    if (!width || !height) return;
+    const scale = Math.max((layout.width + 80) / width, (layout.height + 100) / height);
+    setBox({ x: (layout.width - width * scale) / 2, y: (layout.height - height * scale) / 2,
+      w: width * scale, h: height * scale });
+  };
+  const zoom = (factor, clientX, clientY) => {
+    if (!box) fit();
+    const bounds = canvas.getBoundingClientRect();
+    const fx = (clientX - bounds.left) / bounds.width, fy = (clientY - bounds.top) / bounds.height;
+    const w = Math.max(200, Math.min(layout.width * 5, box.w * factor));
+    const h = w * bounds.height / bounds.width;
+    setBox({ x: box.x + (box.w - w) * fx, y: box.y + (box.h - h) * fy, w, h });
+  };
+  canvas.addEventListener('wheel', (event) => { event.preventDefault();
+    zoom(Math.exp(event.deltaY * 0.001), event.clientX, event.clientY); }, { passive: false });
+  const pointers = new Map();
+  let lastPinch = 0;
+  canvas.addEventListener('pointerdown', (event) => { dragMoved = false;
+    pointers.set(event.pointerId, [event.clientX, event.clientY]);
+    event.target.setPointerCapture(event.pointerId); });
+  canvas.addEventListener('pointermove', (event) => {
+    if (!pointers.has(event.pointerId)) return;
+    const before = pointers.get(event.pointerId);
+    if (Math.hypot(event.clientX - before[0], event.clientY - before[1]) > 3) dragMoved = true;
+    pointers.set(event.pointerId, [event.clientX, event.clientY]);
+    if (pointers.size === 2) {
+      const [a, b] = [...pointers.values()];
+      const distance = Math.hypot(a[0] - b[0], a[1] - b[1]);
+      if (lastPinch) zoom(lastPinch / distance, (a[0] + b[0]) / 2, (a[1] + b[1]) / 2);
+      lastPinch = distance;
+    } else if (box) setBox({ ...box, x: box.x - (event.clientX - before[0]) * box.w / canvas.clientWidth,
+      y: box.y - (event.clientY - before[1]) * box.h / canvas.clientHeight });
+  });
+  const endPointer = (event) => { pointers.delete(event.pointerId); lastPinch = 0; };
+  canvas.addEventListener('pointerup', endPointer);
+  canvas.addEventListener('pointercancel', endPointer);
+  requestAnimationFrame(() => {
+    if (!canvas.isConnected) return;
+    if (box) { setBox(box); return; }
+    if (canvas.clientWidth && canvas.clientHeight) { fit(); return; }
+    const observer = new ResizeObserver(() => {
+      if (!canvas.isConnected) { observer.disconnect(); return; }
+      if (canvas.clientWidth && canvas.clientHeight) { observer.disconnect(); fit(); }
+    });
+    observer.observe(canvas);
+  });
+  return el('div', { class: 'graph-wrap' }, [
+    el('div', { class: 'graph-toolbar' }, [
+      el('button', { text: 'Fit', onclick: fit }),
+      el('button', { text: '+', 'aria-label': 'Zoom in', onclick: () => zoom(.8, canvas.getBoundingClientRect().x + canvas.clientWidth / 2, canvas.getBoundingClientRect().y + canvas.clientHeight / 2) }),
+      el('button', { text: '−', 'aria-label': 'Zoom out', onclick: () => zoom(1.25, canvas.getBoundingClientRect().x + canvas.clientWidth / 2, canvas.getBoundingClientRect().y + canvas.clientHeight / 2) }),
+      el('label', {}, [el('input', { type: 'checkbox', checked: showBackLinks ? '' : null,
+        onchange: (event) => { showBackLinks = event.target.checked; render(); } }), ' Show back links']),
+    ]),
+    el('p', { class: 'graph-legend', text: 'Solid = tap · dashed = deep link · grey = replay route' }),
+    canvas,
+  ]);
 }
 
 function renderMemory() {
