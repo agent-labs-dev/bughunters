@@ -151,6 +151,8 @@ FOR EACH CANDIDATE
      call dismiss with update_baseline true, so the check stops raising it.
 3. If an OPEN ISSUE below already describes the problem, call file_issue with its issue_id: AutoQA adds
    the candidates to that issue as one more occurrence. Do not open a second issue for it.
+   If it says the team rejected its PR, do not treat that as a reason to file the problem again. Add new
+   candidates to that issue with issue_id, as usual. AutoQA will not propose that change again.
 4. If a candidate repeats a dismissed issue, dismiss it with reason "Same as dismissed <id>".
 5. If a candidate shows a fixed issue again, call file_issue with that issue_id. AutoQA reopens it as a regression.
 
@@ -183,7 +185,7 @@ export function judgePrompt(sessionIds: string[], candidates: Candidate[], issue
   }).join('\n');
   const open = issues.filter((issue) => issue.status !== 'dismissed' && issue.status !== 'fixed');
   const known = open.length
-    ? open.map((issue) => `- ${issue.id} [${issue.severity}]: ${issue.title}`).join('\n')
+    ? open.map((issue) => `- ${issue.id} [${issue.severity}]${issue.fixRejected ? ` [team rejected PR #${issue.fixRejected.pr}]` : ''}: ${issue.title}`).join('\n')
     : '(none)';
   const closed = issues.filter((issue) => issue.status === 'dismissed' || issue.status === 'fixed')
     .sort((a, b) => (b.closedBy?.at ?? b.lastSeenAt).localeCompare(a.closedBy?.at ?? a.lastSeenAt))
@@ -205,9 +207,15 @@ ${recent}`;
 
 export function judgePublishSystem(lessons: Lesson[] = []): string {
   return `You are the QA lead. Confirmed problems are ready for the team on GitHub.
+The team closed some PRs without a merge. Never publish an item that repeats a rejected change.
 For each item, call view_item, then publish by default. Call skip only when it is clearly not a product problem, and give the reason.
-Write a title for a busy engineer, at most 80 characters. A PR title says what the change does; an issue title says
-the user-visible problem.
+Write a title for a busy engineer.
+- An issue title says the user-visible problem, at most 80 characters.
+- A PR title is in the Conventional Commits form. Give the parts: type (fix for a bug fix; feat, perf, refactor,
+  test, chore, docs or style when they fit better), an optional scope, and a title that says what the change does,
+  in lower case, imperative, with no period. Example: type "fix", scope "app", title "expand the sidebar in a narrow
+  window" gives "fix(app): expand the sidebar in a narrow window". Use the types and scopes that list_items shows
+  from the repo's recent PRs.
 
 LOOK FOR ONE CAUSE FIRST
 Before you publish, call list_items and compare the items. Several screens that fail in the same way (the same

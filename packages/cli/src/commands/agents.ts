@@ -1,7 +1,7 @@
 import { ConfigError, InfrastructureError, type AutoQAConfig } from '@autoqa/core';
 import { createDriver } from '@autoqa/drivers';
 import { AgentSession, Vars, Workspace, createRuntime, replayRoutine, runExplorer, runJudge,
-  applyRetest, runFixCycle, runPatrol, runPublisher, retestFix, startApp } from '@autoqa/agents';
+  applyRetest, runFixCycle, runPatrol, runPublisher, retestFix, startApp, syncGitHub } from '@autoqa/agents';
 
 type AgentFlags = Record<string, string | string[] | boolean | number>;
 
@@ -77,6 +77,7 @@ export async function runAgentCommand(
   if (command === 'publish') {
     const outcomes = await runPublisher(root, config, { onLog: log,
       issueIds: flags.issue as string[] | undefined, dryRun: Boolean(flags.dryRun) });
+    if (!flags.dryRun) await syncGitHub(root, config, { onLog: log });
     log(`${outcomes.length} item(s) handled`);
     return;
   }

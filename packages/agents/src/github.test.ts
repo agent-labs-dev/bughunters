@@ -3,8 +3,9 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import type { FixProposal, Issue } from '@autoqa/core';
-import { createIssue, createPr, ensureAssetsBranch, uploadImage, type Gh } from './github.js';
+import { parseConfig, type FixProposal, type Issue } from '@autoqa/core';
+import { createIssue, createPr, ensureAssetsBranch, syncGitHub, uploadImage, type Gh } from './github.js';
+import { Workspace } from './workspace.js';
 
 let dirs: string[] = [];
 afterEach(async () => { await Promise.all(dirs.map((dir) => rm(dir, { recursive: true, force: true }))); dirs = []; });
@@ -72,4 +73,98 @@ describe('GitHub client', () => {
     expect(git(worktree, 'status', '--porcelain')).toBe('');
     expect(git(source, 'ls-remote', 'origin', 'refs/heads/fix-branch')).toContain(fix.commit);
   });
+});
+
+describe('GitHub state sync', () => {
+  const issue = (): Issue => ({ version: 1, id: 'iss_1', fingerprint: 'issue-fp', title: 'Broken screen',
+    body: 'Broken', severity: 'major', status: 'fix-proposed', screenId: 'home', candidateIds: [], evidence: {},
+    judgement: { by: 'judge', reason: 'Broken', at: 'now' }, occurrences: 1, firstSeenAt: 'now', lastSeenAt: 'now' });
+  const fix = (): FixProposal => ({ version: 1, id: 'fix_1', issueId: 'iss_1', status: 'verified',
+    runtime: 'fake', repo: '', branch: 'fix', worktree: '', startedAt: 'now',
+    pr: { number: 7, url: 'https://github.com/o/r/pull/7', draft: false } });
+  async function fixture() {
+    const root = await temp();
+    const workspace = new Workspace(root);
+    const config = parseConfig({ version: 1, app: { source: '.', connect: { url: 'http://localhost' } },
+      agents: { github: { enabled: true, repo: 'o/r' } } });
+    let prs: unknown[] = [];
+    let issues: unknown[] = [];
+    const calls: string[][] = [];
+    const gh: Gh = async (args) => {
+      calls.push(args);
+      if (args[0] === 'repo') return 'main';
+      if (args[0] === 'pr') return JSON.stringify(prs);
+      if (args[0] === 'issue') return JSON.stringify(issues);
+      return '';
+    };
+    return { root, workspace, config, gh, calls,
+      setPrs: (value: unknown[]) => { prs = value; }, setIssues: (value: unknown[]) => { issues = value; } };
+  }
+  it('rejects a closed PR once and records lessons and an event', async () => {
+    const f = await fixture();
+    await f.workspace.saveIssue(issue());
+    await f.workspace.saveFix(fix());
+    const pr = { number: 7, url: 'https://github.com/o/r/pull/7', state: 'OPEN' };
+    f.setPrs([pr]);
+    await syncGitHub(f.root, f.config, { gh: f.gh });
+    f.setPrs([{ ...pr, state: 'CLOSED', closedAt: '2026-09-25T01:00:00Z' }]);
+    expect((await syncGitHub(f.root, f.config, { gh: f.gh })).changed).toEqual(['fix_1', 'iss_1']);
+    expect(await f.workspace.readFix('fix_1')).toMatchObject({ status: 'rejected', pr: { state: 'closed' } });
+    expect(await f.workspace.readIssue('iss_1')).toMatchObject({ status: 'filed',
+      fixRejected: { pr: 7, at: '2026-09-25T01:00:00Z' } });
+    expect((await f.workspace.readMemory()).lessons).toMatchObject([
+      { role: 'judge', source: 'rejected-pr' }, { role: 'fixer', source: 'rejected-pr' },
+    ]);
+    expect((await f.workspace.listSessions())[0]?.id).toBeDefined();
+    expect((await syncGitHub(f.root, f.config, { gh: f.gh })).changed).toEqual([]);
+    expect((await f.workspace.readMemory()).lessons.map((item) => item.hits)).toEqual([1, 1]);
+    expect(await f.workspace.listSessions()).toHaveLength(1);
+    expect(f.calls.filter((args) => args[0] === 'repo')).toHaveLength(3);
+  });
+  it('records merged PR state without changing the fix', async () => {
+    const f = await fixture();
+    await f.workspace.saveIssue(issue());
+    await f.workspace.saveFix(fix());
+    f.setPrs([{ number: 7, url: 'https://github.com/o/r/pull/7', state: 'MERGED', mergedAt: '2026-09-25T01:00:00Z' }]);
+    await syncGitHub(f.root, f.config, { gh: f.gh });
+    expect(await f.workspace.readFix('fix_1')).toMatchObject({ status: 'verified',
+      pr: { state: 'merged', stateAt: '2026-09-25T01:00:00Z' } });
+  });
+  it('restores a reopened PR and issue', async () => {
+    const f = await fixture();
+    await f.workspace.saveIssue({ ...issue(), status: 'dismissed',
+      closedBy: { by: 'GitHub', reason: 'Closed on GitHub as not planned.', at: 'now' },
+      fixRejected: { pr: 7, url: 'https://github.com/o/r/pull/7', at: 'now' },
+      github: { number: 8, url: 'https://github.com/o/r/issues/8', at: 'now', state: 'closed' } });
+    await f.workspace.saveFix({ ...fix(), status: 'rejected',
+      pr: { ...fix().pr!, state: 'closed' }, retests: [
+        { attempt: 1, outcome: 'fixed', reason: 'Gone', at: 'now' },
+        { attempt: 2, outcome: 'error', reason: 'Setup failed', at: 'now' },
+      ] });
+    f.setPrs([{ number: 7, url: 'https://github.com/o/r/pull/7', state: 'OPEN' }]);
+    f.setIssues([{ number: 8, url: 'https://github.com/o/r/issues/8', state: 'OPEN', stateReason: 'REOPENED' }]);
+    await syncGitHub(f.root, f.config, { gh: f.gh });
+    expect(await f.workspace.readFix('fix_1')).toMatchObject({ status: 'verified', pr: { state: 'open' } });
+    expect(await f.workspace.readIssue('iss_1')).toMatchObject({ status: 'filed', github: { state: 'open' } });
+    expect((await f.workspace.readIssue('iss_1'))?.fixRejected).toBeUndefined();
+    expect((await f.workspace.readIssue('iss_1'))?.closedBy).toBeUndefined();
+  });
+  it.each([['NOT_PLANNED', 'dismissed'], ['COMPLETED', 'fixed']] as const)(
+    'handles a GitHub issue closed as %s', async (stateReason, status) => {
+      const f = await fixture();
+      await f.workspace.saveIssue({ ...issue(), status: 'filed', candidateIds: ['cand_1'],
+        github: { number: 8, url: 'https://github.com/o/r/issues/8', at: 'now' } });
+      const session = await f.workspace.startSession('explorer');
+      await f.workspace.appendCandidate(session.id, { id: 'cand_1', sessionId: session.id, source: 'explorer',
+        fingerprint: 'candidate-fp', summary: 'Broken', severity: 'major', evidence: {}, createdAt: 'now' });
+      f.setIssues([{ number: 8, url: 'https://github.com/o/r/issues/8', state: 'CLOSED', stateReason,
+        closedAt: '2026-09-25T01:00:00Z' }]);
+      await syncGitHub(f.root, f.config, { gh: f.gh });
+      expect(await f.workspace.readIssue('iss_1')).toMatchObject({ status,
+        closedBy: { by: 'GitHub', at: '2026-09-25T01:00:00Z' } });
+      if (stateReason === 'NOT_PLANNED') {
+        expect(Object.keys((await f.workspace.readTriage()).fingerprints).sort()).toEqual(['candidate-fp', 'issue-fp']);
+        expect((await f.workspace.readMemory()).lessons[0]).toMatchObject({ role: 'judge', source: 'human' });
+      }
+    });
 });

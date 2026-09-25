@@ -22,6 +22,8 @@ Agents
   autoqa fix [--issue <id>...]
   autoqa retest --issue <id>
   autoqa publish [--issue <id>] [--dry-run]
+  autoqa github sync
+  autoqa worktrees clean
   autoqa patrol [--once]
   autoqa replay <routine-id>
   autoqa issue list | dismiss <id> --reason "..." [--by name] | reopen <id>

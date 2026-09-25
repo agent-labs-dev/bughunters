@@ -13,7 +13,7 @@ export type Lesson = {
   /** A screen or routine; absent means the whole app. */
   scope?: string;
   text: string;
-  source: 'reflection' | 'human' | 'dismissal' | 'fixer-decline' | 'commit-hook' | 'verify';
+  source: 'reflection' | 'human' | 'dismissal' | 'fixer-decline' | 'commit-hook' | 'verify' | 'rejected-pr';
   hits: number;
   createdAt: string;
   lastSeenAt: string;
@@ -153,7 +153,9 @@ export type Issue = {
   occurrences: number;
   firstSeenAt: string;
   lastSeenAt: string;
-  github?: { number: number; url: string; at: string };
+  github?: { number: number; url: string; at: string; state?: 'open' | 'closed';
+    stateReason?: 'completed' | 'not_planned' | 'reopened' | null; stateAt?: string; checkedAt?: string };
+  fixRejected?: { pr: number; url: string; at: string };
   publishSkipped?: { reason: string; at: string };
   fixId?: string;
   /** Set when a human closed the issue. A human decision overrides the judge. */
@@ -163,7 +165,7 @@ export type Issue = {
 };
 
 /** `declined`: the fixer read the code and found no bug to fix; its summary says why. */
-export type FixStatus = 'running' | 'retesting' | 'proposed' | 'declined' | 'failed' | 'verified' | 'opened';
+export type FixStatus = 'running' | 'retesting' | 'proposed' | 'declined' | 'failed' | 'verified' | 'opened' | 'rejected';
 
 export type RetestOutcome = 'fixed' | 'not-fixed' | 'unclear' | 'error' | 'skipped';
 /**
@@ -210,6 +212,7 @@ export type FixProposal = {
   repo: string;
   branch: string;
   worktree: string;
+  worktreeRemovedAt?: string;
   /** `git diff --stat` and the full diff, relative to the base commit. */
   diffStat?: string;
   diff?: string;
@@ -221,7 +224,8 @@ export type FixProposal = {
   endedAt?: string;
   costUsd?: number;
   retests?: Retest[];
-  pr?: { number: number; url: string; draft: boolean; at?: string };
+  pr?: { number: number; url: string; draft: boolean; at?: string;
+    state?: 'open' | 'merged' | 'closed'; stateAt?: string; checkedAt?: string };
 };
 
 export type AgentEventKind =

@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process';
-import { ConfigError, type AutoQAConfig, type Issue, type TriageFile } from '@autoqa/core';
-import { Workspace, closeOnGitHub } from '@autoqa/agents';
+import { ConfigError, type AutoQAConfig, type Issue } from '@autoqa/core';
+import { Workspace, closeOnGitHub, dismissedFingerprints } from '@autoqa/agents';
 
 /**
  * `autoqa issue list | dismiss <id> --reason "..." [--by name] | reopen <id>`
@@ -49,26 +49,6 @@ export async function runIssueCommand(args: string[], root: string, log: (line: 
   }
 
   throw new ConfigError(`Unknown issue action: ${action}. Use list, dismiss or reopen.`);
-}
-
-/** The issue's own fingerprint and every candidate it collected. */
-async function dismissedFingerprints(
-  workspace: Workspace,
-  issue: Issue,
-  reason: string,
-  at: string,
-): Promise<TriageFile['fingerprints']> {
-  const entries: TriageFile['fingerprints'] = {
-    [issue.fingerprint]: { decision: 'dismissed', issueId: issue.id, reason, at },
-  };
-  const ids = new Set(issue.candidateIds);
-  for (const session of await workspace.listSessions(Infinity)) {
-    for (const candidate of await workspace.readCandidates(session.id)) {
-      if (!ids.has(candidate.id)) continue;
-      entries[candidate.fingerprint] = { decision: 'dismissed', issueId: issue.id, reason, at };
-    }
-  }
-  return entries;
 }
 
 function flagValue(args: string[], flag: string): string | undefined {

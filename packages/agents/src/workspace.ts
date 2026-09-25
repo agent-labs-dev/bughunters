@@ -367,3 +367,18 @@ export function lessonsFor(memory: MemoryFile, role: LessonRole, limit = 15): Le
       || b.hits - a.hits || b.lastSeenAt.localeCompare(a.lastSeenAt))
     .slice(0, limit);
 }
+
+/** The issue's own fingerprint and every candidate it collected. */
+export async function dismissedFingerprints(workspace: Workspace, issue: Issue, reason: string, at: string): Promise<TriageFile['fingerprints']> {
+  const entries: TriageFile['fingerprints'] = {
+    [issue.fingerprint]: { decision: 'dismissed', issueId: issue.id, reason, at },
+  };
+  const ids = new Set(issue.candidateIds);
+  if (!ids.size) return entries;
+  for (const session of await workspace.listSessions(Infinity)) {
+    for (const candidate of await workspace.readCandidates(session.id)) {
+      if (ids.has(candidate.id)) entries[candidate.fingerprint] = { decision: 'dismissed', issueId: issue.id, reason, at };
+    }
+  }
+  return entries;
+}

@@ -12,6 +12,7 @@ export * from './tools/judge.js';
 export * from './roles/explorer.js';
 export * from './roles/judge.js';
 export * from './roles/fixer.js';
+export * from './roles/worktrees.js';
 export * from './roles/retest.js';
 export * from './roles/publish.js';
 export * from './roles/reflect.js';

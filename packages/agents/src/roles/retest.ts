@@ -365,7 +365,7 @@ export async function recheckMerged(root: string, config: AutoQAConfig, deps: De
     const issue = await workspace.readIssue(fix.issueId);
     if (!issue || !['new', 'filed', 'fixing', 'fix-proposed'].includes(issue.status)) continue;
     const branch = await defaultBranch(fix.repo);
-    if (!(await (deps.isMerged?.(fix) ?? merged(fix, branch)))) continue;
+    if (!(fix.pr?.state ? fix.pr.state === 'merged' : await (deps.isMerged?.(fix) ?? merged(fix, branch)))) continue;
     const result = await retestFix(root, config, issue, fix, (fix.retests?.length ?? 0) + 1, deps, { build: 'main' });
     fix.retests = [...(fix.retests ?? []), result];
     await workspace.saveFix(fix);

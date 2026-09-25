@@ -9,6 +9,7 @@ import { startDashboard } from '@autoqa/dashboard';
 import { runAgentCommand } from './commands/agents.js';
 import { runIssueCommand } from './commands/issue.js';
 import { runMemoryCommand } from './commands/memory.js';
+import { cleanWorktrees, syncGitHub } from '@autoqa/agents';
 
 const [command, ...args] = process.argv.slice(2);
 const root = process.cwd();
@@ -83,12 +84,41 @@ try {
       break;
     }
 
+    case 'github': {
+      if (args.length !== 1 || args[0] !== 'sync') throw new Error('Use autoqa github sync');
+      const config = loadConfig(root);
+      const result = await syncGitHub(root, config, { onLog: console.error });
+      await cleanWorktrees(root, config, { onLog: console.error });
+      process.stdout.write(`Synced: ${result.changed.length} change(s)\n`);
+      for (const id of result.changed) process.stdout.write(`${id}\n`);
+      break;
+    }
+
+    case 'worktrees': {
+      if (args.length !== 1 || args[0] !== 'clean') throw new Error('Use autoqa worktrees clean');
+      const result = await cleanWorktrees(root, loadConfig(root), { onLog: console.error });
+      process.stdout.write(`Removed: ${result.removed.length} worktree(s)\n`);
+      for (const id of result.removed) process.stdout.write(`${id}\n`);
+      for (const item of result.kept) process.stdout.write(`Kept ${item.id}: ${item.reason}\n`);
+      break;
+    }
+
     case 'dashboard': {
       const portFlag = args.indexOf('--port');
       const port = portFlag >= 0 ? Number(args[portFlag + 1]) : undefined;
       if (portFlag >= 0 && !Number.isInteger(port)) {
         process.stderr.write('--port needs an integer\n');
         process.exit(ExitCode.Usage);
+      }
+      const config = tryLoadConfig(root);
+      let timer: ReturnType<typeof setInterval> | undefined;
+      if (config?.agents.github.enabled) {
+        const sync = () => void syncGitHub(root, config, { onLog: console.error })
+          .catch((error) => console.error(`GitHub sync failed: ${String(error)}`));
+        await syncGitHub(root, config, { onLog: console.error }).catch((error) =>
+          console.error(`GitHub sync failed: ${String(error)}`));
+        timer = setInterval(sync, 5 * 60_000);
+        timer.unref();
       }
       const dashboard = await startDashboard({
         root,
@@ -101,6 +131,7 @@ try {
       // Deliberately does not exit: this is a server, and the watcher is the
       // whole point.
       const stop = () => {
+        if (timer) clearInterval(timer);
         void dashboard.close().then(() => process.exit(ExitCode.Clean));
       };
       process.on('SIGINT', stop);

@@ -111,7 +111,11 @@ to publish to GitHub. After the fix cycle, the judge opens a PR for a completed
 fix and an issue for a major or critical bug with no fix. Each report has the
 full evidence and screenshots. Images live on an orphan `autoqa-assets` branch,
 outside the PR diff. `autoqa publish --dry-run` writes reports locally without
-posting them. A human dismissal prevents later publishing.
+posting them. A human dismissal prevents later publishing. AutoQA syncs GitHub
+state each patrol cycle. A PR closed without a merge rejects its fix; AutoQA
+keeps the issue open and does not propose that change again. A GitHub issue
+closed as not planned is dismissed; one closed as completed is fixed. Reopening
+the issue returns it to filed.
 
 ### 8. State on disk
 

@@ -47,6 +47,18 @@ async function repoFixture() {
 }
 
 describe('fixer', () => {
+  it('skips a fix rejected by the team unless explicitly selected', async () => {
+    const f = await repoFixture();
+    try {
+      const issue = (await f.workspace.readIssue('iss_1'))!;
+      await f.workspace.saveIssue({ ...issue, status: 'filed',
+        fixRejected: { pr: 7, url: 'https://github.com/o/r/pull/7', at: 'now' } });
+      let calls = 0;
+      const runtime: Runtime = { label: 'fake', async run() { calls++; return { stop: 'done', steps: 0, costUsd: 0 }; } };
+      expect(await runFixer(f.session, runtime)).toEqual([]);
+      expect(calls).toBe(0);
+    } finally { await rm(f.root, { recursive: true, force: true }); }
+  });
   it('creates a worktree branch, captures diff, verifies, and commits locally', async () => {
     const f = await repoFixture();
     try {
@@ -154,12 +166,13 @@ describe('fix cycle', () => {
       const worktree = join(f.root, 'worktree');
       await mkdir(worktree);
       const fix: FixProposal = { version: 1, id: 'fix_iss_1', issueId: 'iss_1', status: 'verified',
-        runtime: 'scripted', repo: f.source, worktree, branch: 'fix-branch', startedAt: 'now' };
+        runtime: 'scripted', repo: f.source, worktree, branch: 'fix-branch', startedAt: 'now',
+        pr: { number: 7, url: 'https://github.com/o/r/pull/7', draft: false, state: 'merged' } };
       await f.workspace.saveFix(fix);
       const config = parseConfig({ ...f.config, app: { ...f.config.app,
         setup: [{ run: 'pwd > main-source', cwd: 'source' }] }, agents: { ...f.config.agents,
         fixer: { ...f.config.agents.fixer, retest: { prepare: 'touch prepare-ran' } } } });
-      const result = await recheckMerged(f.root, config, { isMerged: async () => true,
+      const result = await recheckMerged(f.root, config, { isMerged: async () => { throw new Error('PR state was ignored'); },
         createDriver: () => new FakeDriver({ home: { elements: [] } }),
         createRuntime: () => ({ label: 'scripted', async run(task) {
           if (task.role === 'explorer') await task.tools.find((tool) => tool.name === 'capture_after')!

@@ -22,6 +22,11 @@ async function git(cwd: string, ...args: string[]): Promise<string> {
   return output.stdout.trim();
 }
 
+async function branchExists(repo: string, branch: string): Promise<boolean> {
+  try { await git(repo, 'show-ref', '--verify', '--quiet', `refs/heads/${branch}`); return true; }
+  catch { return false; }
+}
+
 function confined(worktree: string, path: string): string {
   const file = resolve(worktree, path);
   if (file !== worktree && !file.startsWith(worktree + sep)) throw new Error('Path leaves worktree');
@@ -203,8 +208,12 @@ export async function runFixer(
   const eligible = all.filter((issue) => {
     if (issue.status === 'dismissed') return false;
     if (opts.issueIds && !opts.issueIds.includes(issue.id)) return false;
+    if (!opts.issueIds && (issue.fixRejected || fixes.some((fix) => fix.issueId === issue.id && fix.status === 'rejected'))) return false;
     const pending = ['new', 'filed'].includes(issue.status) || failed.has(issue.id) || retry.has(issue.id);
-    return pending && (!issue.fixId || failed.has(issue.id) || retry.has(issue.id))
+    return pending && (!issue.fixId || failed.has(issue.id) || retry.has(issue.id)
+      || fixes.some((fix) => fix.issueId === issue.id && fix.worktreeRemovedAt)
+      || (opts.issueIds && fixes.some((fix) => fix.issueId === issue.id
+        && fix.status === 'rejected')))
       && ranks[issue.severity] >= ranks[config.minSeverity];
   });
   // A fixer run is minutes of a coding agent. The worst issues go first, and
@@ -219,7 +228,15 @@ export async function runFixer(
   for (const issue of selected) {
     // A stop request ends the queue between fixes, never inside one.
     if (session.cancelled) break;
-    const branch = `autoqa/fix-${issue.id}`;
+    const oldFix = fixes.find((fix) => fix.issueId === issue.id);
+    const baseBranch = `autoqa/fix-${issue.id}`;
+    let branch = baseBranch;
+    if (oldFix?.worktreeRemovedAt
+      && (await branchExists(source, oldFix.branch) || await branchExists(source, baseBranch))) {
+      let n = 2;
+      while (await branchExists(source, `${baseBranch}-${n}`)) n++;
+      branch = `${baseBranch}-${n}`;
+    }
     const worktree = join(paths.worktrees(session.root), issue.id);
     await mkdir(paths.worktrees(session.root), { recursive: true });
     let existing = false;
@@ -246,6 +263,8 @@ export async function runFixer(
       repo: source,
       branch,
       worktree,
+      worktreeRemovedAt: undefined,
+      ...(oldFix?.worktreeRemovedAt ? { pr: undefined, commit: undefined } : {}),
       startedAt: previous?.startedAt ?? new Date().toISOString(),
       error: undefined,
     };

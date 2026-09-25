@@ -4,9 +4,9 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, join, resolve } from 'node:path';
 import { promisify } from 'node:util';
-import type { AutoQAConfig, FixProposal, Issue } from '@autoqa/core';
+import { judgedRetests, type AutoQAConfig, type FixProposal, type Issue } from '@autoqa/core';
 import { commitFix } from './roles/fixer.js';
-import { Workspace } from './workspace.js';
+import { dismissedFingerprints, Workspace } from './workspace.js';
 
 export type Gh = (args: string[], opts?: { cwd?: string; input?: string }) => Promise<string>;
 
@@ -36,6 +36,103 @@ export async function resolveRepo(gh: Gh, config: AutoQAConfig, source: string):
   const repo = config.agents.github.repo ?? await gh(['repo', 'view', '--json', 'nameWithOwner', '-q', '.nameWithOwner'], { cwd: source });
   const defaultBranch = await gh(['repo', 'view', repo, '--json', 'defaultBranchRef', '-q', '.defaultBranchRef.name'], { cwd: source });
   return { repo, defaultBranch };
+}
+
+export async function syncGitHub(root: string, config: AutoQAConfig,
+  deps: { gh?: Gh; onLog?: (message: string) => void } = {}): Promise<{ changed: string[] }> {
+  const changed = new Set<string>();
+  if (!config.agents.github.enabled) return { changed: [] };
+  const gh = deps.gh ?? defaultGh;
+  const ready = await ghReady(gh);
+  if (!ready.ok) { deps.onLog?.(ready.reason); return { changed: [] }; }
+  const workspace = new Workspace(root);
+  const { repo } = await resolveRepo(gh, config, resolve(root, config.app.source));
+  const label = config.agents.github.labels[0]!;
+  const [prs, githubIssues] = await Promise.all([
+    gh(['pr', 'list', '--repo', repo, '--label', label, '--state', 'all', '--limit', '300',
+      '--json', 'number,url,state,mergedAt,closedAt']),
+    gh(['issue', 'list', '--repo', repo, '--label', label, '--state', 'all', '--limit', '300',
+      '--json', 'number,url,state,stateReason,closedAt']),
+  ]);
+  type Pr = { number: number; url: string; state: 'OPEN' | 'MERGED' | 'CLOSED'; mergedAt?: string; closedAt?: string };
+  type GhIssue = { number: number; url: string; state: 'OPEN' | 'CLOSED';
+    stateReason?: 'COMPLETED' | 'NOT_PLANNED' | 'REOPENED' | null; closedAt?: string };
+  const byPr = new Map((JSON.parse(prs) as Pr[]).map((pr) => [pr.number, pr]));
+  const byIssue = new Map((JSON.parse(githubIssues) as GhIssue[]).map((issue) => [issue.number, issue]));
+  const now = new Date().toISOString();
+  const stale = (checkedAt?: string) => !checkedAt || Date.now() - Date.parse(checkedAt) >= 3_600_000;
+  const issues = new Map((await workspace.listIssues()).map((issue) => [issue.id, issue]));
+  for (const fix of await workspace.listFixes()) {
+    const pr = fix.pr && byPr.get(fix.pr.number);
+    if (!fix.pr || !pr) continue;
+    const previousState = fix.pr.state;
+    const state = pr.state.toLowerCase() as NonNullable<FixProposal['pr']>['state'];
+    const transition = previousState !== state;
+    const save = transition || stale(fix.pr.checkedAt);
+    fix.pr.state = state;
+    fix.pr.stateAt = state === 'merged' ? pr.mergedAt : state === 'closed' ? pr.closedAt : undefined;
+    fix.pr.checkedAt = now;
+    if (transition) {
+      changed.add(fix.id);
+      const issue = issues.get(fix.issueId);
+      if (state === 'closed') {
+        fix.status = 'rejected';
+        if (issue) {
+          issue.fixRejected = { pr: pr.number, url: pr.url, at: fix.pr.stateAt ?? now };
+          if (issue.status === 'fix-proposed') issue.status = 'filed';
+          await workspace.saveIssue(issue);
+          changed.add(issue.id);
+          const lesson = `The team closed PR #${pr.number} (${issue.title}) without a merge: do not propose that change again.`;
+          await workspace.upsertLessons(['judge', 'fixer'].map((role) => ({
+            role: role as 'judge' | 'fixer', source: 'rejected-pr' as const, scope: issue.screenId, text: lesson,
+          })));
+          const record = await workspace.startSession('judge');
+          await workspace.appendEvent(record.id, { sessionId: record.id, role: 'system', kind: 'issue',
+            summary: `The team rejected PR #${pr.number}: ${issue.title}` });
+          await workspace.endSession(record.id, { summary: `Rejected PR #${pr.number}` });
+        }
+      } else if (state === 'open' && previousState === 'closed' && issue?.fixRejected) {
+        fix.status = judgedRetests(fix.retests).at(-1)?.outcome === 'fixed' ? 'verified' : 'proposed';
+        issue.fixRejected = undefined;
+        await workspace.saveIssue(issue);
+        changed.add(issue.id);
+      }
+    }
+    if (save) await workspace.saveFix(fix);
+  }
+  for (const issue of issues.values()) {
+    const remote = issue.github && byIssue.get(issue.github.number);
+    if (!issue.github || !remote) continue;
+    const previousState = issue.github.state;
+    const state = remote.state.toLowerCase() as NonNullable<Issue['github']>['state'];
+    const stateReason = remote.stateReason?.toLowerCase() as NonNullable<Issue['github']>['stateReason'] | undefined;
+    const transition = issue.github.state !== state;
+    const save = transition || stale(issue.github.checkedAt);
+    issue.github.state = state;
+    issue.github.stateReason = stateReason ?? null;
+    issue.github.stateAt = state === 'closed' ? remote.closedAt : undefined;
+    issue.github.checkedAt = now;
+    if (transition) {
+      changed.add(issue.id);
+      if (state === 'closed' && stateReason === 'not_planned') {
+        const reason = 'Closed on GitHub as not planned.';
+        const at = remote.closedAt ?? now;
+        issue.status = 'dismissed';
+        issue.closedBy = { by: 'GitHub', reason, at };
+        await workspace.recordTriage(await dismissedFingerprints(workspace, issue, reason, at));
+        await workspace.upsertLessons([{ role: 'judge', source: 'human', scope: issue.screenId,
+          text: `Not a bug: ${issue.title} — ${reason}`.slice(0, 200) }]);
+      } else if (state === 'closed' && stateReason === 'completed') {
+        issue.status = 'fixed';
+        issue.closedBy = { by: 'GitHub', reason: 'Closed on GitHub as completed.', at: remote.closedAt ?? now };
+      } else if (state === 'open' && previousState === 'closed') {
+        issue.status = 'filed';
+        issue.closedBy = undefined;
+      }
+    }
+    if (save) await workspace.saveIssue(issue);
+  }
+  return { changed: [...changed] };
 }
 
 export async function ensureAssetsBranch(gh: Gh, repo: string, branch: string): Promise<void> {

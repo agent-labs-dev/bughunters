@@ -9,6 +9,8 @@ import { runExplorer } from './roles/explorer.js';
 import { runJudge } from './roles/judge.js';
 import { recheckMerged, runFixCycle } from './roles/retest.js';
 import { runPublisher } from './roles/publish.js';
+import { syncGitHub } from './github.js';
+import { cleanWorktrees } from './roles/worktrees.js';
 
 export type PatrolOptions = {
   root: string;
@@ -40,6 +42,8 @@ export async function runPatrol(options: PatrolOptions): Promise<void> {
         break;
       }
       await workspace.setPatrol({ state: 'running', cycle, startedAt: new Date().toISOString() });
+      if (config.agents.github.enabled) await syncGitHub(root, config, { onLog: options.onLog });
+      await cleanWorktrees(root, config, { onLog: options.onLog });
       for (const role of ['explorer', 'judge', 'fixer'] as const) {
         if (!config.agents[role].enabled) {
           await workspace.setAgentStatus(role, { state: 'off' });
@@ -94,6 +98,7 @@ export async function runPatrol(options: PatrolOptions): Promise<void> {
         createRuntime: options.createRuntime, onLog: options.onLog,
         onSession: (session) => { activeSession = session; },
       });
+      if (!interrupted && config.agents.github.enabled) await syncGitHub(root, config, { onLog: options.onLog });
       const nextAt = new Date(Date.now() + config.agents.patrol.intervalMinutes * 60_000).toISOString();
       await workspace.setPatrol({ state: 'stopped', nextAt });
       if (options.once || interrupted) {

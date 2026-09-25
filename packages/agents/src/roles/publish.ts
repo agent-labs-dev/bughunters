@@ -5,6 +5,7 @@ import { createIssue, createPr, defaultGh, ensureAssetsBranch, ensureLabels, ghR
   resolveRepo, uploadImage, type Gh } from '../github.js';
 import { judgePublishSystem } from '../prompts.js';
 import { buildReport } from '../report.js';
+import { buildPrTitle, isConventional, PR_TYPES, templateScope } from '../pr-title.js';
 import { createRuntime as makeRuntime } from '../runtime/index.js';
 import { AgentSession } from '../session.js';
 import type { Tool } from '../types.js';
@@ -45,8 +46,9 @@ export async function runPublisher(root: string, config: AutoQAConfig, deps: Dep
   const fixes = new Map((await workspace.listFixes()).map((fix) => [fix.issueId, fix]));
   const items: Item[] = (await workspace.listIssues()).flatMap((issue): Item[] => {
     if (deps.issueIds && !deps.issueIds.includes(issue.id)) return [];
-    if (issue.status === 'dismissed' || issue.publishSkipped) return [];
+    if (issue.status === 'dismissed' || issue.publishSkipped || issue.fixRejected) return [];
     const fix = fixes.get(issue.id);
+    if (fix?.status === 'rejected') return [];
     if (fix && ['verified', 'proposed'].includes(fix.status) && !fix.pr) return [{ kind: 'pr' as const, issue, fix }];
     if (!issue.github && !['fixed', 'dismissed'].includes(issue.status)
       && rank[issue.severity] >= rank[config.agents.github.issueMinSeverity]
@@ -84,13 +86,30 @@ export async function runPublisher(root: string, config: AutoQAConfig, deps: Dep
     ...((item.fix?.retests ?? []).flatMap((retest) => [retest.before, retest.after,
       ...(retest.shots ?? []).flatMap((shot) => [shot.before, shot.after])])),
   ].filter((path): path is string => Boolean(path)));
+  const defaultScope = config.agents.github.prScope ?? templateScope(config.agents.fixer.commitMessage);
+  // The repo's own recent titles teach the judge its types and scopes.
+  let recentTitles: string[] = [];
+  if (!deps.dryRun) {
+    try {
+      resolved ??= await resolveRepo(gh, config, resolve(root, config.app.source));
+      recentTitles = (await gh(['pr', 'list', '--repo', resolved.repo, '--state', 'merged', '--limit', '25',
+        '--json', 'title', '-q', '.[].title'])).split('\n').filter(isConventional).slice(0, 10);
+    } catch { /* Style hints are optional. */ }
+  }
   try {
     await session.activity(`Publishing ${items.length} item(s)`, 0, runtime.label);
     session.emit({ kind: 'session-start', summary: `Publishing ${items.length} item(s) to GitHub` });
     const tools: Tool[] = [{
       name: 'list_items', description: 'List issues ready to publish.', inputSchema: schema(),
-      async run() { return result(vars.redact(items.filter((item) => !done.has(item.issue.id)).map((item) =>
-        `${item.issue.id} [${item.kind}, ${item.issue.severity}, fix: ${item.fix?.status ?? 'none'}, retest: ${item.fix?.retests?.at(-1)?.outcome ?? 'none'}]: ${item.issue.title}`).join('\n')) as string); },
+      async run() {
+        const list = items.filter((item) => !done.has(item.issue.id)).map((item) =>
+          `${item.issue.id} [${item.kind}, ${item.issue.severity}, fix: ${item.fix?.status ?? 'none'}, retest: ${item.fix?.retests?.at(-1)?.outcome ?? 'none'}]: ${item.issue.title}`).join('\n');
+        const style = recentTitles.length
+          ? `\n\nRECENT MERGED PR TITLES IN THIS REPO (use the same types and scopes)\n${recentTitles.map((t) => `- ${t}`).join('\n')}`
+          : '';
+        const scope = defaultScope ? `\nDefault PR scope: ${defaultScope}` : '';
+        return result(vars.redact(`${list}${scope}${style}`) as string);
+      },
     }, {
       name: 'view_item', description: 'Review an item and its before and after screenshots.',
       inputSchema: schema({ issue_id: string }, ['issue_id']),
@@ -109,21 +128,34 @@ export async function runPublisher(root: string, config: AutoQAConfig, deps: Dep
       },
     }, {
       name: 'publish', description: 'Publish the reviewed item with a short team summary.',
-      inputSchema: schema({ issue_id: string, title: string, summary: string }, ['issue_id', 'title', 'summary']),
+      inputSchema: schema({
+        issue_id: string,
+        title: { type: 'string', description: 'For an issue: the user-visible problem. For a PR: the description part only, e.g. "expand the sidebar in a narrow window".' },
+        type: { type: 'string', enum: [...PR_TYPES], description: 'PR only: the Conventional Commits type.' },
+        scope: { type: 'string', description: 'PR only, optional: the scope, e.g. app. Use a scope that the repo uses.' },
+        summary: string,
+      }, ['issue_id', 'title', 'summary']),
       async run(input) {
         const item = get(String(input.issue_id));
         if (!item) return result('Unknown or already handled issue.', true);
-        const title = (vars.redact(String(input.title ?? '')) as string).trim();
+        let title = (vars.redact(String(input.title ?? '')) as string).trim();
         const summary = String(input.summary ?? '').trim();
         if (!summary) return result('The summary is missing.', true);
-        // The length in the error lets the model cut the title in one retry.
-        if (!title || title.length > 80) {
+        if (item.kind === 'pr') {
+          if (!input.type) return result(`A PR needs a type: one of ${PR_TYPES.join(', ')}.`, true);
+          const built = buildPrTitle({ type: String(input.type),
+            scope: input.scope ? String(input.scope) : defaultScope, description: title });
+          if (!built.ok) return result(built.reason, true);
+          title = built.title;
+        } else if (!title || title.length > 80) {
+          // The length in the error lets the model cut the title in one retry.
           return result(`The title has ${title.length} characters; the limit is 80. Write a shorter title.`, true);
         }
         try {
           const latestIssue = await workspace.readIssue(item.issue.id);
           const latestFix = item.fix && await workspace.readFix(item.fix.id);
-          if (!latestIssue || latestIssue.status === 'dismissed' || latestIssue.publishSkipped
+          if (!latestIssue || latestIssue.status === 'dismissed' || latestIssue.publishSkipped || latestIssue.fixRejected
+            || latestFix?.status === 'rejected'
             || (item.kind === 'issue' && latestIssue.github)
             || (item.kind === 'pr' && (!latestFix || latestFix.pr)))
             return result('This item was dismissed or already handled.', true);
@@ -153,7 +185,7 @@ export async function runPublisher(root: string, config: AutoQAConfig, deps: Dep
             const opened = await createPr(gh, { repo: resolved!.repo, defaultBranch: resolved!.defaultBranch,
               title, body, labels: config.agents.github.labels,
               draft: config.agents.github.pullRequests === 'draft', fix: item.fix, issue: item.issue,
-              commitMessage: config.agents.fixer.commitMessage, memoryRoot: root });
+              commitMessage: title, memoryRoot: root });
             url = opened.url;
             item.fix.pr = { ...opened, draft: config.agents.github.pullRequests === 'draft', at: new Date().toISOString() };
             await workspace.saveFix(item.fix);

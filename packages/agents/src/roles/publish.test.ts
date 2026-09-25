@@ -25,7 +25,7 @@ const runtime: Runtime = { label: 'fake', async run(task) {
   const view = task.tools.find((tool) => tool.name === 'view_item')!;
   const publish = task.tools.find((tool) => tool.name === 'publish')!;
   await view.run({ issue_id: 'iss_1' });
-  const response = await publish.run({ issue_id: 'iss_1', title: 'Fix the screen', summary: 'The screen broke. This change fixes it.' });
+  const response = await publish.run({ issue_id: 'iss_1', type: 'fix', scope: 'app', title: 'Fix the screen', summary: 'The screen broke. This change fixes it.' });
   expect(response.isError).toBe(false);
   return { stop: 'done', steps: 2, costUsd: 0 };
 } };
@@ -41,6 +41,14 @@ function fakeGh(calls: string[][]): Gh {
 }
 
 describe('runPublisher', () => {
+  it('does not publish a rejected fix or its issue', async () => {
+    const f = await fixture();
+    await f.workspace.saveFix({ version: 1, id: 'fix_1', issueId: f.issue.id, status: 'rejected',
+      runtime: 'fake', repo: '', branch: '', worktree: '', startedAt: 'now' });
+    const calls: string[][] = [];
+    expect(await runPublisher(f.root, f.config, { gh: fakeGh(calls), createRuntime })).toEqual([]);
+    expect(calls).toEqual([]);
+  });
   it('publishes a verified fix once as a PR', async () => {
     const f = await fixture();
     const source = join(f.root, 'source');
@@ -70,6 +78,8 @@ describe('runPublisher', () => {
     expect(await runPublisher(f.root, f.config, { gh: fakeGh(calls), createRuntime })).toMatchObject([
       { kind: 'pr', issueId: 'iss_1', url: 'https://github.com/o/r/pull/4' }]);
     expect((await f.workspace.readFix(fix.id))?.pr?.number).toBe(4);
+    const create = calls.find((args) => args[0] === 'pr' && args[1] === 'create')!;
+    expect(create[create.indexOf('--title') + 1]).toBe('fix(app): fix the screen');
     const count = calls.length;
     expect(await runPublisher(f.root, f.config, { gh: fakeGh(calls), createRuntime })).toEqual([]);
     expect(calls.length).toBe(count);

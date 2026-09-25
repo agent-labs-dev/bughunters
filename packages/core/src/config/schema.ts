@@ -274,6 +274,8 @@ export const agentsSchema = z
       issueMinSeverity: z.enum(['cosmetic', 'minor', 'major', 'critical']).default('major'),
       assetsBranch: z.string().default('autoqa-assets'),
       labels: z.array(z.string()).default(['autoqa']),
+  /** The scope in PR titles, e.g. 'app'. Default: the scope in fixer.commitMessage. */
+  prScope: z.string().optional(),
     }).default({}),
     patrol: z
       .object({
