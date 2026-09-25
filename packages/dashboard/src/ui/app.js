@@ -452,6 +452,19 @@ function title(text, aside) {
   ]);
 }
 
+function githubChip({ kind, number, url, state, draft }) {
+  const label = kind === 'pr' ? 'PR' : 'Issue';
+  const shown = state === 'open' && draft ? 'draft' : state;
+  return el('a', { href: url, target: '_blank', rel: 'noopener noreferrer',
+    class: `gh-chip gh-${shown || 'unknown'}`, text: `${label} #${number}${shown ? ` · ${shown}` : ''}`,
+    onclick: (event) => event.stopPropagation() });
+}
+
+function issueChips(issue) {
+  return [issue.pr ? githubChip({ kind: 'pr', ...issue.pr }) : null,
+    issue.github ? githubChip({ kind: 'issue', ...issue.github }) : null];
+}
+
 function renderOverview() {
   const data = state.overview;
   if (!data) return el('div', { class: 'empty', text: 'Loading overview…' });
@@ -468,7 +481,9 @@ function renderOverview() {
       el('button', { class: 'attention-row', onclick: () => openIssue(issue.id) }, [
         image(issue.evidence?.screenshot, issue.title, 'thumb'),
         el('span', { class: 'grow' }, [el('strong', { text: issue.title }),
-          el('small', { class: 'muted', text: `${screenName(issue.screenId)} · ×${issue.occurrences}` })]),
+          el('span', { class: 'row-meta' }, [
+            el('small', { class: 'muted', text: `${screenName(issue.screenId)} · ×${issue.occurrences}` }),
+            ...issueChips(issue)])]),
         severityChip(issue.severity),
         el('span', { class: 'muted', text: issueStatus(issue, issue.fix) }),
       ]))) : el('p', { class: 'empty', text: 'No open issues. The agents found nothing wrong yet.' }),
@@ -492,6 +507,7 @@ function renderOverview() {
   ]);
   const coverage = el('section', { class: 'card panel coverage' }, [
     title('Coverage', `${data.counts.screens} screens found`),
+    data.github ? el('div', { class: 'muted github-summary', text: `GitHub · ${data.github}` }) : null,
     el('div', { class: 'coverage-row' }, data.screens.map((screen) =>
       el('button', { class: 'coverage-item', onclick: () => openScreen(screen.id) }, [
         image(screen.lastScreenshot, screen.name), el('span', { text: screen.name }),
@@ -525,9 +541,11 @@ function renderIssues() {
     }))),
     ...filtered.map((issue) => el('button', { class: `list-row ${issue.id === state.selectedIssueId ? 'active' : ''}`,
       onclick: () => openIssue(issue.id) }, [
+      // The chips sit under the title, so a long title keeps the row's width.
       el('span', { class: 'grow' }, [el('strong', { text: issue.title }),
-        el('small', { class: 'muted', text: `${screenName(issue.screenId)} · ${relativeTime(issue.lastSeenAt)}` })]),
-      issue.pr || issue.github ? el('span', { class: 'badge', text: `#${issue.pr?.number ?? issue.github.number}` }) : null,
+        el('span', { class: 'row-meta' }, [
+          el('small', { class: 'muted', text: `${screenName(issue.screenId)} · ${relativeTime(issue.lastSeenAt)}` }),
+          ...issueChips(issue)])]),
       severityChip(issue.severity),
     ])),
   ]);
@@ -553,10 +571,11 @@ function renderIssueDetail() {
   return el('article', { class: 'card panel issue-detail' }, [
     el('div', { class: 'detail-heading' }, [el('h1', { text: issue.title }), severityChip(issue.severity)]),
     fix?.pr || issue.github || issue.publishSkipped ? el('div', { class: 'kv' }, [
-      fix?.pr ? el('a', { href: fix.pr.url, target: '_blank', rel: 'noopener noreferrer', text: `PR #${fix.pr.number}` }) : null,
-      issue.github ? el('a', { href: issue.github.url, target: '_blank', rel: 'noopener noreferrer', text: `GitHub issue #${issue.github.number}` }) : null,
+      ...issueChips({ pr: fix?.pr, github: issue.github }),
       issue.publishSkipped ? el('span', { class: 'muted', text: `Not published: ${issue.publishSkipped.reason}` }) : null,
     ]) : null,
+    issue.fixRejected ? el('p', { class: 'muted',
+      text: `The team closed PR #${issue.fixRejected.pr} without a merge. AutoQA will not propose this change again.` }) : null,
     el('div', { class: 'kv' }, [el('span', { text: issueStatus(issue, fix) }),
       el('span', { text: screenName(issue.screenId) }), el('span', { text: `×${issue.occurrences}` }),
       el('span', { text: `First ${relativeTime(issue.firstSeenAt)}` }),
@@ -594,7 +613,10 @@ function renderIssueDetail() {
         el('summary', { text: `Show the diff (${fix.diff.split(/^diff --git /m).length - 1} file(s))` }),
         diffBlock(fix.diff),
       ]) : null,
-      el('div', { class: 'kv' }, [el('span', { text: fix.branch }), el('code', { text: fix.worktree })]),
+      el('div', { class: 'kv' }, [el('span', { text: fix.branch }),
+        fix.worktreeRemovedAt
+          ? el('span', { text: `Worktree removed ${new Date(fix.worktreeRemovedAt).toLocaleString()}` })
+          : el('code', { text: fix.worktree })]),
     ]) : null,
   ]);
 }
@@ -611,6 +633,7 @@ function firstSentence(text) {
 function issueStatus(issue, fix) {
   if (issue.status === 'dismissed') return issue.closedBy ? `Dismissed by ${issue.closedBy.by}` : 'Dismissed';
   if (issue.status === 'fixed') return issue.closedBy ? `Fixed: ${issue.closedBy.reason}` : 'Fixed';
+  if (fix?.status === 'rejected' || issue.fixRejected) return 'Fix rejected by the team';
   if (issue.status === 'new' && issue.regression) return 'Regression';
   if (fix?.status === 'verified') return 'Fix verified in the app';
   if (fix?.status === 'retesting') return 'Retesting the fix';

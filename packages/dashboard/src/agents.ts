@@ -178,8 +178,14 @@ export class AgentReader {
       .slice(0, 8)
       .map((issue) => {
         const fix = fixes.find((entry) => entry.id === issue.fixId || entry.issueId === issue.id);
-        return { ...issue, fix: fix ? { status: fix.status } : undefined };
+        return { ...issue, pr: fix?.pr, fix: fix ? { status: fix.status } : undefined };
       });
+    const prStates = fixes.map((fix) => fix.pr?.state).filter(Boolean);
+    const issueStates = issues.map((issue) => issue.github?.state).filter(Boolean);
+    const github = fixes.some((fix) => fix.pr) || issues.some((issue) => issue.github)
+      ? `PRs: ${['open', 'merged', 'closed'].map((state) => `${prStates.filter((item) => item === state).length} ${state}`).join(' · ')} · `
+        + `Issues: ${['open', 'closed'].map((state) => `${issueStates.filter((item) => item === state).length} ${state}`).join(' · ')}`
+      : undefined;
     return {
       project: { name: basename(this.root), platform: appmap.platform },
       patrol: agentFile?.patrol ?? { state: 'stopped', cycle: 0 },
@@ -196,6 +202,7 @@ export class AgentReader {
           .reduce((sum, session) => sum + session.costUsd, 0),
       },
       attention,
+      github,
       live: detail ? { summary: detail.session, events, screenshot } : null,
       recentSessions: sessions.slice(0, 6),
       screens: [...appmap.screens].sort((a, b) => b.lastSeenAt.localeCompare(a.lastSeenAt)).slice(0, 8),

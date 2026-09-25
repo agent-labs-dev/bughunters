@@ -11,11 +11,15 @@
   --minor: #ffd43b;
   --cosmetic: #8ce99a;
   --ok: #51cf66;
+  --gh-open: #51cf66;
+  --gh-merged: #b197fc;
+  --gh-closed: #ff6b6b;
 }
 @media (prefers-color-scheme: light) {
   :root {
     --bg: #f6f7f9; --panel: #fff; --panel-2: #f0f2f6; --line: #dfe3ea;
     --fg: #14171c; --muted: #5b6270; --accent: #2b59d8;
+    --gh-open: #237a36; --gh-merged: #7042b8; --gh-closed: #b73535;
   }
 }
 
@@ -72,6 +76,14 @@ code, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-
 .badge.pass { background: var(--ok); color: #05270d; }
 .badge.warn { background: var(--major); color: #2a1600; }
 .badge.info { background: var(--panel-2); color: var(--muted); border: 1px solid var(--line); }
+.gh-chip { display: inline-flex; flex: none; align-items: center; border: 1px solid currentColor;
+  border-radius: 999px; padding: .08rem .45rem; font-size: .7rem; text-decoration: none;
+  white-space: nowrap; color: var(--muted); }
+.gh-chip:hover { text-decoration: underline; }
+.gh-open { color: var(--gh-open); }
+.gh-merged { color: var(--gh-merged); }
+.gh-closed { color: var(--gh-closed); }
+.github-summary { font-size: .8rem; margin-bottom: .75rem; }
 
 .sev-critical { --sev: var(--critical); }
 .sev-major { --sev: var(--major); }
@@ -370,3 +382,5 @@ h1 { font-size: 1.35rem; line-height: 1.25; margin: 0; }
 .memory-row { display: flex; align-items: center; gap: .75rem; border-top: 1px solid var(--line); padding: .45rem 0; }
 .memory-row .muted { font-size: .75rem; white-space: nowrap; }
 @media (max-width: 600px) { .memory-row { flex-wrap: wrap; } }
+
+.row-meta { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem .5rem; margin-top: .2rem; }

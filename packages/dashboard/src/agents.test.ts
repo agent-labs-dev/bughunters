@@ -63,6 +63,21 @@ describe('AgentReader', () => {
     const billing = new AgentReader(root).screens().screens.find((screen) => screen.id === 'billing');
     expect(billing?.openIssues).toBe(1);
   });
+
+  it('passes GitHub state into issue rows and the overview', () => {
+    writeAgentFixture(root);
+    const reader = new AgentReader(root);
+    const issue = reader.issues().find((item) => item.id === 'iss-settings')!;
+    const fix = reader.issue(issue.id)!.fix!;
+    writeFileSync(join(root, '.autoqa', 'issues', `${issue.id}.json`), JSON.stringify({ ...issue,
+      github: { number: 8, url: 'https://github.com/o/r/issues/8', at: 'now', state: 'open' } }));
+    writeFileSync(join(root, '.autoqa', 'fixes', `${fix.id}.json`), JSON.stringify({ ...fix,
+      pr: { number: 7, url: 'https://github.com/o/r/pull/7', draft: false, state: 'merged' } }));
+    expect(reader.issues().find((item) => item.id === issue.id)).toMatchObject({
+      github: { state: 'open' }, pr: { state: 'merged' },
+    });
+    expect((reader.overview() as { github: string }).github).toContain('1 merged');
+  });
 });
 
 const canBind = await new Promise<boolean>((done) => {
