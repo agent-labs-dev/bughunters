@@ -228,6 +228,15 @@ export function tapCommand(locator: Locator): string {
   throw new Error('Tap needs an id, text, or point');
 }
 
+export function typeCommands(action: Extract<DriverAction, { kind: 'type' }>, target: Target): string[] {
+  const commands = target.locator ? [tapCommand(target.locator)] : [];
+  if (!action.append) commands.push(`eraseText: ${target.element?.value === undefined || target.element.value === '••••'
+    ? 100 : target.element.value.length + 10}`);
+  commands.push(`inputText: ${yamlString(action.value)}`);
+  if (action.submit) commands.push('pressKey: Enter');
+  return commands;
+}
+
 /** A swipe moves content opposite to the explorer's scroll direction. */
 export function scrollCommand(direction: 'up' | 'down' | 'left' | 'right'): string {
   const swipe = { up: 'DOWN', down: 'UP', left: 'RIGHT', right: 'LEFT' }[direction];
@@ -438,12 +447,7 @@ export class MaestroDriver implements Driver {
 
   private async type(action: Extract<DriverAction, { kind: 'type' }>): Promise<Target> {
     const target = this.target(action);
-    const commands = target.locator ? [tapCommand(target.locator)] : [];
-    commands.push(`inputText: ${yamlString(action.value)}`);
-    if (action.submit) {
-      commands.push('pressKey: Enter');
-    }
-    await this.run(commands);
+    await this.run(typeCommands(action, target));
     return target;
   }
 

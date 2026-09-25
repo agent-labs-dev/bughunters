@@ -55,6 +55,18 @@ async function replay(value: Routine) {
 
 // FakeDriver finds a locator by ref, testId or name; see testing/fake-driver.ts.
 describe('replayRoutine end check', () => {
+  it('stores a failure from a fix build but leaves success on that build unsaved', async () => {
+    const workspace = new Workspace(root);
+    const record = await workspace.startSession('explorer');
+    const driver = new FakeDriver(screens);
+    const session = new AgentSession(root, config, new Vars(), record.id, 'explorer', driver);
+    await workspace.saveRoutine(routine());
+    expect((await replayRoutine(session, 'open-settings', { windowMs: 10, save: false, onFixBuild: true })).ok).toBe(false);
+    expect((await workspace.readRoutine('open-settings'))?.lastReplay).toMatchObject({ ok: false, onFixBuild: true });
+    await workspace.saveRoutine({ ...routine({ elements: ['Save', 'Cancel'] }), lastReplay: undefined });
+    expect((await replayRoutine(session, 'open-settings', { windowMs: 10, save: false, onFixBuild: true })).ok).toBe(true);
+    expect((await workspace.readRoutine('open-settings'))?.lastReplay).toBeUndefined();
+  });
   it('skips a missing step when the routine still ends where it should', async () => {
     const { result, saved } = await replay(routine({ elements: ['Save', 'Cancel'] }));
     expect(result).toMatchObject({ ok: true, degraded: true });

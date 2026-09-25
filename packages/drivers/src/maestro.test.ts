@@ -10,6 +10,7 @@ import {
   regexText,
   scrollCommand,
   tapCommand,
+  typeCommands,
   yamlString,
 } from './maestro.js';
 
@@ -72,6 +73,17 @@ describe('Maestro data conversion', () => {
       `inputText: ${yamlString('say \"yes\":\nnext')}`,
       'pressKey: Enter',
     ])).toContain('- inputText: \"say');
+  });
+
+  it('clears native text by default and preserves it when appending', () => {
+    const target = { locator: { name: 'First name' }, element: { value: 'Old' } as UiElement };
+    expect(typeCommands({ kind: 'type', value: 'New' }, target)).toEqual([
+      tapCommand(target.locator), 'eraseText: 13', 'inputText: "New"',
+    ]);
+    expect(typeCommands({ kind: 'type', value: 'More', append: true }, target)).toEqual([
+      tapCommand(target.locator), 'inputText: "More"',
+    ]);
+    expect(typeCommands({ kind: 'type', value: 'New' }, {})).toContain('eraseText: 100');
   });
 
   it('maps scroll direction to the opposite swipe', () => {

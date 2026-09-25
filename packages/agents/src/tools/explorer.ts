@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { fingerprint, shortHash, type Candidate, type Locator, type Routine, type RoutineStep } from '@autoqa/core';
 import type { DriverAction, Observation, UiElement } from '@autoqa/drivers';
-import { evaluateScreen } from '../evaluate.js';
+import { addOccurrence, evaluateScreen } from '../evaluate.js';
 import { replayRoutine } from '../replay.js';
 import type { AgentSession } from '../session.js';
 import type { Tool, ToolResult } from '../types.js';
@@ -40,6 +40,18 @@ async function observe(session: AgentSession, label: string, summary?: string): 
     ],
     meta: { summary: summary ?? `Looked at ${observation.title || observation.location}`, screenshot },
   };
+}
+
+/**
+ * Where the app is, for loop removal: the screen key plus the element names.
+ * A URL alone is too coarse (a form or a dialog keeps it), and the names also
+ * change when the app state changes, e.g. a new row in a list.
+ */
+function locationKey(observation: Observation): string {
+  const names = shortHash(observation.elements.map((item) => item.name).sort().join('|'));
+  return observation.platform === 'ios' || observation.platform === 'android'
+    ? names
+    : `${screenKey(observation)}|${names}`;
 }
 
 /** Where the app is: the location and the window, since one URL can host two windows. */
@@ -86,12 +98,29 @@ function describe(session: AgentSession, action: DriverAction): string {
 }
 
 async function act(session: AgentSession, action: DriverAction, recorded?: RoutineStep): Promise<ToolResult> {
+  const replacement = 'ref' in action ? resolveOldRef(session, action.ref) : undefined;
+  if (replacement && 'ref' in action) action = { ...action, ref: replacement.ref };
   const summary = describe(session, action);
   const result = await session.driver!.act(action);
   if (!result.ok) return failed(session, result.error ?? 'Action failed', summary);
-  if (recorded ?? result.step) session.trail.push((recorded ?? result.step)!);
   await session.driver!.settle();
-  return observe(session, action.kind, summary);
+  const viewed = await observe(session, action.kind, summary);
+  if (recorded ?? result.step) session.trail.push({ ...(recorded ?? result.step)!, at: locationKey(session.lastObservation!) });
+  if (replacement) viewed.content.unshift({ type: 'text', text: replacement.message });
+  return viewed;
+}
+
+function resolveOldRef(session: AgentSession, ref?: string): { ref: string; message: string } | undefined {
+  if (!ref || session.lastObservation?.elements.some((item) => item.ref === ref)) return;
+  const old = session.previousObservation?.elements.find((item) => item.ref === ref);
+  if (!old) return;
+  const matches = session.lastObservation?.elements.filter((item) => item.role === old.role && item.name === old.name) ?? [];
+  const center = (box: UiElement['box']) => ({ x: box.x + box.width / 2, y: box.y + box.height / 2 });
+  const from = center(old.box);
+  const nearest = matches.map((item) => ({ item, distance: Math.hypot(center(item.box).x - from.x, center(item.box).y - from.y) }))
+    .sort((a, b) => a.distance - b.distance)[0];
+  if (!nearest || (matches.length > 1 && nearest.distance > 100)) return;
+  return { ref: nearest.item.ref, message: `Ref ${ref} was from an older screen; used ${nearest.item.ref} (${JSON.stringify(old.name)}).` };
 }
 
 /**
@@ -112,24 +141,40 @@ async function failed(session: AgentSession, error: string, summary: string): Pr
 }
 
 async function saveRoutine(session: AgentSession, id: string, description: string,
-  screenId?: string): Promise<Routine> {
+  screenId?: string): Promise<{ routine: Routine; flattenedFrom?: number }> {
   const prior = await session.workspace.readRoutine(id);
   const now = new Date().toISOString();
-  const steps = compactSteps(session.trail.slice(session.anchor.index));
+  let steps = session.trail.slice(session.anchor.index);
+  let requires = session.anchor.routineId && session.anchor.routineId !== id ? [session.anchor.routineId] : [];
+  const chain: Routine[] = [];
+  const seen = new Set([id]);
+  let parent = requires[0];
+  while (parent && !seen.has(parent)) {
+    seen.add(parent);
+    const routine = await session.workspace.readRoutine(parent);
+    if (!routine) break;
+    chain.unshift(routine);
+    parent = routine.requires?.[0];
+  }
+  const flattenedFrom = chain.length > 2 ? chain.length + 1 : undefined;
+  if (flattenedFrom) {
+    requires = [chain[0]!.id];
+    steps = [...chain.slice(1).flatMap((routine) => routine.steps), ...steps];
+  }
   const routine: Routine = {
     version: 1,
     id,
     description,
     platform: session.config.app.platform,
-    requires: session.anchor.routineId && session.anchor.routineId !== id ? [session.anchor.routineId] : [],
-    steps, screenId,
+    requires,
+    steps: compactSteps(steps), screenId,
     expect: endState(session),
     createdAt: prior?.createdAt ?? now,
     updatedAt: now,
   };
   await session.workspace.saveRoutine(routine);
   session.anchor = { routineId: id, index: session.trail.length };
-  return routine;
+  return { routine, flattenedFrom };
 }
 
 /**
@@ -155,6 +200,14 @@ function compactSteps(steps: RoutineStep[]): RoutineStep[] {
     const previous = compacted.at(-1);
     if (previous && sameStep(previous, step)) continue;
     compacted.push(step);
+    if (step.at) {
+      // A detour: the app left this place and came back to it unchanged. The
+      // steps after the first visit add nothing. Steps that stay in one place
+      // (typing into a form) are not a detour.
+      const earlier = compacted.findIndex((item) => item.at === step.at);
+      const left = earlier >= 0 && compacted.slice(earlier + 1, -1).some((item) => item.at !== step.at);
+      if (left) compacted.splice(earlier + 1);
+    }
   }
   return compacted;
 }
@@ -175,7 +228,7 @@ function locatorSignature(locator?: Locator): string {
 function stepSignature(step: RoutineStep): string {
   if (step.kind === 'tap') return `tap:${locatorSignature(step.target)}`;
   if (step.kind === 'type') {
-    return `type:${locatorSignature(step.target)}:${step.value}:${Boolean(step.submit)}`;
+    return `type:${locatorSignature(step.target)}:${step.value}:${Boolean(step.submit)}:${Boolean(step.append)}`;
   }
   if (step.kind === 'scroll') {
     return `scroll:${locatorSignature(step.target)}:${step.direction}`;
@@ -208,11 +261,14 @@ export function explorerTools(session: AgentSession): Tool[] {
     {
       name: 'type',
       description: 'Type in a field, preserving {{NAME}} placeholders for secrets.',
-      inputSchema: schema({ ref: string, text: string, submit: boolean }, ['text']),
+      inputSchema: schema({ ref: string, text: string, submit: boolean,
+        append: { type: 'boolean', description: 'Add to the text already in the field. Default: replace it.' } }, ['text']),
       async run(input) {
         const value = arg(input, 'text');
-        const ref = input.ref as string | undefined;
+        const replacement = resolveOldRef(session, input.ref as string | undefined);
+        const ref = replacement?.ref ?? input.ref as string | undefined;
         const submit = Boolean(input.submit);
+        const append = input.append === true;
         const summary = describe(session, { kind: 'type', ref, value });
         await session.activity('Typing in a field');
         const result = await session.driver!.act({
@@ -220,16 +276,21 @@ export function explorerTools(session: AgentSession): Tool[] {
           ref,
           value: session.vars.resolve(value),
           submit,
+          append,
         });
         if (!result.ok) return failed(session, result.error ?? 'Action failed', summary);
+        await session.driver!.settle();
+        const viewed = await observe(session, 'type', summary);
         session.trail.push({
           kind: 'type',
           target: result.step?.kind === 'type' ? result.step.target : undefined,
           value: session.vars.redact(value) as string,
           submit,
+          ...(append ? { append: true } : {}),
+          at: locationKey(session.lastObservation!),
         });
-        await session.driver!.settle();
-        return observe(session, 'type', summary);
+        if (replacement) viewed.content.unshift({ type: 'text', text: replacement.message });
+        return viewed;
       },
     },
     {
@@ -331,8 +392,8 @@ export function explorerTools(session: AgentSession): Tool[] {
       inputSchema: schema({ id: string, description: string }, ['id', 'description']),
       async run(input) {
         const id = slug(arg(input, 'id'));
-        const routine = await saveRoutine(session, id, arg(input, 'description'));
-        return text(`Saved ${routine.id} with ${routine.steps.length} step(s).`);
+        const { routine, flattenedFrom } = await saveRoutine(session, id, arg(input, 'description'));
+        return text(`Saved ${routine.id} (requires ${routine.requires?.join(', ') || 'none'}, ${routine.steps.length} steps${flattenedFrom ? `, flattened from a chain of ${flattenedFrom}` : ''}).`);
       },
     },
     {
@@ -355,19 +416,23 @@ export function explorerTools(session: AgentSession): Tool[] {
     },
     {
       name: 'report_bug',
-      description: 'Report a visible product bug for judge review.',
+      description: "Report a visible product bug for judge review. screen_id is the id you gave record_screen for the screen you are on, or 'unrecorded'.",
       inputSchema: schema({
+        screen_id: string,
         title: string,
         what_is_wrong: string,
         expected: string,
         severity: { type: 'string', enum: ['cosmetic', 'minor', 'major', 'critical'] },
-      }, ['title', 'what_is_wrong', 'expected', 'severity']),
+      }, ['screen_id', 'title', 'what_is_wrong', 'expected', 'severity']),
       async run(input) {
         const title = arg(input, 'title');
         if (!session.lastScreenshot) {
           await session.capture(await session.driver!.observe(), 'reported-bug');
         }
-        const screenId = currentScreenId(session);
+        const requested = arg(input, 'screen_id');
+        const known = (await session.workspace.readAppMap())?.screens.some((screen) => screen.id === requested);
+        const screenId = known ? requested : currentScreenId(session);
+        const fallback = known ? '' : ` Used current screen as fallback for ${requested || 'missing screen_id'}.`;
         const candidate: Candidate = {
           id: `can_${shortHash(`${session.sessionId}:${title}:${randomUUID()}`)}`,
           sessionId: session.sessionId,
@@ -385,14 +450,23 @@ export function explorerTools(session: AgentSession): Tool[] {
           evidence: {
             screenshot: session.lastScreenshot,
             routineId: session.anchor.routineId,
-            steps: session.trail.slice(session.anchor.index),
+            steps: session.trail.slice(session.anchor.index).map(({ at: _at, ...step }) => step as RoutineStep),
           },
           route: { to: 'judge', reason: 'Explorer reported a visible bug' },
           createdAt: new Date().toISOString(),
         };
+        const decided = (await session.workspace.readTriage()).fingerprints[candidate.fingerprint];
+        if (decided?.decision === 'dismissed') return text(`Not reported: the QA lead dismissed this before (${decided.reason}). Continue.${fallback}`);
+        if (decided?.decision === 'filed' && decided.issueId) {
+          const issue = await session.workspace.readIssue(decided.issueId);
+          if (issue && issue.status !== 'fixed' && issue.status !== 'dismissed') {
+            await addOccurrence(session, issue.id);
+            return text(`Already filed as ${issue.id}; counted one more occurrence.${fallback}`);
+          }
+        }
         await session.workspace.appendCandidate(session.sessionId, candidate);
         session.emit({ kind: 'candidate', summary: title, screenshot: session.lastScreenshot });
-        return text(`Reported ${candidate.id}: ${title}`);
+        return text(`Reported ${candidate.id}: ${title}.${fallback}`);
       },
     },
     {

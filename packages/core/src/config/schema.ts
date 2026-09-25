@@ -224,6 +224,12 @@ const roleBase = {
 
 export const agentsSchema = z
   .object({
+    memory: z.object({
+      enabled: z.boolean().default(true),
+      maxPerSession: z.number().int().positive().default(5),
+      reflectMaxSteps: z.number().int().positive().default(10),
+      reflectBudgetUsd: z.number().nonnegative().default(0.05),
+    }).default({}),
     explorer: z
       .object({ ...roleBase, use: runtimeSchema.default({ runtime: 'model' }) })
       .default({}),
@@ -231,8 +237,6 @@ export const agentsSchema = z
       .object({
         ...roleBase,
         use: runtimeSchema.default({ runtime: 'model' }),
-        /** Where accepted issues go. */
-        fileTo: z.enum(['dashboard', 'github']).default('dashboard'),
       })
       .default({}),
     fixer: z
@@ -241,7 +245,6 @@ export const agentsSchema = z
         use: runtimeSchema.default({ runtime: 'cli', command: 'claude -p --permission-mode acceptEdits' }),
         /** Off until a team opts in: a fixer writes code. */
         enabled: z.boolean().default(false),
-        openPRs: z.enum(['off', 'draft']).default('off'),
         /** Run after the change; a non-zero exit marks the fix failed. */
         verify: z.string().optional(),
         /** After a fix, start the app from the fix worktree and repeat the issue's flow. */
@@ -264,6 +267,14 @@ export const agentsSchema = z
         maxPerCycle: z.number().int().positive().default(2),
       })
       .default({}),
+    github: z.object({
+      enabled: z.boolean().default(false),
+      repo: z.string().optional(),
+      pullRequests: z.enum(['draft', 'ready']).default('draft'),
+      issueMinSeverity: z.enum(['cosmetic', 'minor', 'major', 'critical']).default('major'),
+      assetsBranch: z.string().default('autoqa-assets'),
+      labels: z.array(z.string()).default(['autoqa']),
+    }).default({}),
     patrol: z
       .object({
         intervalMinutes: z.number().positive().default(30),

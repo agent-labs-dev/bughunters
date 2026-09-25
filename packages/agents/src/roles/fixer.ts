@@ -6,6 +6,7 @@ import { judgedRetests, paths, type FixProposal, type Issue, type RoutineStep } 
 import type { AgentSession } from '../session.js';
 import type { RoleOutcome, Runtime, Tool } from '../types.js';
 import { fixerSystem } from '../prompts.js';
+import { lessonsFor } from '../workspace.js';
 
 const exec = promisify(execFile);
 const ranks = {
@@ -120,7 +121,7 @@ function finishTool(): Tool {
  * plain conventional form, which most repositories accept. A rejection returns the hook's
  * last line so the dashboard can say why.
  */
-async function commitFix(
+export async function commitFix(
   worktree: string,
   title: string,
   template: string,
@@ -279,6 +280,10 @@ export async function runFixer(
         // No change plus an explanation is a finding too: the fixer read the
         // code and says the report is wrong or the behaviour is intended.
         proposal.status = outcome.summary ? 'declined' : 'failed';
+        if (proposal.status === 'declined') await session.workspace.upsertLessons([{
+          role: 'judge', source: 'fixer-decline', scope: issue.screenId,
+          text: `Likely by design: ${issue.title} — ${outcome.summary?.split(/(?<=[.!?])\s/)[0] ?? ''}`.slice(0, 200),
+        }]);
         if (!outcome.summary) proposal.error = 'The fixer made no change and gave no reason.';
         await updateIssue(session, issue.id, { status: issue.status });
         proposal.endedAt = new Date().toISOString();
@@ -295,16 +300,23 @@ export async function runFixer(
           });
         } catch (error) {
           const output = error as Error & { stdout?: string; stderr?: string };
+          const last = (output.stderr || output.stdout || output.message).trim().split('\n').at(-1) ?? 'unknown error';
+          await session.workspace.upsertLessons([{ role: 'fixer', source: 'verify',
+            text: `The verify command failed with: ${last}. Run it before you finish.`.slice(0, 200) }]);
           throw new Error(`Verification failed: ${(output.stderr || output.stdout || output.message).slice(-4000)}`);
         }
       }
       proposal.status = 'proposed';
       const committed = await commitFix(worktree, issue.title, config.commitMessage);
       if (!committed.ok) {
+        await session.workspace.upsertLessons([{ role: 'fixer', source: 'commit-hook',
+          text: `The commit hook rejected a commit: ${committed.reason}. Make the change pass it.`.slice(0, 200) }]);
         // The diff is the proposal; a commit is only a convenience. A repo's
         // commit hook (scope rules, lint) must never throw a good fix away,
         // and AutoQA never bypasses a hook with --no-verify.
         proposal.error = `Left uncommitted in the worktree: ${committed.reason}`;
+      } else {
+        proposal.commit = await git(worktree, 'rev-parse', 'HEAD');
       }
       if (committed.ok && config.retest.enabled && session.config.agents.explorer.enabled
         && session.config.agents.judge.enabled
@@ -327,18 +339,6 @@ export async function runFixer(
   return proposals;
 }
 
-/** Publish only a completed proposal, after any app retest has ended. */
-export async function openFixPR(config: AgentSession['config'], issue: Issue, proposal: FixProposal): Promise<void> {
-  if (config.agents.fixer.openPRs !== 'draft' || proposal.pr
-    || proposal.error?.startsWith('Left uncommitted')
-    || !['verified', 'proposed'].includes(proposal.status)) return;
-  await git(proposal.worktree, 'push', '-u', 'origin', proposal.branch);
-  const output = await exec('gh', ['pr', 'create', '--draft', '--title', issue.title,
-    '--body', issue.body], { cwd: proposal.worktree });
-  const url = output.stdout.trim();
-  proposal.pr = { url, number: Number(url.split('/').pop()), draft: true };
-}
-
 async function runOne(session: AgentSession, runtime: Runtime, issue: Issue, worktree: string,
   last?: NonNullable<FixProposal['retests']>[number]): Promise<RoleOutcome> {
   const config = session.config.agents.fixer;
@@ -355,7 +355,7 @@ async function runOne(session: AgentSession, runtime: Runtime, issue: Issue, wor
     role: 'fixer',
     sessionId: session.sessionId,
     workdir: worktree,
-    system: fixerSystem(),
+    system: fixerSystem(lessonsFor(await session.workspace.readMemory(), 'fixer')),
     prompt: `Issue: ${issue.title}\nSeverity: ${issue.severity}\n${issue.body}\nEvidence:\n${evidence}\n` +
       `Reproduction: ${repro}` + (last ? `\nYour last change did not fix the issue. The QA lead said: ${last.reason}. After screenshots:\n${after}\nFix it now.` : ''),
     tools: runtime.label.startsWith('cli:') ? [finishTool()] : [...modelTools(worktree), finishTool()],

@@ -24,7 +24,7 @@ You start signed in. AutoQA gave the app a test session before it started.
 A new test identity sees two onboarding screens first. Complete them:
 
 1. "Tell us who you are": type `AutoQA` as the first name and `Patrol` as the
-   last name. If the screen asks for a username, type `autoqa-{{E2E_RUN_ID}}`:
+   last name. If the screen asks for a username, type `autoqa-{{RUN_TAG}}`:
    each patrol has a new test identity, and a username must be unique. Then
    click Continue.
 2. "Name your workspace": type `AutoQA Patrol` as the workspace name. Keep the

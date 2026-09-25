@@ -14,6 +14,8 @@ app:
       cwd: ../../../nebula-desktop
       capture:
         E2E_RUN_ID: 'run (e2e-[0-9A-Za-z-]+) on'
+        # The random end of the run id. A username has at most 30 characters.
+        RUN_TAG: 'run e2e-[0-9]{8}T[0-9]{6}Z-([0-9a-f]{4}) on'
     - run: bun run e2e identity mint a
       cwd: ../../../nebula-desktop
     - run: bun run e2e app launch --identity a
@@ -30,6 +32,8 @@ app:
   instructions: instructions.md
 
 agents:
+  # Enable after connecting gh to the app's source repository.
+  github: { enabled: true }
   explorer:
     maxSteps: 80
     budgetUsd: 0.5

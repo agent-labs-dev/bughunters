@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process';
-import { ConfigError, type Issue, type TriageFile } from '@autoqa/core';
-import { Workspace } from '@autoqa/agents';
+import { ConfigError, type AutoQAConfig, type Issue, type TriageFile } from '@autoqa/core';
+import { Workspace, closeOnGitHub } from '@autoqa/agents';
 
 /**
  * `autoqa issue list | dismiss <id> --reason "..." [--by name] | reopen <id>`
@@ -9,7 +9,8 @@ import { Workspace } from '@autoqa/agents';
  * the last word: a dismissed issue closes, and its fingerprints go into
  * triage.json, so the same finding does not come back on the next patrol.
  */
-export async function runIssueCommand(args: string[], root: string, log: (line: string) => void): Promise<void> {
+export async function runIssueCommand(args: string[], root: string, log: (line: string) => void,
+  config?: AutoQAConfig): Promise<void> {
   const [action, id, ...rest] = args;
   const workspace = new Workspace(root);
 
@@ -31,14 +32,18 @@ export async function runIssueCommand(args: string[], root: string, log: (line: 
     if (!reason) throw new ConfigError('autoqa issue dismiss needs --reason "why this is not a problem"');
     const by = flagValue(rest, '--by') ?? author();
     const at = new Date().toISOString();
-    await workspace.saveIssue({ ...issue, status: 'dismissed', closedBy: { by, reason, at } });
+    const dismissed: Issue = { ...issue, status: 'dismissed', closedBy: { by, reason, at } };
+    await workspace.saveIssue(dismissed);
+    if (config) await closeOnGitHub(root, config, dismissed, undefined, log);
     await workspace.recordTriage(await dismissedFingerprints(workspace, issue, reason, at));
+    await workspace.upsertLessons([{ role: 'judge', source: 'human', scope: issue.screenId,
+      text: `Not a bug: ${issue.title} — ${reason}`.slice(0, 200) }]);
     log(`Dismissed ${issue.id}: ${issue.title}`);
     return;
   }
 
   if (action === 'reopen') {
-    await workspace.saveIssue({ ...issue, status: 'new', closedBy: undefined });
+    await workspace.saveIssue({ ...issue, status: 'new', closedBy: undefined, publishSkipped: undefined });
     log(`Reopened ${issue.id}. Its fingerprints stay in triage.json until the judge files it again.`);
     return;
   }

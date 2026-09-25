@@ -3,6 +3,7 @@ import { appendFile, mkdir, readFile, readdir, rename, writeFile } from 'node:fs
 import { basename, relative, join } from 'node:path';
 import {
   paths,
+  shortHash,
   type AgentEvent,
   type AgentRole,
   type AgentsFile,
@@ -12,6 +13,9 @@ import {
   type Candidate,
   type FixProposal,
   type Issue,
+  type Lesson,
+  type LessonRole,
+  type MemoryFile,
   type Routine,
   type SessionSummary,
   type TriageFile,
@@ -40,6 +44,7 @@ async function atomic(file: string, value: unknown): Promise<void> {
 }
 
 const fileLocks = new Map<string, Promise<unknown>>();
+const eventWrites = new Map<string, Promise<void>>();
 
 /**
  * Read-modify-write on one file, one at a time. Every AgentSession has its
@@ -68,6 +73,70 @@ async function listJson<T>(dir: string): Promise<T[]> {
 /** State stays plain JSON so a dashboard and a human can inspect the same data. */
 export class Workspace {
   constructor(readonly root: string) {}
+
+  async readMemory(): Promise<MemoryFile> {
+    return (await readJson<MemoryFile>(paths.memory(this.root))) ?? { version: 1, lessons: [] };
+  }
+
+  upsertLessons(lessons: Omit<Lesson, 'id' | 'hits' | 'createdAt' | 'lastSeenAt'>[]): Promise<Lesson[]> {
+    return serialized(paths.memory(this.root), async () => {
+      const memory = await this.readMemory();
+      const now = new Date().toISOString();
+      const saved: Lesson[] = [];
+      for (const lesson of lessons) {
+        const text = lesson.text.trim().slice(0, 200);
+        if (!text) continue;
+        const id = `les_${shortHash(`${lesson.role}:${text.toLowerCase().replace(/\s+/g, ' ')}`)}`;
+        const previous = memory.lessons.find((item) => item.id === id);
+        const next: Lesson = { ...lesson, id, text, hits: (previous?.hits ?? 0) + 1,
+          createdAt: previous?.createdAt ?? now, lastSeenAt: now };
+        if (previous) memory.lessons.splice(memory.lessons.indexOf(previous), 1, next);
+        else memory.lessons.push(next);
+        saved.push(next);
+      }
+      for (const role of ['explorer', 'judge', 'fixer'] as LessonRole[]) {
+        const active = memory.lessons.filter((item) => item.role === role && !item.retired)
+          .sort((a, b) => a.lastSeenAt.localeCompare(b.lastSeenAt));
+        for (const lesson of active.slice(0, Math.max(0, active.length - 40))) {
+          lesson.retired = { at: now, reason: 'Pruned: not seen recently' };
+        }
+      }
+      await atomic(paths.memory(this.root), memory);
+      return saved;
+    });
+  }
+
+  retireLesson(id: string, reason: string): Promise<void> {
+    return serialized(paths.memory(this.root), async () => {
+      const memory = await this.readMemory();
+      const lesson = memory.lessons.find((item) => item.id === id);
+      if (!lesson) throw new Error(`Unknown lesson ${id}`);
+      lesson.retired = { at: new Date().toISOString(), reason };
+      await atomic(paths.memory(this.root), memory);
+    });
+  }
+
+  removeLesson(id: string): Promise<void> {
+    return serialized(paths.memory(this.root), async () => {
+      const memory = await this.readMemory();
+      const next = memory.lessons.filter((item) => item.id !== id);
+      if (next.length === memory.lessons.length) throw new Error(`Unknown lesson ${id}`);
+      await atomic(paths.memory(this.root), { version: 1, lessons: next });
+    });
+  }
+
+  async readEvents(sessionId: string): Promise<AgentEvent[]> {
+    await eventWrites.get(join(paths.session(this.root, sessionId), 'events.jsonl'));
+    try {
+      const raw = await readFile(join(paths.session(this.root, sessionId), 'events.jsonl'), 'utf8');
+      return raw.split('\n').flatMap((line) => {
+        try { return line.trim() ? [JSON.parse(line) as AgentEvent] : []; } catch { return []; }
+      });
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return [];
+      throw error;
+    }
+  }
 
   readAppMap(): Promise<AppMap | undefined> {
     return readJson(paths.appMap(this.root));
@@ -282,7 +351,19 @@ export class Workspace {
 
   recordEvent(sessionId: string, role: AgentEvent['role'], vars: Vars): EventSink {
     return (event) => {
-      void this.appendEvent(sessionId, vars.redact({ ...event, sessionId, role }) as Omit<AgentEvent, 'at'>);
+      const file = join(paths.session(this.root, sessionId), 'events.jsonl');
+      const previous = eventWrites.get(file) ?? Promise.resolve();
+      const next = previous.then(() => this.appendEvent(sessionId,
+        vars.redact({ ...event, sessionId, role }) as Omit<AgentEvent, 'at'>));
+      eventWrites.set(file, next);
+      void next.catch(() => undefined);
     };
   }
+}
+
+export function lessonsFor(memory: MemoryFile, role: LessonRole, limit = 15): Lesson[] {
+  return memory.lessons.filter((lesson) => lesson.role === role && !lesson.retired)
+    .sort((a, b) => Number(b.source === 'human') - Number(a.source === 'human')
+      || b.hits - a.hits || b.lastSeenAt.localeCompare(a.lastSeenAt))
+    .slice(0, limit);
 }

@@ -54,7 +54,7 @@ export type Observation = {
  */
 export type DriverAction =
   | { kind: 'tap'; ref?: string; locator?: Locator }
-  | { kind: 'type'; ref?: string; locator?: Locator; value: string; submit?: boolean }
+  | { kind: 'type'; ref?: string; locator?: Locator; value: string; submit?: boolean; append?: boolean }
   | { kind: 'press'; key: string }
   | { kind: 'scroll'; direction: 'up' | 'down' | 'left' | 'right'; ref?: string; locator?: Locator }
   | { kind: 'back' }

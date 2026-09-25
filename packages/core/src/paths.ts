@@ -23,6 +23,7 @@ export const paths = {
   appMap: (root: string) => join(root, AUTOQA_DIR, 'appmap.json'),
   /** What the judge already decided, by fingerprint, so a decided finding does not come back. */
   triage: (root: string) => join(root, AUTOQA_DIR, 'triage.json'),
+  memory: (root: string) => join(root, AUTOQA_DIR, 'memory.json'),
   agentBaselines: (root: string) => join(root, AUTOQA_DIR, 'agent-baselines'),
   agentBaseline: (root: string, id: string) => join(root, AUTOQA_DIR, 'agent-baselines', `${id}.png`),
   agentBaselineSnapshot: (root: string, id: string) => join(root, AUTOQA_DIR, 'agent-baselines', `${id}.snapshot.json`),

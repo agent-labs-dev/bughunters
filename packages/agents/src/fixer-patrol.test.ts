@@ -11,7 +11,7 @@ import { AgentSession } from './session.js';
 import { Vars } from './vars.js';
 import { Workspace } from './workspace.js';
 import { runFixer } from './roles/fixer.js';
-import { retestFix, retestTargets, runFixCycle } from './roles/retest.js';
+import { recheckMerged, retestFix, retestTargets, runFixCycle } from './roles/retest.js';
 import { runPatrol } from './patrol.js';
 import type { Runtime } from './types.js';
 
@@ -89,6 +89,9 @@ describe('fixer', () => {
       const [proposal] = await runFixer(f.session, runtime);
       expect(proposal).toMatchObject({ status: 'declined', summary: 'The overlay is hidden by design (app.txt:1).' });
       expect(proposal!.error).toBeUndefined();
+      expect((await f.workspace.readMemory()).lessons).toMatchObject([{
+        role: 'judge', source: 'fixer-decline', text: expect.stringContaining('The overlay is hidden by design'),
+      }]);
     } finally {
       await rm(f.root, { recursive: true, force: true });
     }
@@ -134,6 +137,9 @@ describe('fixer', () => {
       const [proposal] = await runFixer(f.session, runtime);
       expect(proposal?.status).toBe('proposed');
       expect(proposal?.error).toContain('rejected by test hook');
+      expect((await f.workspace.readMemory()).lessons[0]).toMatchObject({
+        role: 'fixer', source: 'commit-hook', text: expect.stringContaining('rejected by test hook'),
+      });
       expect((await f.workspace.readIssue('iss_1'))?.status).toBe('fix-proposed');
     } finally {
       await rm(f.root, { recursive: true, force: true });
@@ -142,6 +148,33 @@ describe('fixer', () => {
 });
 
 describe('fix cycle', () => {
+  it('rechecks a merged fix on the main checkout and closes the issue', async () => {
+    const f = await repoFixture();
+    try {
+      const worktree = join(f.root, 'worktree');
+      await mkdir(worktree);
+      const fix: FixProposal = { version: 1, id: 'fix_iss_1', issueId: 'iss_1', status: 'verified',
+        runtime: 'scripted', repo: f.source, worktree, branch: 'fix-branch', startedAt: 'now' };
+      await f.workspace.saveFix(fix);
+      const config = parseConfig({ ...f.config, app: { ...f.config.app,
+        setup: [{ run: 'pwd > main-source', cwd: 'source' }] }, agents: { ...f.config.agents,
+        fixer: { ...f.config.agents.fixer, retest: { prepare: 'touch prepare-ran' } } } });
+      const result = await recheckMerged(f.root, config, { isMerged: async () => true,
+        createDriver: () => new FakeDriver({ home: { elements: [] } }),
+        createRuntime: () => ({ label: 'scripted', async run(task) {
+          if (task.role === 'explorer') await task.tools.find((tool) => tool.name === 'capture_after')!
+            .run({ target: 1, note: 'Problem gone', reached: true });
+          if (task.role === 'judge') await task.tools.find((tool) => tool.name === 'verdict')!
+            .run({ outcome: 'fixed', reason: 'Gone' });
+          return { stop: 'done', steps: 1, costUsd: 0 };
+        } }) });
+      expect(result.closed).toEqual(['iss_1']);
+      expect((await f.workspace.readFix(fix.id))?.retests?.[0]).toMatchObject({ build: 'main', outcome: 'fixed' });
+      expect((await f.workspace.readIssue('iss_1'))).toMatchObject({ status: 'fixed', closedBy: { by: 'AutoQA' } });
+      expect((await readFile(join(f.source, 'main-source'), 'utf8')).trim()).toBe(await realpath(f.source));
+      expect(existsSync(join(worktree, 'prepare-ran'))).toBe(false);
+    } finally { await rm(f.root, { recursive: true, force: true }); }
+  });
   it('records a fixed verdict and the explorer and judge sessions', async () => {
     const f = await repoFixture();
     try {

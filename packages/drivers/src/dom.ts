@@ -237,7 +237,7 @@ export function stepFor(action: DriverAction, element?: UiElement, fallback?: St
       }
       return { kind: 'tap', target };
     case 'type':
-      return { kind: 'type', target, value: action.value, submit: action.submit };
+      return { kind: 'type', target, value: action.value, submit: action.submit, ...(action.append ? { append: true } : {}) };
     case 'scroll':
       return { kind: 'scroll', direction: action.direction, target };
     case 'press':

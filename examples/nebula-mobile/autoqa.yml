@@ -31,6 +31,8 @@ app:
   instructions: instructions.md
 
 agents:
+  # Enable after connecting gh to the app's source repository.
+  github: { enabled: true }
   explorer:
     maxSteps: 80
     budgetUsd: 0.5

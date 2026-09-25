@@ -21,9 +21,12 @@ Agents
   autoqa judge [--session <id>...]
   autoqa fix [--issue <id>...]
   autoqa retest --issue <id>
+  autoqa publish [--issue <id>] [--dry-run]
   autoqa patrol [--once]
   autoqa replay <routine-id>
   autoqa issue list | dismiss <id> --reason "..." [--by name] | reopen <id>
+  autoqa memory list [--role r] | add --role r "text" [--scope s]
+  autoqa memory remove <id> | retire <id> --reason "..."
 
 Baselines
   autoqa baseline capture              (re)capture baselines in the pinned image

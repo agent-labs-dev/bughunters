@@ -4,6 +4,8 @@ import type { Runtime, RoleOutcome, Tool } from '../types.js';
 import type { AgentSession } from '../session.js';
 import { explorerTools } from '../tools/explorer.js';
 import { explorerPrompt, explorerSystem } from '../prompts.js';
+import { lessonsFor } from '../workspace.js';
+import { reflectOnSession } from './reflect.js';
 
 const STOP_REASONS: Record<RoleOutcome['stop'], string> = {
   done: 'finished',
@@ -48,7 +50,8 @@ export async function runExplorer(
   const task = {
     role: 'explorer' as const,
     sessionId: session.sessionId,
-    system: explorerSystem(session.config.app.platform, instructions),
+    system: explorerSystem(session.config.app.platform, instructions,
+      lessonsFor(await session.workspace.readMemory(), 'explorer')),
     prompt: explorerPrompt({
       goal: opts.goal,
       screens: map?.screens ?? [],
@@ -78,6 +81,8 @@ export async function runExplorer(
     });
     session.emit({ kind: 'session-end', summary: outcome.summary ?? `Explorer stopped: ${outcome.stop}` });
     await session.idle(outcome.costUsd + session.decisionSpentUsd);
+    await reflectOnSession(session.root, session.config, session.sessionId,
+      { vars: session.vars, onLog: (message) => session.emit({ kind: 'error', summary: message }) });
     return outcome;
   } catch (error) {
     await session.workspace.endSession(session.sessionId, { status: 'failed', summary: String(error) });

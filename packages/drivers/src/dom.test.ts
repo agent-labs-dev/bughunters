@@ -80,6 +80,9 @@ describe('DOM driver', () => {
     });
     expect(JSON.stringify(typed.step)).not.toContain('"ref"');
     expect(await page.locator('#email').inputValue()).toBe('after');
+    const appended = await driver.act({ kind: 'type', ref: input.ref, value: ' more', append: true });
+    expect(await page.locator('#email').inputValue()).toBe('after more');
+    expect(appended.step).toMatchObject({ kind: 'type', append: true });
     const save = observation.elements.find((element) => element.testId === 'save')!;
     const tapped = await driver.act({ kind: 'tap', ref: save.ref });
     expect(tapped).toMatchObject({ ok: true, step: { kind: 'tap', target: { testId: 'save' } } });

@@ -115,12 +115,17 @@ export class WebDriver implements Driver {
       const resolved = await resolveTarget(page, target, this.lastObservation);
       result = { degraded: resolved.degraded, element: resolved.element };
       if (resolved.locator) {
-        await resolved.locator.fill(action.value);
+        if (action.append) {
+          const current = await resolved.locator.inputValue().catch(() => resolved.locator!.textContent());
+          await resolved.locator.fill((current ?? '') + action.value);
+        } else await resolved.locator.fill(action.value);
       } else {
         await page.mouse.click(resolved.point!.x, resolved.point!.y);
+        if (!action.append) { await page.keyboard.press('ControlOrMeta+A'); await page.keyboard.press('Delete'); }
         await page.keyboard.insertText(action.value);
       }
     } else {
+      if (!action.append) { await page.keyboard.press('ControlOrMeta+A'); await page.keyboard.press('Delete'); }
       await page.keyboard.insertText(action.value);
     }
     if (action.submit) {

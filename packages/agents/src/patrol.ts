@@ -7,7 +7,8 @@ import { startApp } from './lifecycle.js';
 import { AgentSession } from './session.js';
 import { runExplorer } from './roles/explorer.js';
 import { runJudge } from './roles/judge.js';
-import { runFixCycle } from './roles/retest.js';
+import { recheckMerged, runFixCycle } from './roles/retest.js';
+import { runPublisher } from './roles/publish.js';
 
 export type PatrolOptions = {
   root: string;
@@ -77,12 +78,21 @@ export async function runPatrol(options: PatrolOptions): Promise<void> {
           await app?.stop();
         }
       }
+      if (!interrupted && config.agents.explorer.enabled && config.agents.judge.enabled) {
+        await recheckMerged(root, config, { createDriver: options.createDriver,
+          createRuntime: options.createRuntime, onLog: options.onLog,
+          onSession: (session) => { activeSession = session; }, isInterrupted: () => interrupted });
+      }
       if (!interrupted) await runFixCycle(root, config, {
         createDriver: options.createDriver,
         createRuntime: options.createRuntime,
         onLog: options.onLog,
         onSession: (session) => { activeSession = session; },
         isInterrupted: () => interrupted,
+      });
+      if (!interrupted && config.agents.github.enabled) await runPublisher(root, config, {
+        createRuntime: options.createRuntime, onLog: options.onLog,
+        onSession: (session) => { activeSession = session; },
       });
       const nextAt = new Date(Date.now() + config.agents.patrol.intervalMinutes * 60_000).toISOString();
       await workspace.setPatrol({ state: 'stopped', nextAt });

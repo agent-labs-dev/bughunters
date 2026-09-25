@@ -1,7 +1,7 @@
 import { ConfigError, InfrastructureError, type AutoQAConfig } from '@autoqa/core';
 import { createDriver } from '@autoqa/drivers';
 import { AgentSession, Vars, Workspace, createRuntime, replayRoutine, runExplorer, runJudge,
-  applyRetest, openFixPR, runFixCycle, runPatrol, retestFix, startApp } from '@autoqa/agents';
+  applyRetest, runFixCycle, runPatrol, runPublisher, retestFix, startApp } from '@autoqa/agents';
 
 type AgentFlags = Record<string, string | string[] | boolean | number>;
 
@@ -19,6 +19,7 @@ export function parseAgentFlags(command: string, args: string[]): AgentFlags {
     judge: ['--session'],
     fix: ['--issue'],
     retest: ['--issue'],
+    publish: ['--issue'],
     patrol: [],
   };
   if (!values[command]) throw new ConfigError(`Unknown agent command ${command}`);
@@ -26,6 +27,10 @@ export function parseAgentFlags(command: string, args: string[]): AgentFlags {
     const flag = args[index]!;
     if (command === 'patrol' && flag === '--once') {
       flags.once = true;
+      continue;
+    }
+    if (command === 'publish' && flag === '--dry-run') {
+      flags.dryRun = true;
       continue;
     }
     if (!values[command]!.includes(flag)) {
@@ -69,6 +74,12 @@ export async function runAgentCommand(
     await runPatrol({ root, config, once: Boolean(flags.once), onLog: log });
     return;
   }
+  if (command === 'publish') {
+    const outcomes = await runPublisher(root, config, { onLog: log,
+      issueIds: flags.issue as string[] | undefined, dryRun: Boolean(flags.dryRun) });
+    log(`${outcomes.length} item(s) handled`);
+    return;
+  }
   const vars = new Vars(config.app.secrets);
   if (command === 'judge') {
     const recent = (await workspace.listSessions())
@@ -99,10 +110,6 @@ export async function runAgentCommand(
     const result = await retestFix(root, config, issue, fix, (fix.retests?.length ?? 0) + 1, { onLog: log });
     applyRetest(config, fix, result);
     await workspace.saveFix(fix);
-    if (fix.status !== 'retesting') {
-      await openFixPR(config, issue, fix);
-      await workspace.saveFix(fix);
-    }
     log(`Retest: ${result.outcome} — ${result.reason}`);
     return;
   }

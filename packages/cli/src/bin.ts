@@ -8,6 +8,7 @@ import { parseRunFlags, formatRunSummary } from './commands/run-cli.js';
 import { startDashboard } from '@autoqa/dashboard';
 import { runAgentCommand } from './commands/agents.js';
 import { runIssueCommand } from './commands/issue.js';
+import { runMemoryCommand } from './commands/memory.js';
 
 const [command, ...args] = process.argv.slice(2);
 const root = process.cwd();
@@ -63,6 +64,7 @@ try {
     case 'judge':
     case 'fix':
     case 'retest':
+    case 'publish':
     case 'patrol':
     case 'replay': {
       const config = loadConfig(root);
@@ -72,7 +74,12 @@ try {
     }
 
     case 'issue': {
-      await runIssueCommand(args, root, (line) => process.stdout.write(`${line}\n`));
+      await runIssueCommand(args, root, (line) => process.stdout.write(`${line}\n`), tryLoadConfig(root));
+      break;
+    }
+
+    case 'memory': {
+      await runMemoryCommand(args, root, (line) => process.stdout.write(`${line}\n`));
       break;
     }
 

@@ -106,9 +106,12 @@ proposals.
 
 ### 7. Surfaces
 
-Issues and fixes go to the dashboard by default. GitHub issues and draft PRs
-are opt-in in the config. The judge opens an issue only for a candidate it
-accepted. The fixer opens a PR only for an issue that has a fix it verified.
+Issues and fixes go to the dashboard by default. Set `agents.github.enabled`
+to publish to GitHub. After the fix cycle, the judge opens a PR for a completed
+fix and an issue for a major or critical bug with no fix. Each report has the
+full evidence and screenshots. Images live on an orphan `autoqa-assets` branch,
+outside the PR diff. `autoqa publish --dry-run` writes reports locally without
+posting them. A human dismissal prevents later publishing.
 
 ### 8. State on disk
 
@@ -141,6 +144,12 @@ before a candidate reaches the judge:
   A dismissed fingerprint is not raised again. A filed fingerprint adds an
   occurrence to its issue. Pixel diffs are not recorded, because an
   accepted visual change moves the baseline.
+- Explorer reports use the same triage record. A dismissed report stays quiet.
+  A filed report adds an occurrence. The judge sees recent closed issues.
+  It keeps dismissals closed and reopens a fixed issue if the bug returns.
+- AutoQA closes an automatic-check issue after three clean visits to its
+  screen. It rechecks merged fixes on the main build and closes an issue only
+  when the recheck finds that the problem is gone.
 - The judge first looks for one shared cause. When many screens fail in the
   same way, it files one issue that lists the screens.
 - The fixer takes at most `agents.fixer.maxPerCycle` issues in each cycle,
@@ -153,6 +162,10 @@ before a candidate reaches the judge:
 After the fixer commits a change, AutoQA stops the patrol app. It starts the app from the fix worktree. A setup command runs in the worktree when its resolved directory matches `app.source`. Every command receives `AUTOQA_SOURCE` with the effective source directory.
 
 The explorer repeats the issue flow and captures an after screenshot. The judge compares it with the issue screenshot and gives a verdict. If the issue remains, the fixer gets the verdict and tries again, up to `agents.fixer.retest.attempts` total attempts. The fixer only changes code. The explorer uses the app, and the judge decides the result.
+
+### 11. Memory
+
+`.autoqa/memory.json` stores short lessons for the explorer, judge, and fixer. A reflection after an explorer run learns from failed or repeated actions; human dismissals, judge dismissals, declined fixes, commit hooks, and verification failures also add lessons. Each role reads its active lessons before working. AutoQA retires the oldest lessons when a role has more than 40 active ones. A human can list, add, retire, or remove lessons with `autoqa memory`.
 
 ## Consequences
 

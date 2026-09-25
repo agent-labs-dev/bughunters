@@ -12,6 +12,7 @@ export class AgentSession {
   readonly completedRoutines = new Set<string>();
   anchor: { routineId?: string; index: number } = { index: 0 };
   lastObservation?: Observation;
+  previousObservation?: Observation;
   lastScreenshot?: string;
   lastScreenId?: string;
   /** Where the app was when lastScreenId was recorded. */
@@ -81,6 +82,7 @@ export class AgentSession {
 
   async capture(observation: Observation, label: string): Promise<string> {
     const screenshot = await this.workspace.saveScreenshot(this.sessionId, observation.screenshot, label);
+    if (this.lastObservation !== observation) this.previousObservation = this.lastObservation;
     this.lastObservation = observation;
     this.lastScreenshot = screenshot;
     return screenshot;

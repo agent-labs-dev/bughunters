@@ -1,12 +1,9 @@
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
 import { appendFile, copyFile, readFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { paths, shortHash, type Candidate, type Issue, type TriageFile } from '@autoqa/core';
 import type { AgentSession } from '../session.js';
 import type { Tool, ToolResult } from '../types.js';
 
-const exec = promisify(execFile);
 const response = (value: string): ToolResult => ({ content: [{ type: 'text', text: value }] });
 const schema = (properties: Record<string, unknown>, required: string[] = []) => ({
   type: 'object',
@@ -125,7 +122,7 @@ export function judgeTools(session: AgentSession, sessionIds: string[], runtimeL
     {
       name: 'file_issue',
       description: 'File a real user problem with an 80-character title, Markdown body, and one-sentence reason; '
-        + 'merge candidates with the same cause. To add candidates to an OPEN issue, pass its issue_id and a '
+        + 'merge candidates with the same cause. To add candidates to an open or fixed issue, pass its issue_id and a '
         + 'reason; the title, body and severity are then not needed.',
       inputSchema: schema({
         candidate_ids: { type: 'array', items: string },
@@ -142,8 +139,11 @@ export function judgeTools(session: AgentSession, sessionIds: string[], runtimeL
         const named = typeof input.issue_id === 'string' && input.issue_id
           ? await session.workspace.readIssue(input.issue_id)
           : undefined;
-        if (input.issue_id && (!named || named.status === 'dismissed')) {
-          return { ...response(`No open issue ${String(input.issue_id)}`), isError: true };
+        if (named?.status === 'dismissed') {
+          return { ...response(`Issue ${named.id} was dismissed; dismiss this candidate instead.`), isError: true };
+        }
+        if (input.issue_id && !named) {
+          return { ...response(`Unknown issue ${String(input.issue_id)}`), isError: true };
         }
         if (!named && (!input.title || !input.body || !input.severity)) {
           return { ...response('A new issue needs a title, a body and a severity'), isError: true };
@@ -157,14 +157,19 @@ export function judgeTools(session: AgentSession, sessionIds: string[], runtimeL
         const now = new Date().toISOString();
         // A named issue wins; otherwise the same fingerprint means the same issue.
         const existing = named ?? (await session.workspace.findIssueByFingerprint(first.fingerprint));
+        if (existing?.status === 'dismissed') {
+          return { ...response(`Issue ${existing.id} was dismissed; dismiss this candidate instead.`), isError: true };
+        }
         let issue: Issue;
-        if (existing && existing.status !== 'dismissed') {
+        if (existing) {
           // One more occurrence per judging, however many candidates it merges.
           issue = {
             ...existing,
             candidateIds: [...new Set([...existing.candidateIds, ...ids])],
             occurrences: existing.occurrences + 1,
             lastSeenAt: now,
+            ...(existing.status === 'fixed' ? { status: 'new' as const,
+              regression: { at: now, fromStatus: 'fixed' as const }, closedBy: undefined, notSeen: 0 } : {}),
           };
         } else {
           issue = {
@@ -184,17 +189,10 @@ export function judgeTools(session: AgentSession, sessionIds: string[], runtimeL
             lastSeenAt: now,
           };
         }
-        if (session.config.agents.judge.fileTo === 'github' && !issue.github) {
-          const cwd = resolve(session.root, session.config.app.source);
-          const output = await exec('gh', ['issue', 'create', '--title', issue.title, '--body', issue.body], { cwd });
-          const url = output.stdout.trim();
-          issue.github = { url, number: Number(url.split('/').pop()) };
-          issue.status = 'filed';
-        }
         await session.workspace.saveIssue(issue);
         await session.workspace.recordTriage(triageEntries(candidates, 'filed', issue.judgement.reason, issue.id));
-        const merged = Boolean(existing && existing.status !== 'dismissed');
-        const verb = merged ? `Added to (x${issue.occurrences})` : 'Filed';
+        const merged = Boolean(existing);
+        const verb = existing?.status === 'fixed' ? 'Regression:' : merged ? `Added to (x${issue.occurrences})` : 'Filed';
         session.emit({ kind: 'issue', summary: `${verb} ${issue.title}` });
         return response(`${verb} ${issue.id}: ${issue.title}`);
       },
@@ -230,6 +228,12 @@ export function judgeTools(session: AgentSession, sessionIds: string[], runtimeL
               at: new Date().toISOString() }) + '\n');
         }
         await session.workspace.recordTriage(triageEntries(candidates, 'dismissed', String(input.reason)));
+        if (input.update_baseline !== true) for (const candidate of candidates) {
+          if (candidate.source !== 'explorer') continue;
+          await session.workspace.upsertLessons([{ role: 'explorer', source: 'dismissal',
+            scope: candidate.screenId,
+            text: `Do not report: ${candidate.summary} — ${String(input.reason)}`.slice(0, 200) }]);
+        }
         return response(`Dismissed ${candidates.length} candidate(s).`);
       },
     },

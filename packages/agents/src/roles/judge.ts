@@ -2,6 +2,7 @@ import type { AgentSession } from '../session.js';
 import type { RoleOutcome, Runtime } from '../types.js';
 import { judgeTools, pendingCandidates } from '../tools/judge.js';
 import { judgePrompt, judgeSystem } from '../prompts.js';
+import { lessonsFor } from '../workspace.js';
 
 /** Reviews unresolved candidates so only confirmed problems become issues. */
 export async function runJudge(
@@ -18,7 +19,7 @@ export async function runJudge(
     const task = {
       role: 'judge' as const,
       sessionId: session.sessionId,
-      system: judgeSystem(),
+      system: judgeSystem(lessonsFor(await session.workspace.readMemory(), 'judge')),
       prompt: judgePrompt(opts.sessionIds, candidates, issues),
       tools: judgeTools(session, opts.sessionIds, runtime.label),
       // Each candidate needs a look and a decision, so a big session must not

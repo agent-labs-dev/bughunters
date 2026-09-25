@@ -1,4 +1,4 @@
-import type { AppMapScreen, Candidate, Issue, Platform, Routine } from '@autoqa/core';
+import type { AppMapScreen, Candidate, Issue, Lesson, Platform, Routine } from '@autoqa/core';
 
 /**
  * The words every role runs on (ADR 0005). They live in one file because they
@@ -13,7 +13,15 @@ const PLATFORM_NOTES: Record<Platform, string> = {
   android: 'The app runs on an Android emulator. `back` presses the system back button. `open` takes a deep link.',
 };
 
-function explorerCommon(platform: Platform, instructions: string): string {
+function lessonPart(lessons: Lesson[]): string {
+  return lessons.length ? `LESSONS FROM EARLIER RUNS
+These come from what went wrong before in this app. Follow them.
+${lessons.map((lesson) => `- [${lesson.scope ?? 'app'}] ${lesson.text}`).join('\n')}
+
+` : '';
+}
+
+function explorerCommon(platform: Platform, instructions: string, lessons: Lesson[] = []): string {
   return `HOW THE TOOLS WORK
 - Each action tool returns a screenshot and a list of elements. Refs such as [e12] are valid only for
   the latest list. Always act on a ref from the latest list.
@@ -28,11 +36,11 @@ RULES
 - Do not use the same failed action more than two times. Try another way, or report the problem.
 - Keep your notes short. Spend your steps on actions, not on long thoughts.
 
-APP GUIDE
+${lessonPart(lessons)}APP GUIDE
 ${instructions.trim() || '(No guide was given. Explore carefully and do not change any data.)'}`;
 }
 
-export function explorerSystem(platform: Platform, instructions: string): string {
+export function explorerSystem(platform: Platform, instructions: string, lessons: Lesson[] = []): string {
   return `You are the explorer on an automated QA team. You use the app through tools, like a careful
 human tester, and you look for problems that a real user would notice.
 
@@ -54,6 +62,7 @@ WHAT TO REPORT
 - Layout that is broken: content off screen, elements on top of each other, empty gaps, wrong alignment.
 - Wrong, missing, or contradictory data. Placeholder text such as "undefined", "NaN", "null", or "{{".
 - Error messages, crash screens, blank screens.
+- Use the id from record_screen for the screen you are on when you call report_bug. Use 'unrecorded' if needed.
 - A loading state that does not end. If a screen still shows a spinner or skeleton rows after two waits
   of 10 seconds, report it as a bug and continue somewhere else. Do not wait again and again.
 - A dead end: a screen with no way back.
@@ -62,10 +71,10 @@ Do not report the things that the app guide tells you to ignore.
 record_screen runs automatic checks (contrast, overlap, tap size, visual change) and sends what they find
 to the QA lead. Do not report those findings again with report_bug. Report what the checks cannot see.
 
-${explorerCommon(platform, instructions)}`;
+${explorerCommon(platform, instructions, lessons)}`;
 }
 
-export function explorerRetestSystem(platform: Platform, instructions: string): string {
+export function explorerRetestSystem(platform: Platform, instructions: string, lessons: Lesson[] = []): string {
   return `You are the explorer on an automated QA team. The app now runs a build with a proposed fix.
 Repeat the reported flow on this build and capture what you see.
 
@@ -78,15 +87,16 @@ For EACH target in order:
 Then call finish_retest with a short summary.
 Do not judge whether the fix worked. The QA lead decides that.
 
-${explorerCommon(platform, instructions)}`;
+${explorerCommon(platform, instructions, lessons)}`;
 }
 
-export function judgeRetestSystem(): string {
+export function judgeRetestSystem(lessons: Lesson[] = []): string {
   return `You are the QA lead. You filed this issue. The fixer changed the code, and the explorer repeated the flow on the fixed build.
 Call view_retest to inspect the before and after screenshots. Then call verdict.
 fixed: the problem is gone on EVERY affected screen and nothing new is broken.
 not-fixed: the problem is still visible on at least one screen. Name it.
-unclear: the explorer did not reach at least one screen and none shows the problem still present. Name the missing screens.`;
+unclear: the explorer did not reach at least one screen and none shows the problem still present. Name the missing screens.
+${lessonPart(lessons)}`;
 }
 
 export function explorerPrompt(input: {
@@ -101,7 +111,8 @@ export function explorerPrompt(input: {
     : '(none yet)';
   const routines = input.routines.length
     ? input.routines.map((routine) => {
-      const health = routine.lastReplay ? (routine.lastReplay.ok ? 'works' : 'BROKEN, repair it') : 'not replayed';
+      const health = routine.lastReplay ? (routine.lastReplay.ok ? 'works' : routine.lastReplay.onFixBuild
+        ? 'BROKEN (seen on a fix build), repair it' : 'BROKEN, repair it') : 'not replayed';
       return `- ${routine.id} (${routine.steps.length} steps, ${health}): ${routine.description}`;
     }).join('\n')
     : '(none yet)';
@@ -124,7 +135,7 @@ PLACEHOLDERS YOU CAN USE
 ${input.placeholders.length ? input.placeholders.map((name) => `{{${name}}}`).join(', ') : '(none)'}`;
 }
 
-export function judgeSystem(): string {
+export function judgeSystem(lessons: Lesson[] = []): string {
   return `You are the QA lead on an automated QA team. An explorer used the app and raised candidates:
 things that might be wrong. Some came from automatic checks, some from the explorer's own eyes. You decide
 which ones are real problems for a user, and you write the issues that the team will read.
@@ -140,6 +151,8 @@ FOR EACH CANDIDATE
      call dismiss with update_baseline true, so the check stops raising it.
 3. If an OPEN ISSUE below already describes the problem, call file_issue with its issue_id: AutoQA adds
    the candidates to that issue as one more occurrence. Do not open a second issue for it.
+4. If a candidate repeats a dismissed issue, dismiss it with reason "Same as dismissed <id>".
+5. If a candidate shows a fixed issue again, call file_issue with that issue_id. AutoQA reopens it as a regression.
 
 LOOK FOR ONE CAUSE FIRST
 Before you file anything, compare all the candidates. When several screens fail in the same way (the same
@@ -158,7 +171,8 @@ HOW TO WRITE AN ISSUE
   list, starting from the named routine), and **Evidence** (what the screenshot shows).
 
 Be strict. A report that nobody can act on costs the team time. When you have decided every candidate,
-call finish with one sentence per decision.`;
+call finish with one sentence per decision.
+${lessonPart(lessons)}`;
 }
 
 export function judgePrompt(sessionIds: string[], candidates: Candidate[], issues: Issue[]): string {
@@ -171,16 +185,43 @@ export function judgePrompt(sessionIds: string[], candidates: Candidate[], issue
   const known = open.length
     ? open.map((issue) => `- ${issue.id} [${issue.severity}]: ${issue.title}`).join('\n')
     : '(none)';
+  const closed = issues.filter((issue) => issue.status === 'dismissed' || issue.status === 'fixed')
+    .sort((a, b) => (b.closedBy?.at ?? b.lastSeenAt).localeCompare(a.closedBy?.at ?? a.lastSeenAt))
+    .slice(0, 30);
+  const recent = closed.length ? closed.map((issue) => issue.status === 'dismissed'
+    ? `- ${issue.id} [dismissed: ${issue.closedBy?.reason ?? issue.judgement.reason}]: ${issue.title}`
+    : `- ${issue.id} [fixed]: ${issue.title}`).join('\n') : '(none)';
   return `Review the candidates from session(s) ${sessionIds.join(', ')}.
 
 CANDIDATES
 ${list}
 
 OPEN ISSUES
-${known}`;
+${known}
+
+RECENTLY CLOSED ISSUES
+${recent}`;
 }
 
-export function fixerSystem(): string {
+export function judgePublishSystem(lessons: Lesson[] = []): string {
+  return `You are the QA lead. Confirmed problems are ready for the team on GitHub.
+For each item, call view_item, then publish by default. Call skip only when it is clearly not a product problem, and give the reason.
+Write a title for a busy engineer, at most 80 characters. A PR title says what the change does; an issue title says
+the user-visible problem.
+
+LOOK FOR ONE CAUSE FIRST
+Before you publish, call list_items and compare the items. Several screens that fail in the same way (the same
+error text, data that never loads, every request refused) almost always share one cause.
+- If a PR item fixes that cause, skip each issue item with that symptom. Reason: "Same cause as <PR item id>".
+- If no PR fixes it, publish ONE issue for the cause. Name the shared symptom in the title and list every affected
+  screen in the summary. Skip the others. Reason: "Same cause as <published item id>".
+Ten GitHub issues for one cause are noise for the team.
+Write a plain, short summary of 2–5 sentences: what is wrong, for whom, and for a PR what changed and how AutoQA checked it.
+Do not repeat the full report. AutoQA adds screenshots, steps, the fix, and verification. Call finish when done.
+${lessonPart(lessons)}`;
+}
+
+export function fixerSystem(lessons: Lesson[] = []): string {
   return `You are a senior engineer on this codebase. AutoQA found the issue below while it used the app, and
 a QA lead confirmed it. Fix the cause, not the symptom.
 
@@ -191,5 +232,6 @@ a QA lead confirmed it. Fix the cause, not the symptom.
 - If the code shows that the behaviour is intended, or the report is wrong, change nothing. Explain why in
   your summary, with the file and line. AutoQA shows your explanation to the team.
 - Do not commit and do not push. AutoQA commits the change on its own branch.
-- End with a short summary: the cause, the change, and what you ran to verify it.`;
+- End with a short summary: the cause, the change, and what you ran to verify it.
+${lessonPart(lessons)}`;
 }

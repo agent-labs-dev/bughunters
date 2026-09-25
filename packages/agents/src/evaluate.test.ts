@@ -9,6 +9,7 @@ import { Workspace } from './workspace.js';
 import { FakeDriver, type FakeScreen } from './testing/fake-driver.js';
 import { evaluateScreen, groupViolations } from './evaluate.js';
 import { judgeTools } from './tools/judge.js';
+import { judgePrompt, judgeSystem } from './prompts.js';
 
 const config = parseConfig({ version: 1, app: { connect: { url: 'fake://home' } }, decisions: { decider: 'heuristic' } });
 
@@ -85,6 +86,30 @@ describe('evaluateScreen', () => {
       await rm(root, { recursive: true, force: true });
     }
   });
+
+  it('closes an automatic-check issue after three clean visits', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'autoqa-eval-'));
+    const original = screens.home!.elements;
+    try {
+      const first = await capture(root);
+      const record = await first.workspace.startSession('judge');
+      const judge = new AgentSession(root, config, new Vars(), record.id, 'judge');
+      const file = judgeTools(judge, [first.session.sessionId], 'test').find((item) => item.name === 'file_issue')!;
+      const candidate = first.candidates.find((item) => item.ruleId === 'usability/tap-target')!;
+      await file.run({ candidate_ids: [candidate.id], title: 'Small controls', body: 'Small', severity: 'minor', reason: 'Too small' });
+      const [issue] = await first.workspace.listIssues();
+      screens.home!.elements = [];
+      for (let visit = 1; visit <= 3; visit++) {
+        await capture(root);
+        expect((await first.workspace.readIssue(issue!.id))?.notSeen).toBe(visit);
+      }
+      expect(await first.workspace.readIssue(issue!.id)).toMatchObject({ status: 'fixed',
+        closedBy: { by: 'AutoQA', reason: expect.stringContaining('in 3 visits') } });
+    } finally {
+      screens.home!.elements = original;
+      await rm(root, { recursive: true, force: true });
+    }
+  });
 });
 
 describe('file_issue with issue_id', () => {
@@ -118,6 +143,41 @@ describe('file_issue with issue_id', () => {
     } finally {
       await rm(root, { recursive: true, force: true });
     }
+  });
+
+  it('reopens a fixed issue as a regression and refuses a dismissed issue', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'autoqa-eval-'));
+    try {
+      const first = await capture(root);
+      const record = await first.workspace.startSession('judge');
+      const judge = new AgentSession(root, config, new Vars(), record.id, 'judge');
+      const tool = judgeTools(judge, [first.session.sessionId], 'test').find((item) => item.name === 'file_issue')!;
+      const issue = { version: 1 as const, id: 'iss_fixed', fingerprint: 'old', title: 'Old problem', body: 'Old',
+        severity: 'minor' as const, status: 'fixed' as const, screenId: 'home', candidateIds: [], evidence: {},
+        judgement: { by: 'test', reason: 'Real', at: 'now' }, occurrences: 1, firstSeenAt: 'now', lastSeenAt: 'now' };
+      await first.workspace.saveIssue(issue);
+      const input = { candidate_ids: [first.candidates[0]!.id], issue_id: issue.id, reason: 'Returned' };
+      expect((await tool.run(input)).isError).toBeFalsy();
+      expect(await first.workspace.readIssue(issue.id)).toMatchObject({ status: 'new', occurrences: 2,
+        regression: { fromStatus: 'fixed' } });
+      const dismissed = { ...issue, id: 'iss_dismissed', status: 'dismissed' as const };
+      await first.workspace.saveIssue(dismissed);
+      expect((await tool.run({ ...input, issue_id: dismissed.id })).content[0]).toMatchObject({
+        text: expect.stringContaining('dismiss this candidate instead') });
+    } finally { await rm(root, { recursive: true, force: true }); }
+  });
+});
+
+describe('judge prompts', () => {
+  it('shows the newest closed issues and regression rules', () => {
+    const old = { version: 1 as const, id: 'iss_1', fingerprint: 'one', title: 'Old', body: '', severity: 'minor' as const,
+      status: 'dismissed' as const, candidateIds: [], evidence: {}, judgement: { by: 'test', reason: 'Noise', at: 'now' },
+      occurrences: 1, firstSeenAt: '2026-01-01', lastSeenAt: '2026-01-01',
+      closedBy: { by: 'human', reason: 'By design', at: '2026-01-02' } };
+    const prompt = judgePrompt([], [], [old, { ...old, id: 'iss_2', status: 'fixed', title: 'Recent',
+      closedBy: { ...old.closedBy, at: '2026-01-03' } }]);
+    expect(prompt).toContain('RECENTLY CLOSED ISSUES\n- iss_2 [fixed]: Recent\n- iss_1 [dismissed: By design]: Old');
+    expect(judgeSystem()).toContain('reopens it as a regression');
   });
 });
 

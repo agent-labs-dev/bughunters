@@ -41,7 +41,7 @@ async function runSteps(session: AgentSession, steps: RoutineStep[], windowMs: n
 export async function replayRoutine(
   session: AgentSession,
   id: string,
-  options: { seen?: Set<string>; dependency?: boolean; windowMs?: number; save?: boolean } = {},
+  options: { seen?: Set<string>; dependency?: boolean; windowMs?: number; save?: boolean; onFixBuild?: boolean } = {},
 ): Promise<ReplayResult> {
   const seen = options.seen ?? new Set<string>();
   if (options.dependency && session.completedRoutines.has(id)) {
@@ -60,7 +60,7 @@ export async function replayRoutine(
   let error: string | undefined;
   for (const dependency of routine.requires ?? []) {
     const result = await replayRoutine(session, dependency, { seen, dependency: true,
-      windowMs: options.windowMs, save: options.save });
+      windowMs: options.windowMs, save: options.save, onFixBuild: options.onFixBuild });
     degraded ||= result.degraded;
     if (!result.ok) {
       error = `Required routine ${dependency}: ${result.error}`;
@@ -87,7 +87,7 @@ export async function replayRoutine(
       }
     }
   }
-  if (options.save !== false) await session.workspace.saveRoutine({
+  if (options.save !== false || (options.onFixBuild && error)) await session.workspace.saveRoutine({
     ...routine,
     lastReplay: {
       at: new Date().toISOString(),
@@ -95,6 +95,7 @@ export async function replayRoutine(
       degraded,
       error,
       skipped: skipped.length ? skipped : undefined,
+      onFixBuild: options.onFixBuild && error ? true : undefined,
     },
   });
   if (!error) {
@@ -144,6 +145,7 @@ function toAction(step: RoutineStep, session: AgentSession): DriverAction {
       locator: step.target,
       value: session.vars.resolve(step.value),
       submit: step.submit,
+      append: step.append,
     };
   }
   if (step.kind === 'scroll') return { kind: 'scroll', direction: step.direction, locator: step.target };

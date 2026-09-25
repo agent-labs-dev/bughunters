@@ -6,6 +6,20 @@ import type { Severity } from './finding.js';
  */
 
 export type AgentRole = 'explorer' | 'judge' | 'fixer';
+export type LessonRole = AgentRole;
+export type Lesson = {
+  id: string;
+  role: LessonRole;
+  /** A screen or routine; absent means the whole app. */
+  scope?: string;
+  text: string;
+  source: 'reflection' | 'human' | 'dismissal' | 'fixer-decline' | 'commit-hook' | 'verify';
+  hits: number;
+  createdAt: string;
+  lastSeenAt: string;
+  retired?: { at: string; reason: string };
+};
+export type MemoryFile = { version: 1; lessons: Lesson[] };
 
 export type Platform = 'web' | 'electron' | 'ios' | 'android';
 
@@ -28,15 +42,15 @@ export type Locator = {
  * One replayable action. `value` may hold `{{NAME}}` placeholders; they are
  * resolved when the step runs and never stored resolved.
  */
-export type RoutineStep =
+export type RoutineStep = (
   | { kind: 'tap'; target: Locator }
-  | { kind: 'type'; target?: Locator; value: string; submit?: boolean }
+  | { kind: 'type'; target?: Locator; value: string; submit?: boolean; append?: boolean }
   | { kind: 'press'; key: string }
   | { kind: 'scroll'; direction: 'up' | 'down' | 'left' | 'right'; target?: Locator }
   | { kind: 'back' }
   | { kind: 'open'; url: string }
   | { kind: 'wait'; ms: number }
-  | { kind: 'window'; match: string };
+  | { kind: 'window'; match: string }) & { at?: string };
 
 export type Routine = {
   version: 1;
@@ -52,7 +66,7 @@ export type Routine = {
   createdAt: string;
   updatedAt: string;
   /** Replay history, so a routine that keeps breaking is visible as one. */
-  lastReplay?: { at: string; ok: boolean; degraded?: boolean; error?: string; skipped?: number[] };
+  lastReplay?: { at: string; ok: boolean; degraded?: boolean; error?: string; skipped?: number[]; onFixBuild?: boolean };
   /**
    * What the screen showed when the routine was saved: the names of a few
    * stable elements. A replay may skip a step whose target is gone (a banner
@@ -139,10 +153,13 @@ export type Issue = {
   occurrences: number;
   firstSeenAt: string;
   lastSeenAt: string;
-  github?: { number: number; url: string };
+  github?: { number: number; url: string; at: string };
+  publishSkipped?: { reason: string; at: string };
   fixId?: string;
   /** Set when a human closed the issue. A human decision overrides the judge. */
   closedBy?: { by: string; reason: string; at: string };
+  regression?: { at: string; fromStatus: 'fixed' };
+  notSeen?: number;
 };
 
 /** `declined`: the fixer read the code and found no bug to fix; its summary says why. */
@@ -168,6 +185,7 @@ export type RetestShot = {
 };
 
 export type Retest = {
+  build?: 'main';
   attempt: number;
   outcome: RetestOutcome;
   reason: string;
@@ -195,13 +213,15 @@ export type FixProposal = {
   /** `git diff --stat` and the full diff, relative to the base commit. */
   diffStat?: string;
   diff?: string;
+  /** The fix commit on the branch. A merge check trusts only this commit. */
+  commit?: string;
   summary?: string;
   error?: string;
   startedAt: string;
   endedAt?: string;
   costUsd?: number;
   retests?: Retest[];
-  pr?: { number: number; url: string; draft: boolean };
+  pr?: { number: number; url: string; draft: boolean; at?: string };
 };
 
 export type AgentEventKind =
@@ -215,6 +235,7 @@ export type AgentEventKind =
   | 'candidate'
   | 'issue'
   | 'fix'
+  | 'lesson'
   | 'error';
 
 /** One line of `sessions/<id>/events.jsonl`. Every value is already redacted. */

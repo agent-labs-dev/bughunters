@@ -47,6 +47,9 @@ describe('explorer, replay, and judge', () => {
       expect(JSON.stringify(looked.content.filter((part) => part.type === 'text'))).toContain('[e1] button');
       await run(tools, 'type', { text: '{{SECRET}}' });
       expect(f.driver.actions[0]).toMatchObject({ kind: 'type', value: 'super-secret-value' });
+      await run(tools, 'type', { text: ' more', append: true });
+      expect(f.driver.actions[1]).toMatchObject({ kind: 'type', append: true });
+      expect(f.session.trail.at(-1)).toMatchObject({ kind: 'type', append: true });
       await run(tools, 'save_routine', { id: 'enter-app', description: 'Enter app' });
       const first = await run(tools, 'record_screen', { id: 'Home', name: 'Home', description: 'Launcher' });
       expect(JSON.stringify(first)).toContain('no automatic findings');
@@ -120,11 +123,9 @@ describe('explorer, replay, and judge', () => {
       expect(filed.title.length).toBeLessThanOrEqual(80);
       expect(filed.title.endsWith('…')).toBe(true);
       expect(await pendingCandidates(f.session, [f.session.sessionId])).toEqual([]);
-      await run(tools, 'report_bug', { title: 'Save does nothing', what_is_wrong: 'No confirmation',
+      const repeated = await run(tools, 'report_bug', { title: 'Save does nothing', what_is_wrong: 'No confirmation',
         expected: 'A confirmation', severity: 'major' });
-      const second = (await pendingCandidates(f.session, [f.session.sessionId]))[0]!;
-      await run(judge, 'file_issue', { candidate_ids: [second.id], title: second.summary,
-        body: 'What happened: nothing', severity: 'major', reason: 'The save control has no effect.' });
+      expect(repeated.content[0]).toMatchObject({ text: expect.stringContaining('Already filed as') });
       expect((await f.workspace.listIssues())[0]?.occurrences).toBe(2);
       expect((await f.workspace.listIssues())[0]?.judgement.reason).toBe('The save control has no effect.');
       f.screens.home!.color = 240;
@@ -206,5 +207,74 @@ describe('explorer, replay, and judge', () => {
     } finally {
       await rm(f.root, { recursive: true, force: true });
     }
+  });
+
+  it('flattens a deep routine chain and removes a return detour', async () => {
+    const f = await fixture();
+    try {
+      const tools = explorerTools(f.session);
+      const now = new Date().toISOString();
+      const base = { version: 1 as const, platform: 'web' as const, description: 'Path', createdAt: now, updatedAt: now };
+      await f.workspace.saveRoutine({ ...base, id: 'enter-app', steps: [{ kind: 'press', key: 'Enter' }] });
+      await f.workspace.saveRoutine({ ...base, id: 'first', requires: ['enter-app'], steps: [{ kind: 'press', key: 'First' }] });
+      await f.workspace.saveRoutine({ ...base, id: 'second', requires: ['first'], steps: [{ kind: 'press', key: 'Second' }] });
+      f.session.anchor = { routineId: 'second', index: 0 };
+      f.session.trail.push({ kind: 'press', key: 'Open', at: 'A' },
+        { kind: 'press', key: 'Detour', at: 'B' }, { kind: 'back', at: 'A' },
+        { kind: 'press', key: 'Done', at: 'C' });
+      const result = await run(tools, 'save_routine', { id: 'third', description: 'Done' });
+      expect(result.content[0]).toMatchObject({ text: expect.stringContaining('flattened from a chain of 4') });
+      const saved = await f.workspace.readRoutine('third');
+      expect(saved?.requires).toEqual(['enter-app']);
+      expect(saved?.steps.map((step) => step.kind === 'press' ? step.key : step.kind))
+        .toEqual(['First', 'Second', 'Open', 'Done']);
+    } finally { await rm(f.root, { recursive: true, force: true }); }
+  });
+
+  it('keeps steps that stay in one place, such as a form', async () => {
+    const f = await fixture();
+    try {
+      const tools = explorerTools(f.session);
+      f.session.anchor = { index: 0 };
+      f.session.trail.push({ kind: 'type', value: 'First', at: 'form' },
+        { kind: 'type', value: 'Last', at: 'form' }, { kind: 'type', value: 'Team', at: 'form' },
+        { kind: 'press', key: 'Enter', at: 'home' });
+      await run(tools, 'save_routine', { id: 'onboard', description: 'Onboarding' });
+      const saved = await f.workspace.readRoutine('onboard');
+      expect(saved?.steps).toHaveLength(4);
+    } finally { await rm(f.root, { recursive: true, force: true }); }
+  });
+
+  it('resolves a previous ref by role, name and position', async () => {
+    const f = await fixture();
+    try {
+      f.screens.settings!.elements = [element('e9', 'Settings')];
+      f.screens.settings!.next = { e9: 'home' };
+      const tools = explorerTools(f.session);
+      await run(tools, 'look');
+      await run(tools, 'tap', { ref: 'e1' });
+      const result = await run(tools, 'tap', { ref: 'e1' });
+      expect(result.content[0]).toMatchObject({ text: expect.stringContaining('used e9') });
+      expect(f.driver.actions.at(-1)).toMatchObject({ kind: 'tap', ref: 'e9' });
+    } finally { await rm(f.root, { recursive: true, force: true }); }
+  });
+
+  it('uses the reported screen id and suppresses a dismissed fingerprint', async () => {
+    const f = await fixture();
+    try {
+      const tools = explorerTools(f.session);
+      await run(tools, 'record_screen', { id: 'home', name: 'Home', description: 'Home' });
+      await run(tools, 'tap', { ref: 'e1' });
+      await run(tools, 'record_screen', { id: 'settings', name: 'Settings', description: 'Settings' });
+      const input = { screen_id: 'home', title: 'Control is broken', what_is_wrong: 'No action',
+        expected: 'An action', severity: 'major' };
+      await run(tools, 'report_bug', input);
+      const candidate = (await f.workspace.readCandidates(f.session.sessionId)).at(-1)!;
+      expect(candidate.screenId).toBe('home');
+      await f.workspace.recordTriage({ [candidate.fingerprint]: { decision: 'dismissed', reason: 'Expected', at: 'now' } });
+      const result = await run(tools, 'report_bug', input);
+      expect(result.content[0]).toMatchObject({ text: expect.stringContaining('dismissed this before (Expected)') });
+      expect((await f.workspace.readCandidates(f.session.sessionId)).filter((item) => item.source === 'explorer')).toHaveLength(1);
+    } finally { await rm(f.root, { recursive: true, force: true }); }
   });
 });

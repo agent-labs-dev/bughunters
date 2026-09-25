@@ -1,7 +1,8 @@
 import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
-import { fingerprint, paths, shortHash, type Candidate } from '@autoqa/core';
+import { fingerprint, paths, shortHash, type Candidate, type Issue, type RoutineStep } from '@autoqa/core';
+import { closeOnGitHub } from './github.js';
 import {
   buildState,
   estimateDecisionCost,
@@ -92,6 +93,8 @@ export async function evaluateScreen(
   }
 
   const fresh = await dropDecided(session, screenId, entries);
+  await closeAbsentChecks(session, screenId, new Set(entries
+    .map((entry) => entryFingerprint(screenId, entry))));
   if (fresh.length === 0) return [];
 
   const routeResult = await decide(session, screenId, snapshot, violations, visual);
@@ -196,12 +199,16 @@ async function dropDecided(session: AgentSession, screenId: string, entries: Ent
       fresh.push(entry);
       continue;
     }
-    if (decided.decision === 'filed' && decided.issueId) await addOccurrence(session, decided.issueId);
+    if (decided.decision === 'filed' && decided.issueId) {
+      const issue = await session.workspace.readIssue(decided.issueId);
+      if (issue?.status === 'fixed') fresh.push(entry);
+      else await addOccurrence(session, decided.issueId);
+    }
   }
   return fresh;
 }
 
-async function addOccurrence(session: AgentSession, issueId: string): Promise<void> {
+export async function addOccurrence(session: AgentSession, issueId: string): Promise<void> {
   if (session.seenIssues.has(issueId)) return;
   session.seenIssues.add(issueId);
   const issue = await session.workspace.readIssue(issueId);
@@ -209,9 +216,45 @@ async function addOccurrence(session: AgentSession, issueId: string): Promise<vo
   await session.workspace.saveIssue({
     ...issue,
     occurrences: issue.occurrences + 1,
+    notSeen: 0,
     lastSeenAt: new Date().toISOString(),
   });
   session.emit({ kind: 'issue', summary: `Seen again: ${issue.title}` });
+}
+
+/** Three clean visits close an issue caused only by automatic checks on this screen. */
+export async function closeAbsentChecks(session: AgentSession, screenId: string,
+  fired: Set<string>): Promise<string[]> {
+  const closed: string[] = [];
+  const ids = new Set((await session.workspace.listIssues()).filter((issue) =>
+    issue.screenId === screenId && ['new', 'filed', 'fixing', 'fix-proposed'].includes(issue.status)).map((issue) => issue.id));
+  const sources = new Map<string, Candidate>();
+  for (const record of await session.workspace.listSessions(Infinity)) {
+    for (const candidate of await session.workspace.readCandidates(record.id)) sources.set(candidate.id, candidate);
+  }
+  for (const id of ids) {
+    const issue = await session.workspace.readIssue(id);
+    if (!issue || !issue.candidateIds.length) continue;
+    const candidates = issue.candidateIds.map((candidateId) => sources.get(candidateId));
+    if (candidates.some((candidate) => !candidate || candidate.source === 'explorer' || candidate.screenId !== screenId)) continue;
+    if (candidates.some((candidate) => fired.has(candidate!.fingerprint))) {
+      if (issue.notSeen) await session.workspace.saveIssue({ ...issue, notSeen: 0 });
+      continue;
+    }
+    const notSeen = (issue.notSeen ?? 0) + 1;
+    const fixed = notSeen >= 3;
+    const updated: Issue = { ...issue, notSeen,
+      status: fixed ? 'fixed' : issue.status,
+      closedBy: fixed ? { by: 'AutoQA', reason: `The automatic checks did not find it on ${screenId} in 3 visits.`,
+        at: new Date().toISOString() } : issue.closedBy };
+    await session.workspace.saveIssue(updated);
+    if (fixed) {
+      await closeOnGitHub(session.root, session.config, updated);
+      closed.push(issue.id);
+      session.emit({ kind: 'issue', summary: `Fixed: ${issue.title}` });
+    }
+  }
+  return closed;
 }
 
 function toCandidate(
@@ -236,7 +279,7 @@ function toCandidate(
       baseline: extra.baseline,
       diff: extra.diff,
       routineId: session.anchor.routineId,
-      steps: session.trail.slice(session.anchor.index),
+      steps: session.trail.slice(session.anchor.index).map(({ at: _at, ...step }) => step as RoutineStep),
     },
     route: extra.route,
     createdAt: new Date().toISOString(),

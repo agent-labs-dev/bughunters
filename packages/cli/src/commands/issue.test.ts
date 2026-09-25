@@ -46,6 +46,9 @@ describe('autoqa issue', () => {
     expect(triage.fingerprints['fp-issue']).toMatchObject({ decision: 'dismissed' });
     expect(triage.fingerprints['fp-candidate']).toMatchObject({ decision: 'dismissed', issueId: 'iss_1' });
     expect(lines[0]).toMatch(/^Dismissed iss_1/);
+    expect((await workspace.readMemory()).lessons).toMatchObject([{
+      role: 'judge', source: 'human', text: 'Not a bug: The window is blank — By design',
+    }]);
   });
 
   it('refuses a dismissal with no reason', async () => {

@@ -134,6 +134,8 @@ formality — see [ADR 0002](docs/adr/0002-determinism-is-a-contract.md).
 
 AutoQA uses the app like a QA team does, on any platform (ADR 0005):
 
+The agents remember short lessons from earlier runs in `.autoqa/memory.json`. You can edit them with `autoqa memory`.
+
 | Role | Job | Default |
 | --- | --- | --- |
 | Explorer | Operates the app, maps its screens, learns replayable routines, reports what looks wrong | model loop, `z-ai/glm-5.3-flash` via OpenRouter |
@@ -142,6 +144,10 @@ AutoQA uses the app like a QA team does, on any platform (ADR 0005):
 | Fixer | Writes a fix for an issue in its own git worktree | `claude -p` (off until enabled) |
 
 After a fix, AutoQA starts the app from the fix worktree. The explorer repeats the issue flow and captures an after screenshot. The judge compares it with the original and decides if the fix worked. A failed verdict returns to the fixer for another attempt, up to the configured limit.
+
+### Publish to GitHub
+
+Set `agents.github.enabled: true` to let the judge publish after the fix cycle. A completed fix becomes a PR. A major or critical bug without a fix becomes an issue by default. Every report includes screenshots and verification. Images go to the orphan `autoqa-assets` branch, outside the PR diff. `autoqa publish --dry-run` writes reports under `.autoqa/publish/` without posting to GitHub. Publishing requires a logged-in `gh` CLI.
 
 Each role runs on a model loop or on a CLI agent that you choose. A CLI agent
 gets the prompt on stdin and in `{prompt}`, and the role's tools over MCP in
@@ -183,6 +189,7 @@ redacted from every log.
 autoqa explore [--goal "..."] [--steps N]   # one explorer session
 autoqa judge [--session <id>]               # judge the newest explorer session
 autoqa fix [--issue <id>]                   # propose fixes for open issues
+autoqa publish [--issue <id>] [--dry-run]   # publish or preview GitHub reports
 autoqa replay <routine-id>                  # replay a learned routine, no model
 autoqa patrol [--once]                      # explore, judge, fix, repeat
 ```
