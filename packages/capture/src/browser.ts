@@ -1,6 +1,6 @@
 import { chromium, type Browser, type BrowserContext, type Page } from 'playwright';
 import type { AutoQAConfig, ViewportConfig } from '@autoqa/core';
-import { InfrastructureError } from '@autoqa/core';
+import { InfrastructureError, requireRun } from '@autoqa/core';
 import { DETERMINISTIC_CHROMIUM_ARGS, STABILITY_STYLESHEET, buildFreezeScript, FONT_AUDIT_SOURCE, type FontAudit } from './determinism.js';
 
 export type CaptureSession = {
@@ -37,7 +37,7 @@ export async function openSession(
   await context.addInitScript(buildFreezeScript(config.determinism));
 
   if (config.determinism.blockThirdPartyRequests) {
-    await blockThirdParty(context, config.run.url);
+    await blockThirdParty(context, requireRun(config).url);
   }
 
   const page = await context.newPage();

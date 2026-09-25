@@ -1,0 +1,12 @@
+{
+  "name": "@autoqa/agents",
+  "version": "0.0.0",
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": { ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" } },
+  "files": ["dist"],
+  "scripts": { "build": "tsc --build" },
+  "dependencies": { "@autoqa/core": "workspace:*", "@autoqa/decide": "workspace:*", "@autoqa/diff": "workspace:*", "@autoqa/drivers": "workspace:*", "@autoqa/invariants": "workspace:*", "@modelcontextprotocol/sdk": "^1.20.0", "pngjs": "^7.0.0", "zod": "^3.23.8" }
+}

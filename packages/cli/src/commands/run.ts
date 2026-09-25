@@ -5,6 +5,7 @@ import {
   BaselineStore,
   ExitCode,
   InfrastructureError,
+  requireRun,
   baselineKeyFor,
   paths,
   shortHash,
@@ -72,9 +73,9 @@ export async function runCommand(options: RunCommandOptions): Promise<RunResult>
   }
   const isFirstRun = store.count === 0;
 
-  log(`Starting the app: ${config.run.command}`);
+  log(`Starting the app: ${requireRun(config).command}`);
   const server = await startApp(config, { cwd: root });
-  if (server.external) log(`Using the app already serving at ${config.run.url}`);
+  if (server.external) log(`Using the app already serving at ${requireRun(config).url}`);
 
   const captured: CapturedScreen[] = [];
   const runDir = join(paths.runs(root), 'latest');
@@ -289,7 +290,7 @@ export function resolveTargets(
   model: AppModel | undefined,
   options: { only?: string[]; mode: RunMode },
 ): ScreenTarget[] {
-  const base = new URL(config.run.url);
+  const base = new URL(requireRun(config).url);
 
   if (options.only && options.only.length > 0) {
     return options.only.map((path) => ({ id: path, url: new URL(path, base).toString() }));

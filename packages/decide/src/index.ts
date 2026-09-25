@@ -8,6 +8,7 @@ export * from './state.js';
 export * from './thresholds.js';
 export * from './cache.js';
 export { JevDecider, ModelDecider, LocalDecider, HeuristicDecider };
+export { MODEL_ROUTES } from './providers/model.js';
 
 export type DeciderEnv = {
   TYPESAFE_API_KEY?: string;
@@ -25,7 +26,7 @@ const JEV_ROUTES = {
   openrouter: { key: 'OPENROUTER_API_KEY', endpoint: 'https://openrouter.ai/api/v1/systemone', model: 'jev-latest' },
   vercel: { key: 'AI_GATEWAY_API_KEY', endpoint: 'https://ai-gateway.vercel.sh/typesafe/v1/systemone', model: 'typesafe-ai/jev' },
 } as const;
-const MODEL_KEYS = {
+export const MODEL_KEYS = {
   openrouter: 'OPENROUTER_API_KEY',
   vercel: 'AI_GATEWAY_API_KEY',
   openai: 'OPENAI_API_KEY',

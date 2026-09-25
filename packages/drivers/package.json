@@ -1,0 +1,12 @@
+{
+  "name": "@autoqa/drivers",
+  "version": "0.0.0",
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": { ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" } },
+  "files": ["dist"],
+  "scripts": { "build": "tsc --build" },
+  "dependencies": { "@autoqa/core": "workspace:*", "@autoqa/invariants": "workspace:*", "@modelcontextprotocol/sdk": "^1.20.0", "playwright": "1.48.2" }
+}

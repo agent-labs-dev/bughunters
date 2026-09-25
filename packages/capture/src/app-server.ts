@@ -1,7 +1,7 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import { setTimeout as delay } from 'node:timers/promises';
 import type { AutoQAConfig } from '@autoqa/core';
-import { InfrastructureError } from '@autoqa/core';
+import { InfrastructureError, requireRun } from '@autoqa/core';
 
 export type AppServer = {
   url: string;
@@ -26,7 +26,7 @@ export async function startApp(
   config: AutoQAConfig,
   options: { cwd: string; env?: NodeJS.ProcessEnv; reuseExisting?: boolean } = { cwd: process.cwd() },
 ): Promise<AppServer> {
-  const url = config.run.url;
+  const url = requireRun(config).url;
 
   // If something is already serving here, use it. Re-spawning would either
   // fail on the port or leave two servers fighting over it.
@@ -35,7 +35,7 @@ export async function startApp(
   }
 
   const stderr: string[] = [];
-  const child = spawn(config.run.command, {
+  const child = spawn(requireRun(config).command, {
     cwd: options.cwd,
     env: { ...process.env, ...options.env, TZ: config.determinism.timezone, LANG: 'en_US.UTF-8' },
     shell: true,
@@ -63,13 +63,13 @@ export async function startApp(
     stderrTail: () => stderr.join('\n'),
   };
 
-  const deadline = Date.now() + config.run.ready.timeoutMs;
+  const deadline = Date.now() + requireRun(config).ready.timeoutMs;
   while (Date.now() < deadline) {
     if (exited !== null) {
       await server.stop();
       throw new InfrastructureError(
         `The bring-up command exited with code ${exited} before the app became healthy.\n` +
-          `  command: ${config.run.command}\n` +
+          `  command: ${requireRun(config).command}\n` +
           (stderr.length > 0 ? `  stderr:\n${stderr.map((l) => `    ${l}`).join('\n')}` : '  (no stderr)'),
       );
     }
@@ -79,10 +79,10 @@ export async function startApp(
 
   await server.stop();
   throw new InfrastructureError(
-    `The app at ${url} did not pass its health check within ${config.run.ready.timeoutMs}ms.\n` +
-      `  command: ${config.run.command}\n` +
-      (config.run.ready.selectors.length > 0
-        ? `  required selectors: ${config.run.ready.selectors.join(', ')}\n`
+    `The app at ${url} did not pass its health check within ${requireRun(config).ready.timeoutMs}ms.\n` +
+      `  command: ${requireRun(config).command}\n` +
+      (requireRun(config).ready.selectors.length > 0
+        ? `  required selectors: ${requireRun(config).ready.selectors.join(', ')}\n`
         : '') +
       (stderr.length > 0 ? `  stderr:\n${stderr.map((l) => `    ${l}`).join('\n')}` : ''),
   );
@@ -98,12 +98,12 @@ export async function startApp(
  */
 export async function isHealthy(config: AutoQAConfig): Promise<boolean> {
   try {
-    const response = await fetch(config.run.url, { signal: AbortSignal.timeout(3000) });
+    const response = await fetch(requireRun(config).url, { signal: AbortSignal.timeout(3000) });
     if (!response.ok) return false;
-    if (config.run.ready.selectors.length === 0) return true;
+    if (requireRun(config).ready.selectors.length === 0) return true;
 
     const body = await response.text();
-    return config.run.ready.selectors.every((selector) => bodyMentions(body, selector));
+    return requireRun(config).ready.selectors.every((selector) => bodyMentions(body, selector));
   } catch {
     return false;
   }

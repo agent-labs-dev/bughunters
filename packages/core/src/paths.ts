@@ -20,6 +20,23 @@ export const paths = {
   run: (root: string, runId: string) => join(root, AUTOQA_DIR, 'runs', runId),
   /** Progress for the run currently in flight. Gitignored, rewritten per screen. */
   live: (root: string) => join(root, AUTOQA_DIR, 'runs', 'live.json'),
+  appMap: (root: string) => join(root, AUTOQA_DIR, 'appmap.json'),
+  /** What the judge already decided, by fingerprint, so a decided finding does not come back. */
+  triage: (root: string) => join(root, AUTOQA_DIR, 'triage.json'),
+  memory: (root: string) => join(root, AUTOQA_DIR, 'memory.json'),
+  agentBaselines: (root: string) => join(root, AUTOQA_DIR, 'agent-baselines'),
+  agentBaseline: (root: string, id: string) => join(root, AUTOQA_DIR, 'agent-baselines', `${id}.png`),
+  agentBaselineSnapshot: (root: string, id: string) => join(root, AUTOQA_DIR, 'agent-baselines', `${id}.snapshot.json`),
+  worktrees: (root: string) => join(root, AUTOQA_DIR, 'worktrees'),
+  routines: (root: string) => join(root, AUTOQA_DIR, 'routines'),
+  routine: (root: string, id: string) => join(root, AUTOQA_DIR, 'routines', `${id}.json`),
+  issues: (root: string) => join(root, AUTOQA_DIR, 'issues'),
+  issue: (root: string, id: string) => join(root, AUTOQA_DIR, 'issues', `${id}.json`),
+  fixes: (root: string) => join(root, AUTOQA_DIR, 'fixes'),
+  fix: (root: string, id: string) => join(root, AUTOQA_DIR, 'fixes', `${id}.json`),
+  sessions: (root: string) => join(root, AUTOQA_DIR, 'sessions'),
+  session: (root: string, id: string) => join(root, AUTOQA_DIR, 'sessions', id),
+  agents: (root: string) => join(root, AUTOQA_DIR, 'agents.json'),
   config: (root: string) => join(root, 'autoqa.yml'),
 } as const;
 
