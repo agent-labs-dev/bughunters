@@ -15,6 +15,7 @@ export class AgentSession {
   previousObservation?: Observation;
   lastScreenshot?: string;
   lastScreenId?: string;
+  lastScreenTrailIndex = 0;
   /** Where the app was when lastScreenId was recorded. */
   lastScreenLocation?: string;
   decisionSpentUsd = 0;

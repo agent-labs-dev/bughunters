@@ -10,6 +10,7 @@ import {
   type AgentStatus,
   type AppMap,
   type AppMapScreen,
+  type ScreenTransition,
   type Candidate,
   type FixProposal,
   type Issue,
@@ -146,6 +147,15 @@ export class Workspace {
     const now = new Date().toISOString();
     const map = await this.readAppMap();
     const previous = map?.screens.find((item) => item.id === screen.id);
+    const transitions = [...(previous?.transitions ?? [])];
+    for (const incoming of screen.transitions ?? []) {
+      const found = transitions.find((item) => item.to === incoming.to && item.kind === incoming.kind && item.via === incoming.via);
+      if (found) {
+        found.count += 1;
+        found.steps = Math.min(found.steps, incoming.steps);
+        found.lastSeenAt = now;
+      } else transitions.push({ ...incoming, count: 1, lastSeenAt: now } satisfies ScreenTransition);
+    }
     const merged: AppMapScreen = {
       name: screen.name ?? previous?.name ?? screen.id,
       description: screen.description ?? previous?.description ?? '',
@@ -155,6 +165,7 @@ export class Workspace {
       ...screen,
       id: screen.id,
       links: [...new Set([...(previous?.links ?? []), ...(screen.links ?? [])])],
+      ...(transitions.length ? { transitions } : {}),
       visits: (previous?.visits ?? 0) + (screen.visits ?? 1),
       lastSeenAt: screen.lastSeenAt ?? now,
       lastScreenshot: screen.lastScreenshot ?? previous?.lastScreenshot,

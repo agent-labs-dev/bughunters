@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { fingerprint, shortHash, type Candidate, type Locator, type Routine, type RoutineStep } from '@autoqa/core';
+import { fingerprint, shortHash, type Candidate, type Locator, type Routine, type RoutineStep, type ScreenTransition } from '@autoqa/core';
 import type { DriverAction, Observation, UiElement } from '@autoqa/drivers';
 import { addOccurrence, evaluateScreen } from '../evaluate.js';
 import { replayRoutine } from '../replay.js';
@@ -60,6 +60,44 @@ function screenKey(observation: Observation): string {
   return `${observation.location}|${active?.title ?? ''}`;
 }
 
+function transition(session: AgentSession, to: string): ScreenTransition | undefined {
+  const actions = session.trail.slice(session.lastScreenTrailIndex).filter((step) => step.kind !== 'wait');
+  if (!session.lastScreenId || session.lastScreenId === to || !actions.length || actions.length > 4) return;
+  const last = actions.at(-1)!;
+  const kind = actions.some((step) => step.kind === 'open' || step.kind === 'window') ? 'open'
+    : last.kind === 'back' ? 'back'
+      : last.kind === 'tap' || last.kind === 'press' || (last.kind === 'type' && last.submit) ? 'tap' : 'other';
+  const label = last.kind === 'tap' ? last.target.name ?? last.target.text ?? last.target.testId ?? 'tap'
+    : last.kind === 'open' ? `open ${last.url}`
+      : last.kind === 'window' ? `window ${last.match}`
+        : last.kind === 'back' ? 'back'
+          : last.kind === 'press' ? `press ${last.key}`
+            : last.kind === 'type' ? last.target?.name ?? 'submit'
+              : last.kind;
+  const via = (session.vars.redact(label) as string).slice(0, 60);
+  return { to, kind, via, steps: actions.length, count: 1, lastSeenAt: new Date().toISOString() };
+}
+
+async function arrive(session: AgentSession, to: string, key: string): Promise<void> {
+  const edge = transition(session, to);
+  if (session.lastScreenId && session.lastScreenId !== to) {
+    await session.workspace.upsertScreen({ id: session.lastScreenId, links: [to],
+      ...(edge ? { transitions: [edge] } : {}), visits: 0 });
+  }
+  session.lastScreenId = to;
+  session.lastScreenLocation = key;
+  session.lastScreenTrailIndex = session.trail.length;
+}
+
+async function arriveAtKnownScreen(session: AgentSession, before?: Observation): Promise<void> {
+  const after = session.lastObservation;
+  if (!before || !after || screenKey(before) === screenKey(after)) return;
+  const screens = (await session.workspace.readAppMap())?.screens ?? [];
+  const key = screenKey(after);
+  const matches = screens.filter((screen) => (screen.screenKey ?? `${screen.location}|`) === key);
+  if (matches.length === 1) await arrive(session, matches[0]!.id, key);
+}
+
 /**
  * The last recorded screen, but only if the app is still on it. After a
  * window switch or a navigation with no record_screen, a report names no
@@ -98,6 +136,7 @@ function describe(session: AgentSession, action: DriverAction): string {
 }
 
 async function act(session: AgentSession, action: DriverAction, recorded?: RoutineStep): Promise<ToolResult> {
+  const before = session.lastObservation;
   const replacement = 'ref' in action ? resolveOldRef(session, action.ref) : undefined;
   if (replacement && 'ref' in action) action = { ...action, ref: replacement.ref };
   const summary = describe(session, action);
@@ -106,6 +145,7 @@ async function act(session: AgentSession, action: DriverAction, recorded?: Routi
   await session.driver!.settle();
   const viewed = await observe(session, action.kind, summary);
   if (recorded ?? result.step) session.trail.push({ ...(recorded ?? result.step)!, at: locationKey(session.lastObservation!) });
+  await arriveAtKnownScreen(session, before);
   if (replacement) viewed.content.unshift({ type: 'text', text: replacement.message });
   return viewed;
 }
@@ -264,6 +304,7 @@ export function explorerTools(session: AgentSession): Tool[] {
       inputSchema: schema({ ref: string, text: string, submit: boolean,
         append: { type: 'boolean', description: 'Add to the text already in the field. Default: replace it.' } }, ['text']),
       async run(input) {
+        const before = session.lastObservation;
         const value = arg(input, 'text');
         const replacement = resolveOldRef(session, input.ref as string | undefined);
         const ref = replacement?.ref ?? input.ref as string | undefined;
@@ -289,6 +330,7 @@ export function explorerTools(session: AgentSession): Tool[] {
           ...(append ? { append: true } : {}),
           at: locationKey(session.lastObservation!),
         });
+        await arriveAtKnownScreen(session, before);
         if (replacement) viewed.content.unshift({ type: 'text', text: replacement.message });
         return viewed;
       },
@@ -353,6 +395,7 @@ export function explorerTools(session: AgentSession): Tool[] {
         const snapshot = session.driver!.snapshot(observation, id);
         const findings = await evaluateScreen(session, { screenId: id, observation, snapshot });
         const previous = session.lastScreenId;
+        const edge = transition(session, id);
         const routineId = `screen-${id}`;
         await saveRoutine(session, routineId, description, id);
         await session.workspace.upsertScreen({
@@ -361,14 +404,17 @@ export function explorerTools(session: AgentSession): Tool[] {
           description,
           platform: observation.platform,
           location: observation.location,
+          screenKey: screenKey(observation),
           routineId,
           lastScreenshot: screenshot,
         });
         if (previous && previous !== id) {
-          await session.workspace.upsertScreen({ id: previous, links: [id], visits: 0 });
+          await session.workspace.upsertScreen({ id: previous, links: [id],
+            ...(edge ? { transitions: [edge] } : {}), visits: 0 });
         }
         session.lastScreenId = id;
         session.lastScreenLocation = screenKey(observation);
+        session.lastScreenTrailIndex = session.trail.length;
         const screens = (await session.workspace.readAppMap())?.screens ?? [];
         const names = screens.map((screen) => screen.id).join(', ') || id;
         const found = findings.length

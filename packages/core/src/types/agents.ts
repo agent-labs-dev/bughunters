@@ -75,6 +75,15 @@ export type Routine = {
   expect?: { elements: string[] };
 };
 
+export type ScreenTransition = {
+  to: string;
+  via?: string;
+  kind: 'tap' | 'open' | 'back' | 'other';
+  steps: number;
+  count: number;
+  lastSeenAt: string;
+};
+
 /** A screen the explorer found. `appmap.json` holds these. */
 export type AppMapScreen = {
   /** Kebab-case, stable. The explorer names it; AutoQA de-duplicates it. */
@@ -84,10 +93,13 @@ export type AppMapScreen = {
   platform: Platform;
   /** URL, route, window title, or activity -- whatever the driver reports. */
   location?: string;
+  /** Location and active window together, when known. */
+  screenKey?: string;
   /** The routine that reaches this screen from a fresh session. */
   routineId?: string;
   /** Screens reached from this one, for the map. */
   links: string[];
+  transitions?: ScreenTransition[];
   firstSeenAt: string;
   lastSeenAt: string;
   visits: number;

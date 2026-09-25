@@ -38,6 +38,32 @@ async function fixture() {
 }
 
 describe('explorer, replay, and judge', () => {
+  it('records direct tap and open transitions, counts repeats, and skips long paths', async () => {
+    const f = await fixture();
+    try {
+      const tools = explorerTools(f.session);
+      await run(tools, 'look');
+      await run(tools, 'record_screen', { id: 'home', name: 'Home', description: 'Home' });
+      await run(tools, 'tap', { ref: 'e1' });
+      await run(tools, 'record_screen', { id: 'settings', name: 'Settings', description: 'Settings' });
+      expect((await f.workspace.readAppMap())?.screens.find((screen) => screen.id === 'home')?.transitions)
+        .toMatchObject([{ to: 'settings', kind: 'tap', via: 'Settings', steps: 1, count: 1 }]);
+      await run(tools, 'open', { url: 'fake://home' });
+      expect((await f.workspace.readAppMap())?.screens.find((screen) => screen.id === 'settings')?.transitions)
+        .toMatchObject([{ to: 'home', kind: 'open', via: 'open fake://home', steps: 1 }]);
+      await run(tools, 'tap', { ref: 'e1' });
+      expect((await f.workspace.readAppMap())?.screens.find((screen) => screen.id === 'home')?.transitions)
+        .toMatchObject([{ to: 'settings', kind: 'tap', via: 'Settings', steps: 1, count: 2 }]);
+      await run(tools, 'open', { url: 'fake://home' });
+      for (let index = 0; index < 5; index++) await run(tools, 'press', { key: 'Tab' });
+      await run(tools, 'tap', { ref: 'e1' });
+      expect((await f.workspace.readAppMap())?.screens.find((screen) => screen.id === 'home')?.transitions)
+        .toMatchObject([{ count: 2 }]);
+    } finally {
+      await rm(f.root, { recursive: true, force: true });
+    }
+  });
+
   it('returns image observations, keeps secrets as placeholders, and records screens and candidates', async () => {
     const f = await fixture();
     try {
