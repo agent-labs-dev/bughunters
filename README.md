@@ -1,288 +1,362 @@
 # AutoQA
 
-A continuously-running QA engineer for your repository.
+AutoQA is a QA team made of agents. It uses your app the way a tester does, finds bugs, fixes them, checks each fix in the running app, and opens the pull requests and issues for your team.
 
-AutoQA performs a one-time **Recon** pass that boots your product, works out how to log in, crawls every screen it can reach, and builds a model of the app. Every run after that either re-tests the blast radius of a change or sweeps everything, then surfaces results as a GitHub Check, an HTML report, a GitHub Issue, or a question for a human when it isn't sure.
+- An **explorer** agent runs the app, maps its screens, and reports what looks wrong.
+- A **decider** (Jev) makes the fast calls: is this finding real, and how bad is it.
+- A **judge** agent decides what the decider cannot, and writes the issues.
+- A **fixer** agent writes a fix in its own git worktree.
+- The explorer and the judge then **retest** the fix in the running app, with before and after screenshots.
+- The judge **publishes** to GitHub: a PR for each fix, and an issue for each major bug with no fix.
 
-Apache-2.0. Runs locally with no server, self-hosted, or managed.
+It works on web apps, desktop apps (Electron), and mobile apps (iOS and Android, native or React Native). It runs on your machine, and it can run all day as a patrol.
+
+Apache-2.0.
 
 ---
 
-## The one architectural decision everything follows from
+## Contents
 
-**The LLM brain is split from the CI gate.**
+- [What is supported](#what-is-supported)
+- [Use it in your repo](#use-it-in-your-repo)
+- [Configuration](#configuration)
+- [Commands](#commands)
+- [The dashboard](#the-dashboard)
+- [How it works](#how-it-works)
+- [The deterministic gate (web)](#the-deterministic-gate-web)
+- [Examples](#examples)
+- [Development](#development)
+- [Documentation](#documentation)
+- [Packages](#packages)
 
-An agent is non-deterministic and expensive. A merge gate needs to be bit-exact and near-free. These are incompatible requirements on the same component, so they are not the same component.
+## What is supported
 
-|                    | Brain (agentic)                | Gate (deterministic)     |
-| ------------------ | ------------------------------ | ------------------------ |
-| When it runs       | Recon, async judgment           | Every CI run             |
-| Cost               | High, one-time, budget-capped  | ~$0 marginal             |
-| Determinism        | Non-deterministic — acceptable | Bit-exact — required     |
-| Can block a merge  | **Never**                      | Yes                      |
+| Area | Supported |
+| --- | --- |
+| Platforms | Web (Playwright), Electron (CDP), iOS simulator and Android emulator (Maestro) |
+| App types | Any web app; Electron or native desktop apps with a CDP port; native or React Native mobile apps |
+| Login | Any auth system: your own setup commands plus plain-English instructions |
+| Agent runtimes | A built-in model loop, or any CLI agent (`claude -p`, `codex exec`, …) for each role |
+| Model providers | OpenRouter, Vercel AI Gateway, OpenAI, Anthropic, or a custom endpoint |
+| Decider | Jev (default), a general model, or an offline heuristic |
+| GitHub | PRs, issues, and state sync through the `gh` CLI |
+| Output | A local dashboard, GitHub PRs and issues, and JSON files under `.autoqa/` |
 
-The agent navigates freely exactly once, during Recon. Its output is **frozen** into deterministic artifacts: replayable Playwright flows, pinned baselines, and a screen graph. Everything downstream executes those frozen artifacts.
+Requirements: Node 22+ and pnpm 9+. For mobile: Xcode (iOS simulator) or the Android SDK, and [Maestro](https://maestro.mobile.dev). For GitHub: a logged-in [`gh`](https://cli.github.com) CLI.
 
-This is what makes an ~80%-accurate agent safe to put in a merge gate.
+## Use it in your repo
 
-## Why this exists
-
-The [landscape research](docs/research/oss-visual-testing-landscape-2026.md) found that no open-source tool covers all of: runs in CI, fast and generic, screenshots *and* video, built-in comparison, good reports. Capture is a solved commodity (Playwright). Diffing is a solved commodity (odiff, pixelmatch). **The review-and-approve workflow is where every project either dies or starts charging.**
-
-Two findings shaped the design:
-
-1. **The most-cited open-source Percy alternative is dead.** Lost Pixel was archived on 2026-04-22. That leaves a genuine vacancy.
-2. **The number-one real-world complaint is false positives from rendering drift** — fonts, anti-aliasing, sub-pixel differences, host environment. Not missing features. Noise.
-
-So determinism is not a configuration surface here. It is a [contract](docs/determinism-contract.md).
-
-## Running it today
-
-The repo builds and tests from a clean clone. Requires Node 22+ and pnpm 9+.
+AutoQA is not on npm yet. Build it from this repo, and add a shell alias:
 
 ```bash
-pnpm install
-pnpm build
-pnpm test            # 114 tests
+git clone <this repo> ~/autoqa && cd ~/autoqa
+pnpm install && pnpm build
+alias autoqa="node ~/autoqa/packages/cli/dist/bin.js"
 ```
 
-### Model providers
+Then follow these steps in your own repo.
 
-Set `decisions.decider` to `jev` (default), `model`, `local`, or `heuristic` in `autoqa.yml`. Available model routes are tried in the order shown:
+### 1. Tell AutoQA how to start your app
+
+Make a folder for AutoQA. It can be your repo's root or a folder next to it. Add `.autoqa/` to `.gitignore`: it holds screenshots of the real app.
+
+Write `autoqa.yml`. This example is an Electron app:
+
+```yaml
+version: 1
+
+app:
+  platform: electron                 # web | electron | ios | android
+  source: .                          # the repo that the fixer edits
+  setup:                             # your commands: build, start, sign in a test user
+    - run: ./scripts/start-test-app.sh
+      capture: { CDP_PORT: 'CDP :(\d+)' }   # a value from the output, for later steps
+  teardown:
+    - run: ./scripts/stop-test-app.sh
+  connect:
+    cdp: http://127.0.0.1:${CDP_PORT}      # web: url · mobile: appId (+ device)
+  instructions: instructions.md
+```
+
+### 2. Write the app guide
+
+`instructions.md` is plain English for the explorer. Write it like a note to a new tester:
+
+```markdown
+# My App
+My App is a chat workspace. The sidebar lists the channels.
+
+## Sign in
+You start signed in. If you see the sign-in screen, report it as a critical bug.
+
+## Onboarding
+Type `AutoQA` as the first name. For the username, type `autoqa-{{RUN_TAG}}`.
+
+## Never do these things
+- Do not delete the workspace. Do not invite a person by email.
+```
+
+Values that the setup captures, and secrets that you list in `app.secrets`, reach the model only as `{{NAME}}` placeholders. AutoQA puts in the real value only when it acts on the app, and it hides the value in all logs.
+
+### 3. Set a model key
+
+```bash
+export OPENROUTER_API_KEY=...        # the explorer and the judge use z-ai/glm-5.3-flash by default
+```
+
+### 4. Explore, and look at the results
+
+```bash
+autoqa explore        # one explorer session: it signs in, maps screens, reports problems
+autoqa judge          # the judge decides which reports are real and files the issues
+autoqa dashboard      # http://127.0.0.1:4311
+```
+
+The first session maps the app and learns **routines**: paths that AutoQA can replay later with no model, for example `enter-app`. Each later session starts from what it already knows.
+
+### 5. Let it fix bugs
+
+```yaml
+agents:
+  fixer:
+    enabled: true
+    commitMessage: 'fix(app): {title}'     # match your commit hook
+    retest: { prepare: pnpm install --frozen-lockfile }
+    use:
+      runtime: cli
+      command: claude -p --permission-mode acceptEdits
+```
+
+```bash
+autoqa fix            # fix the worst open issues, then retest each fix in the app
+```
+
+Each fix gets a branch `autoqa/fix-<issue>` and a git worktree under `.autoqa/worktrees/`. AutoQA links your ignored `.env` files into each worktree. Then it starts the app from the worktree, and the explorer repeats the flow. The judge compares the before and after screenshots. If the bug is still there, the fixer tries again with the judge's feedback.
+
+### 6. Publish to GitHub
+
+```yaml
+agents:
+  github: { enabled: true }
+```
+
+```bash
+autoqa publish --dry-run   # write the reports to .autoqa/publish/ and look at them
+autoqa publish             # open the PRs and issues
+```
+
+### 7. Run it all day
+
+```bash
+autoqa patrol              # setup → explore → judge → teardown → fix → retest → publish, then repeat
+autoqa patrol --once       # one cycle
+```
+
+## Configuration
+
+All settings live in `autoqa.yml`. Every field has a default, so a small file is enough.
+
+```yaml
+version: 1
+
+app:
+  platform: web                 # web | electron | ios | android
+  source: .                     # the repo that the fixer edits
+  setup: []                     # commands: { run, cwd, capture, background, readyWhen, timeoutMs }
+  teardown: []
+  connect: { url: http://localhost:3000 }   # or cdp, or appId + device
+  instructions: instructions.md
+  secrets: [TEST_PASSWORD]      # environment variables the explorer may use as {{NAME}}
+
+agents:
+  explorer:
+    maxSteps: 60
+    budgetUsd: 0.5
+    use: { runtime: model, via: openrouter, model: z-ai/glm-5.3-flash }
+  judge:
+    use: { runtime: model, via: openrouter, model: z-ai/glm-5.3-flash }
+  fixer:
+    enabled: false              # off until you turn it on: the fixer writes code
+    minSeverity: minor          # fix issues at this severity or worse
+    maxPerCycle: 2              # at most this many new fixes in one cycle
+    verify: pnpm test           # optional: a failed command marks the fix failed
+    commitMessage: 'fix: {title}'
+    retest:
+      enabled: true
+      prepare: pnpm install     # runs in the worktree before the app starts
+      attempts: 2               # fix attempts in total
+    use: { runtime: cli, command: 'claude -p --permission-mode acceptEdits' }
+  github:
+    enabled: false
+    pullRequests: draft         # draft | ready
+    issueMinSeverity: major     # a bug with no fix becomes an issue at this severity or worse
+    labels: [autoqa]
+    assetsBranch: autoqa-assets # the orphan branch that holds report images
+    prScope: app                # optional: the scope in PR titles
+  memory:
+    enabled: true
+  patrol:
+    intervalMinutes: 30
+    cycles: 0                   # 0 = run until stopped
+
+decisions:
+  decider: jev                  # jev | model | local | heuristic
+```
+
+**Runtimes.** Each role (explorer, judge, fixer) runs on the built-in model loop or on a CLI agent. A CLI agent gets the prompt on stdin and in `{prompt}`. It gets the role's tools over MCP in `{mcp}` (a config file) or `{mcpUrl}`, and the worktree in `{workdir}`:
+
+```yaml
+judge:
+  use: { runtime: cli, command: 'claude -p --mcp-config {mcp}' }
+```
+
+**Model providers.** A model runtime uses `via: openrouter | vercel | openai | anthropic | custom`. The decider tries these keys in this order:
 
 | Decider | Environment variable | Route |
 | --- | --- | --- |
 | Jev | `TYPESAFE_API_KEY` | `api.typesafe.ai` |
 | Jev | `OPENROUTER_API_KEY` | OpenRouter |
 | Jev | `AI_GATEWAY_API_KEY` | Vercel AI Gateway |
-| General model | `OPENROUTER_API_KEY` | OpenRouter |
-| General model | `AI_GATEWAY_API_KEY` | Vercel AI Gateway |
-| General model | `OPENAI_API_KEY` | OpenAI |
-| General model | `ANTHROPIC_API_KEY` | Anthropic |
+| General model | `OPENROUTER_API_KEY`, `AI_GATEWAY_API_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY` | as named |
 | General model | `AUTOQA_MODEL_ENDPOINT` + `AUTOQA_MODEL_API_KEY` | Custom endpoint |
 
-Set `decisions.jev.via` or `decisions.model.via` to select a route, and `decisions.model.name` to override the default model ID. The run note says which decider ran and why; when no usable key is set, the run uses the heuristic decider. `--no-models` always selects that offline path.
-
-Try the CLI against any repo:
-
-```bash
-cd /path/to/your/app
-node /path/to/autoqa/packages/cli/dist/bin.js init      # detect stack, write autoqa.yml + workflow
-node /path/to/autoqa/packages/cli/dist/bin.js doctor    # verify the determinism contract can hold here
-```
-
-Run the fixture app AutoQA tests itself against:
-
-```bash
-cd examples/fixture-app
-node server.js                 # http://localhost:3000
-BREAK=occlusion node server.js # inject one known defect
-```
-
-Run it against the fixture app, end to end:
-
-```bash
-pnpm --filter @autoqa/capture exec playwright install chromium
-
-cd examples/fixture-app
-node ../../packages/cli/dist/bin.js run --no-models   # captures baselines
-node ../../packages/cli/dist/bin.js run --no-models   # compares: clean
-
-BREAK=color node server.js &                          # inject one defect
-node ../../packages/cli/dist/bin.js run --no-models   # exit 1, with a diff image
-```
-
-### The dashboard
-
-```bash
-cd examples/nebula-desktop                        # or any workspace
-node ../../packages/cli/dist/bin.js dashboard     # http://127.0.0.1:4311
-```
-
-The dashboard is the bird's-eye view of the agents. It updates live from the
-files under `.autoqa/`:
-
-- **Overview** — the explorer, the judge and the fixer: what each one does now
-  and what it spent today; the open issues that need a human; the live screen
-  and the last actions of a running session; the screens found so far.
-- **Issues** — each issue with its evidence, the routine and steps that
-  reproduce it, the judge's reason, and the fixer's proposal with its diff.
-- **Activity** — each session as a one-line-per-action timeline. The agent's
-  reasoning is one click away, not in the way.
-- **Screens** — every screen the explorer found, with its latest screenshot.
-- **Checks** — the deterministic `autoqa run` gate: expected/actual/diff per
-  screen, and only the checks that fired.
-
-It binds to loopback only, on purpose: screenshots are of a real application and
-routinely contain real data. It is also read-only — a browser tab cannot mutate
-run state or race the CLI.
-
-Verify the determinism guarantee yourself — three runs, same commit, zero diffs:
-
-```bash
-bash scripts/determinism-check.sh
-```
-
-**What does not run yet:** `recon`, `baseline`, `findings`, `intent` and
-`watch`. See [ROADMAP.md](ROADMAP.md).
-
-Note that capturing baselines outside the pinned runner image is only useful
-for local exploration. `autoqa doctor` warns about this, and it is not a
-formality — see [ADR 0002](docs/adr/0002-determinism-is-a-contract.md).
-
-## The agents
-
-AutoQA uses the app like a QA team does, on any platform (ADR 0005):
-
-The agents remember short lessons from earlier runs in `.autoqa/memory.json`. You can edit them with `autoqa memory`.
-
-| Role | Job | Default |
-| --- | --- | --- |
-| Explorer | Operates the app, maps its screens, learns replayable routines, reports what looks wrong | model loop, `z-ai/glm-5.3-flash` via OpenRouter |
-| Decider | Fast typed calls on each finding: is it anomalous, where it goes, how severe | Jev |
-| Judge | Reviews what the decider cannot settle, and writes the issues | model loop, `z-ai/glm-5.3-flash` via OpenRouter |
-| Fixer | Writes a fix for an issue in its own git worktree | `claude -p` (off until enabled) |
-
-After a fix, AutoQA starts the app from the fix worktree. The explorer repeats the issue flow and captures an after screenshot. The judge compares it with the original and decides if the fix worked. A failed verdict returns to the fixer for another attempt, up to the configured limit.
-
-### Publish to GitHub
-
-Set `agents.github.enabled: true` to let the judge publish after the fix cycle. A completed fix becomes a PR. A major or critical bug without a fix becomes an issue by default. Every report includes screenshots and verification. Images go to the orphan `autoqa-assets` branch, outside the PR diff. `autoqa publish --dry-run` writes reports under `.autoqa/publish/` without posting to GitHub. Publishing requires a logged-in `gh` CLI.
-
-Each role runs on a model loop or on a CLI agent that you choose. A CLI agent
-gets the prompt on stdin and in `{prompt}`, and the role's tools over MCP in
-`{mcp}` or `{mcpUrl}`:
-
-```yaml
-agents:
-  explorer:
-    use: { runtime: model, via: openrouter, model: z-ai/glm-5.3-flash }   # or anthropic, openai, vercel, custom
-  judge:
-    use: { runtime: cli, command: 'claude -p --mcp-config {mcp}' }
-  fixer:
-    enabled: true
-    use: { runtime: cli, command: 'codex exec --full-auto' }
-```
-
-The app itself is described once, in plain terms:
-
-```yaml
-app:
-  platform: electron             # web | electron | ios | android
-  source: ../my-desktop-app      # the repo the fixer edits
-  setup:                         # your own commands: build, launch, mint a test session
-    - run: ./scripts/launch-test-app.sh
-      capture: { CDP_PORT: 'CDP :(\d+)' }   # values the next steps and the explorer can use
-  teardown:
-    - run: ./scripts/stop-test-app.sh
-  connect: { cdp: 'http://127.0.0.1:${CDP_PORT}' }   # or url, or appId (+ device) for mobile
-  instructions: instructions.md  # how to sign in, what the app is, what never to do
-```
-
-Login works with any auth system: the setup commands do the parts only your
-team knows (a test-login route, a seeded user, a session file), and
-`instructions.md` tells the explorer the rest in plain English. Secrets and
-captured values reach the model only as `{{NAME}}` placeholders, and they are
-redacted from every log.
-
-```bash
-autoqa explore [--goal "..."] [--steps N]   # one explorer session
-autoqa judge [--session <id>]               # judge the newest explorer session
-autoqa fix [--issue <id>]                   # propose fixes for open issues
-autoqa publish [--issue <id>] [--dry-run]   # publish or preview GitHub reports
-autoqa replay <routine-id>                  # replay a learned routine, no model
-autoqa patrol [--once]                      # explore, judge, fix, repeat
-```
-
-`examples/nebula-desktop` (Electron over CDP) and `examples/nebula-mobile` (iOS
-through Maestro) are complete, real configurations.
-
-## Install (once published)
-
-```bash
-pnpm add -D @autoqa/cli
-npx autoqa init
-npx autoqa doctor
-```
+With no usable key, the decider falls back to the offline heuristic.
 
 ## Commands
 
+Run `autoqa help` for the full list.
+
+**Agents**
+
+| Command | What it does |
+| --- | --- |
+| `autoqa explore [--goal "..."] [--steps N]` | One explorer session: start the app, explore, report, stop the app |
+| `autoqa judge [--session <id>]` | Judge the newest explorer session (or the ones you name) |
+| `autoqa fix [--issue <id>]` | Fix the worst open issues, then retest each fix |
+| `autoqa retest --issue <id>` | Retest one fix in the app, from its worktree |
+| `autoqa publish [--issue <id>] [--dry-run]` | Open PRs and issues on GitHub, or write them to local files |
+| `autoqa patrol [--once]` | The full cycle, again and again |
+| `autoqa replay <routine-id>` | Replay a learned routine, with no model |
+
+**Issues, memory, and GitHub**
+
+| Command | What it does |
+| --- | --- |
+| `autoqa issue list` | List the issues, worst first |
+| `autoqa issue dismiss <id> --reason "..." [--by name]` | Close an issue as not a bug; it does not come back |
+| `autoqa issue reopen <id>` | Open a dismissed issue again |
+| `autoqa memory list [--role r]` | Show the lessons that the agents learned |
+| `autoqa memory add --role r "text" [--scope s]` | Add a lesson yourself |
+| `autoqa memory remove <id>` · `retire <id> --reason "..."` | Delete or retire a lesson |
+| `autoqa github sync` | Read the state of each PR and issue from GitHub |
+| `autoqa worktrees clean` | Remove the worktrees of merged, closed, or finished fixes |
+
+**Dashboard and setup**
+
+| Command | What it does |
+| --- | --- |
+| `autoqa dashboard [--port N]` | The local dashboard, on 127.0.0.1 |
+| `autoqa init` | Detect the stack and write a starter `autoqa.yml` (web) |
+| `autoqa doctor` | Check that this machine can run the deterministic gate |
+
+**Deterministic gate (web)**
+
+| Command | What it does |
+| --- | --- |
+| `autoqa run [--all \| --smoke \| --screens /a,/b] [--no-models]` | Capture, compare with the baselines, and run the checks |
+
+These commands are planned and not built yet: `recon`, `model`, `baseline`, `findings`, `intent`, `report`, `export`, and `watch`. See [ROADMAP.md](ROADMAP.md).
+
+## The dashboard
+
+```bash
+autoqa dashboard            # http://127.0.0.1:4311
 ```
-autoqa init | doctor
-autoqa recon [--review] [--max-screens N] [--budget-usd X]
-autoqa run [--all | --smoke | --screens /a,/b] [--no-models]
-autoqa baseline capture | pull | push | accept
-autoqa findings list | explain <id> | accept <id> --reason "..."
-autoqa intent list | export | prune
-autoqa explore | judge | fix | replay <id> | patrol [--once]
-autoqa dashboard [--port N]
-autoqa report --open
-autoqa export --format junit|sarif|json
-autoqa watch
+
+The dashboard is the bird's-eye view of the agents. It reads the files under `.autoqa/` and updates live.
+
+- **Overview**: what each agent does now and what it spent, the issues that need a human, the live screen, and the screens found so far.
+- **Issues**: each issue with its screenshots and steps, the judge's reason, the fix with its diff, the retest with before and after screenshots, and the PR or issue on GitHub with its state.
+- **Activity**: each session as a timeline, one line for each action.
+- **Screens**: each screen that the explorer found, with its latest screenshot.
+- **Memory**: the lessons that the agents learned.
+- **Checks**: the results of `autoqa run` (shown only when there are runs).
+
+The dashboard listens on 127.0.0.1 only, because the screenshots can show real data. It is read-only.
+
+## How it works
+
+**The cycle.** A patrol cycle has these steps:
+
+1. **Setup** runs your commands and connects the driver to the app.
+2. The **explorer** enters the app (with the `enter-app` routine when it can), records screens, and reports problems. Automatic checks (contrast, overlap, tap size, visual change) run on each screen that it records.
+3. The **decider** routes each finding: drop it, or send it to the judge.
+4. The **judge** looks at each finding with its screenshot. It files an issue, adds the finding to an issue that is already open, or dismisses it with a reason.
+5. **Teardown** stops the app.
+6. The **fixer** fixes the worst issues. Each fix gets a **retest**: AutoQA starts the app from the fix worktree, the explorer repeats the flow on each affected screen, and the judge compares before and after.
+7. The judge **publishes**. A fix becomes a PR. A major bug with no fix becomes an issue.
+
+**Noise control.** AutoQA keeps the list of issues short:
+
+- One rule on one screen gives one finding, not one finding for each element.
+- Each finding has a fingerprint. A finding that the judge filed or dismissed before does not go to the judge again. A filed finding adds one more occurrence to its issue.
+- The judge looks for one shared cause first, so ten screens that fail in the same way become one issue.
+- A dismissed issue does not come back. A fixed issue that comes back reopens as a regression.
+- An issue from the automatic checks closes by itself after 3 visits with no finding. A merged fix gets a recheck on the main branch.
+
+**Memory.** After each explorer session, AutoQA reads what went wrong: failed taps, retyped fields, broken routines. Then it writes short lessons to `.autoqa/memory.json`. Human dismissals, fixer declines, rejected PRs, and commit hook errors also become lessons. Each role gets its lessons in its prompt, so the next run does not repeat the same mistakes.
+
+**GitHub.** The judge writes a short summary. AutoQA adds the full report: the steps, the screenshots, the fix, and the before and after table. It uploads the images to the orphan `autoqa-assets` branch, so the images never enter the PR diff. PR titles use the Conventional Commits form, for example `fix(app): expand the sidebar in a narrow window`. When the team closes a PR without a merge, AutoQA does not propose that change again. AutoQA never force-pushes and never uses `--no-verify`.
+
+**Safety.**
+
+- The fixer works only in its own worktree.
+- A human decision (a dismissal, a closed PR) is never overwritten.
+- Secrets never reach a model or a log.
+- `app.instructions` can list what the explorer must never do.
+
+The full design is in [ADR 0005](docs/adr/0005-agents-drivers-and-the-patrol.md).
+
+## The deterministic gate (web)
+
+For web apps, `autoqa run` is a merge gate that uses no agent. The agents explore freely. The gate replays frozen artifacts and compares them with pinned baselines, so it gives the same result on the same commit. Only this gate can fail a CI check. The agents never block a merge ([ADR 0001](docs/adr/0001-split-the-brain-from-the-gate.md)).
+
+```bash
+pnpm --filter @autoqa/capture exec playwright install chromium
+cd examples/fixture-app
+node ../../packages/cli/dist/bin.js run --no-models   # capture the baselines
+node ../../packages/cli/dist/bin.js run --no-models   # compare: clean
+BREAK=color node server.js &                          # add one known defect
+node ../../packages/cli/dist/bin.js run --no-models   # exit 1, with a diff image
 ```
 
-`autoqa run --no-models` performs a full deterministic run with **no network egress whatsoever**. That is the answer for teams where "is this data sent to a model provider?" is a procurement blocker.
+`--no-models` makes a full run with no network traffic.
 
-## Exit codes
+| Exit code | Meaning |
+| --- | --- |
+| 0 | Clean, or findings that do not block |
+| 1 | A tier-1 regression: **the only code that blocks a merge** |
+| 2 | A configuration or usage error |
+| 3 | Recon is required, or the app model is not approved |
+| 4 | An infrastructure error: AutoQA could not test |
 
-| Code | Meaning |
-| ---- | ------- |
-| 0 | Clean, or non-blocking findings only |
-| 1 | Tier-1 regression — **the only code that blocks a merge** |
-| 2 | Configuration or usage error |
-| 3 | Recon required, or the AppModel is unapproved |
-| 4 | Infrastructure error — AutoQA could not test |
+The gate has three tiers. Only tier 1 can fail a check:
 
-The separation between `1` and `4` is the most operationally important decision in the CLI. A build that goes red because AutoQA could not start the dev server is a build nobody will keep.
+| Tier | What it is | Model | Blocks a merge |
+| --- | --- | --- | --- |
+| T1 Deterministic | Pixel diff, layout invariants, accessibility, console, network | None | Yes |
+| T2 Decided | Is it an anomaly, a bug or intended, worth an issue? | Decider | No |
+| T3 Judged | Visual meaning and flow reasoning | Judge | No |
 
-## The three execution tiers
+To check the determinism guarantee (three runs, one commit, zero diffs), run `bash scripts/determinism-check.sh`.
 
-| Tier | What it is | Model | Blocks merge |
-| ---- | ---------- | ----- | ------------ |
-| **T1 Deterministic** | Pixel diff, layout invariants, a11y, console, network, perf | None | **Yes** |
-| **T2 Decided** | Anomalous? Bug or intended? Issue-worthy? Which bucket? | Typed decider | No — raises issues |
-| **T3 Judged** | Visual semantics and flow reasoning | VLM + frontier, sampled | No — suggestions |
+## Examples
 
-Only tier 1 may fail a check, so a red build always means the same thing: the same pixels changed, and nothing else.
-
-## Packages
-
-| Package | What it owns |
-| ------- | ------------ |
-| `@autoqa/core` | Data model, config schema, fingerprinting, exit codes |
-| `@autoqa/capture` | Playwright session, the determinism contract, the stability gate |
-| `@autoqa/diff` | odiff primary, pixelmatch cross-check, SSIM, mask accounting, tolerance policy |
-| `@autoqa/invariants` | The layout invariant engine — **the moat** |
-| `@autoqa/decide` | The `Decider` interface, state digest, confidence routing |
-| `@autoqa/triage` | Clustering, the Intent Ledger, noise control |
-| `@autoqa/report` | HTML report, sticky PR comment, JUnit, SARIF |
-| `@autoqa/drivers` | One `Driver` interface for web, Electron (CDP), iOS and Android (Maestro) |
-| `@autoqa/agents` | The explorer, judge and fixer; model and CLI runtimes; routines, patrol, workspace state |
-| `@autoqa/recon` | Bring-up, crawl safety, change mapping |
-| `@autoqa/github-app` | Checks, issues, slash commands, least-privilege permissions |
-| `@autoqa/dashboard` | The local UI: the agents' overview, issues, activity, screens, and gate runs |
-| `@autoqa/cli` | The `autoqa` command surface |
-
-## Build vs adopt
-
-| Adopt (do not build) | Build (this is the product) |
-| -------------------- | --------------------------- |
-| Browser and mobile capture | The reconciler: screen ↔ source file ↔ change |
-| Pixel and perceptual diff | The layout invariant engine |
-| Accessibility scanning | The state digest that makes cheap decisions possible |
-| Video encode and trim | Triage: clustering, routing, the Intent Ledger |
-| The decision model itself | The review workflow — what every competitor monetises |
-
-Every column-one item is a solved commodity. Every column-two item is missing from the ecosystem or monetised by an incumbent.
-
-## Documentation
-
-- [Technical specification](docs/spec/autoqa-technical-spec.md) — the full design
-- [Competitive landscape](docs/research/oss-visual-testing-landscape-2026.md) — the research it came from
-- [The determinism contract](docs/determinism-contract.md) — what is guaranteed and how
-- [The detection rubric](docs/detection-rubric.md) — every detector and what it catches
-- [Roadmap](ROADMAP.md) — milestones with acceptance criteria
-- [Architecture decisions](docs/adr/) — ADRs
+| Folder | What it shows |
+| --- | --- |
+| `examples/fixture-app` | A small web app for the deterministic gate, with defects you can switch on (`BREAK=...`) |
+| `examples/nebula-desktop` | A real Electron app: a test session from the E2E harness, CDP, onboarding, the fixer, and GitHub |
+| `examples/nebula-mobile` | A real React Native app on the iOS simulator: Metro, a deep-link sign-in, and Maestro |
 
 ## Development
 
@@ -292,6 +366,37 @@ pnpm build
 pnpm test
 ```
 
-## Licence
+To look at the dashboard with sample data:
 
-Apache-2.0 — permissive, with an explicit patent grant, consistent with Playwright. AGPL dependencies are deliberately avoided in the core.
+```bash
+node packages/dashboard/scripts/fixture.mjs /tmp/autoqa-fixture
+cd /tmp/autoqa-fixture && node ~/autoqa/packages/cli/dist/bin.js dashboard
+```
+
+## Documentation
+
+- [ADR 0005: agents, drivers, and the patrol](docs/adr/0005-agents-drivers-and-the-patrol.md): the agent design
+- [Architecture decisions](docs/adr/): all ADRs
+- [Technical specification](docs/spec/autoqa-technical-spec.md): the deterministic gate
+- [The determinism contract](docs/determinism-contract.md): what the gate guarantees, and how
+- [The detection rubric](docs/detection-rubric.md): each automatic check and what it finds
+- [Competitive landscape](docs/research/oss-visual-testing-landscape-2026.md): the research behind the design
+- [Roadmap](ROADMAP.md): the milestones
+
+## Packages
+
+| Package | What it does |
+| --- | --- |
+| `@autoqa/cli` | The `autoqa` command |
+| `@autoqa/core` | The data types, the config schema, file paths, fingerprints, and exit codes |
+| `@autoqa/agents` | The explorer, judge, and fixer; the retest, publish, and memory steps; model and CLI runtimes; routines; the patrol; workspace files |
+| `@autoqa/drivers` | One driver interface for web (Playwright), Electron (CDP), and iOS and Android (Maestro) |
+| `@autoqa/decide` | The decider interface and its routes: Jev, a general model, a local model, or the offline heuristic |
+| `@autoqa/invariants` | The layout checks: contrast, overlap, clipped text, tap size, and more |
+| `@autoqa/diff` | Pixel and perceptual comparison, masks, and tolerance rules |
+| `@autoqa/capture` | The Playwright capture for the deterministic gate, with the determinism contract |
+| `@autoqa/dashboard` | The local dashboard: its server and its UI |
+| `@autoqa/triage` | Clustering and noise control for the gate's findings |
+| `@autoqa/report` | Report formats for the gate: HTML, PR comment, JUnit, and SARIF |
+| `@autoqa/recon` | App bring-up, crawl safety, and the change map for the gate (in progress) |
+| `@autoqa/github-app` | A GitHub App for checks, issues, and slash commands (in progress) |
