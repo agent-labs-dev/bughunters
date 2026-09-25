@@ -1,7 +1,7 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { paths, type AgentEvent, type AgentRole, type AgentStatus, type AgentsFile, type AppMap,
-  type Candidate, type FixProposal, type Issue, type Routine, type SessionSummary } from '@autoqa/core';
+  type Candidate, type FixProposal, type Issue, type MemoryFile, type Routine, type SessionSummary } from '@autoqa/core';
 
 const roles: AgentRole[] = ['explorer', 'judge', 'fixer'];
 const severity = { critical: 0, major: 1, minor: 2, cosmetic: 3 };
@@ -62,6 +62,11 @@ const STOPPED = 'Stopped: its process ended.';
 export class AgentReader {
   constructor(private readonly root: string) {}
 
+  memory(): MemoryFile {
+    const value = readJson<MemoryFile>(paths.memory(this.root));
+    return Array.isArray(value?.lessons) ? value : { version: 1, lessons: [] };
+  }
+
   agents(): AgentsFile | undefined {
     const value = readJson<AgentsFile>(paths.agents(this.root));
     if (!Array.isArray(value?.agents)) return undefined;
@@ -84,11 +89,13 @@ export class AgentReader {
       screen && typeof screen.id === 'string' && typeof screen.lastSeenAt === 'string') };
   }
 
-  issues(): Issue[] {
+  issues(): (Issue & { pr?: FixProposal['pr'] })[] {
+    const fixes = this.fixes();
     return list(paths.issues(this.root)).filter((name) => name.endsWith('.json'))
       .map((name) => readJson<Issue>(join(paths.issues(this.root), name)))
       .filter((issue): issue is Issue => Boolean(issue?.id && issue.title && issue.lastSeenAt
         && issue.evidence && issue.judgement && Array.isArray(issue.candidateIds)))
+      .map((issue) => ({ ...issue, pr: fixes.find((fix) => fix.id === issue.fixId || fix.issueId === issue.id)?.pr }))
       .sort((a, b) => (severity[a.severity] ?? 9) - (severity[b.severity] ?? 9)
         || b.lastSeenAt.localeCompare(a.lastSeenAt));
   }

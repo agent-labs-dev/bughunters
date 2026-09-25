@@ -72,6 +72,7 @@ async function handle(
   if (path === '/api/events') return streamEvents(res, ctx.clients);
 
   if (path === '/api/overview') return json(res, ctx.agents.overview());
+  if (path === '/api/memory') return json(res, ctx.agents.memory());
   if (path === '/api/issues') return json(res, ctx.agents.issues());
   if (path.startsWith('/api/issues/')) {
     const detail = ctx.agents.issue(decodeURIComponent(path.slice('/api/issues/'.length)));

@@ -364,3 +364,9 @@ h1 { font-size: 1.35rem; line-height: 1.25; margin: 0; }
 
 /* A long agent summary reads as a note under the timeline title. */
 .session-summary { margin: 4px 0 12px; color: var(--muted, #6b7280); font-size: 13px; }
+
+.diff-details summary { cursor: pointer; color: var(--muted); margin: .4rem 0; }
+.memory-group { margin: 1rem 0; }
+.memory-row { display: flex; align-items: center; gap: .75rem; border-top: 1px solid var(--line); padding: .45rem 0; }
+.memory-row .muted { font-size: .75rem; white-space: nowrap; }
+@media (max-width: 600px) { .memory-row { flex-wrap: wrap; } }

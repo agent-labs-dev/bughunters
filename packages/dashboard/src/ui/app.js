@@ -22,6 +22,7 @@ const state = {
   appmap: null,
   selectedScreenId: null,
   routines: [],
+  memory: { lessons: [] },
   runs: [],
   selectedRunId: null,
   detail: null,
@@ -99,6 +100,7 @@ async function refresh({ keepSelection = true } = {}) {
       state.selectedScreenId = null;
     }
   }
+  if (state.view === 'memory') state.memory = await getJson('/api/memory');
   render();
 }
 
@@ -126,7 +128,7 @@ function render() {
     if (banner) view.append(banner);
   }
   const renderers = { overview: renderOverview, issues: renderIssues, activity: renderActivity,
-    screens: renderScreens, checks: renderRuns };
+    screens: renderScreens, memory: renderMemory, checks: renderRuns };
   view.append(renderers[state.view]());
 }
 
@@ -525,6 +527,7 @@ function renderIssues() {
       onclick: () => openIssue(issue.id) }, [
       el('span', { class: 'grow' }, [el('strong', { text: issue.title }),
         el('small', { class: 'muted', text: `${screenName(issue.screenId)} · ${relativeTime(issue.lastSeenAt)}` })]),
+      issue.pr || issue.github ? el('span', { class: 'badge', text: `#${issue.pr?.number ?? issue.github.number}` }) : null,
       severityChip(issue.severity),
     ])),
   ]);
@@ -549,6 +552,11 @@ function renderIssueDetail() {
   const steps = evidence.steps ?? detail.routine?.steps ?? [];
   return el('article', { class: 'card panel issue-detail' }, [
     el('div', { class: 'detail-heading' }, [el('h1', { text: issue.title }), severityChip(issue.severity)]),
+    fix?.pr || issue.github || issue.publishSkipped ? el('div', { class: 'kv' }, [
+      fix?.pr ? el('a', { href: fix.pr.url, target: '_blank', rel: 'noopener noreferrer', text: `PR #${fix.pr.number}` }) : null,
+      issue.github ? el('a', { href: issue.github.url, target: '_blank', rel: 'noopener noreferrer', text: `GitHub issue #${issue.github.number}` }) : null,
+      issue.publishSkipped ? el('span', { class: 'muted', text: `Not published: ${issue.publishSkipped.reason}` }) : null,
+    ]) : null,
     el('div', { class: 'kv' }, [el('span', { text: issueStatus(issue, fix) }),
       el('span', { text: screenName(issue.screenId) }), el('span', { text: `×${issue.occurrences}` }),
       el('span', { text: `First ${relativeTime(issue.firstSeenAt)}` }),
@@ -580,7 +588,12 @@ function renderIssueDetail() {
         ]) : null] : []),
       title('Code change'),
       fix.diffStat ? el('pre', { text: fix.diffStat }) : null,
-      fix.diff ? diffBlock(fix.diff) : null,
+      // Collapsed: the verdict and the screenshots come first; the diff is
+      // one click away for the reader who reviews the code.
+      fix.diff ? el('details', { class: 'diff-details' }, [
+        el('summary', { text: `Show the diff (${fix.diff.split(/^diff --git /m).length - 1} file(s))` }),
+        diffBlock(fix.diff),
+      ]) : null,
       el('div', { class: 'kv' }, [el('span', { text: fix.branch }), el('code', { text: fix.worktree })]),
     ]) : null,
   ]);
@@ -597,6 +610,8 @@ function firstSentence(text) {
 
 function issueStatus(issue, fix) {
   if (issue.status === 'dismissed') return issue.closedBy ? `Dismissed by ${issue.closedBy.by}` : 'Dismissed';
+  if (issue.status === 'fixed') return issue.closedBy ? `Fixed: ${issue.closedBy.reason}` : 'Fixed';
+  if (issue.status === 'new' && issue.regression) return 'Regression';
   if (fix?.status === 'verified') return 'Fix verified in the app';
   if (fix?.status === 'retesting') return 'Retesting the fix';
   if (fix?.status === 'proposed' && fix.retests?.at(-1)?.outcome === 'not-fixed') return 'Fix not verified';
@@ -796,6 +811,24 @@ function renderScreens() {
       el('small', { class: 'muted', text: `${relativeTime(screen.lastSeenAt)} · ${screen.visits} visits` }),
       screen.openIssues ? el('span', { class: 'issue-count', text: `${screen.openIssues} open` }) : null,
     ])])))]);
+}
+
+function renderMemory() {
+  const lessons = state.memory?.lessons ?? [];
+  const row = (lesson) => el('div', { class: 'memory-row' }, [
+    el('span', { class: 'grow', text: lesson.text }),
+    el('span', { class: 'badge info', text: lesson.scope ?? 'app' }),
+    el('span', { class: 'muted', text: `${lesson.source} · ×${lesson.hits} · ${relativeTime(lesson.lastSeenAt)}` }),
+  ]);
+  return el('section', { class: 'card panel' }, [title('Memory'),
+    el('p', { class: 'muted', text: 'Use autoqa memory to edit lessons.' }),
+    ...['explorer', 'judge', 'fixer'].map((role) => el('section', { class: 'memory-group' }, [
+      el('h3', { text: capital(role) }),
+      ...lessons.filter((lesson) => lesson.role === role && !lesson.retired).map(row),
+    ])),
+    el('details', {}, [el('summary', { text: `Retired lessons (${lessons.filter((lesson) => lesson.retired).length})` }),
+      ...lessons.filter((lesson) => lesson.retired).map(row)]),
+  ]);
 }
 
 // ---------------------------------------------------------------- lightbox
