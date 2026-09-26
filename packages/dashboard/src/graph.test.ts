@@ -137,7 +137,7 @@ describe('isPageLink', () => {
   });
 
   it('excludes feeds, API endpoints and files', () => {
-    // nebula-web's changelog links /api/changelog/rss with no type attribute.
+    // A real changelog page links /api/changelog/rss with no type attribute.
     for (const path of ['/api/changelog/rss', '/feed', '/rss.xml', '/sitemap.xml', '/brand.zip', '/docs.pdf', '/og.png']) {
       expect(isPageLink(at(path))).toBe(false);
     }

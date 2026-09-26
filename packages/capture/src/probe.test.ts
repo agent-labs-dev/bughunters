@@ -123,7 +123,7 @@ describe('probe: the rendered pixels overrule the DOM', () => {
   }
 
   it('drops a false alarm from a decorative layer the DOM cannot see', async () => {
-    // The nebula-web /download pattern. The blue hero sets pointer-events:none,
+    // A real marketing-site /download pattern. The blue hero sets pointer-events:none,
     // so elementsFromPoint skips it and the DOM reads light text on the pale
     // page background (1.4:1). The screenshot shows light text on blue.
     const s = await snapshotWithPixels(`
@@ -157,7 +157,7 @@ describe('probe: selectors', () => {
 });
 
 describe('probe: selectors are unique in the document', () => {
-  // The nebula-web /changelog pattern: dozens of release entries with identical
+  // A real marketing-site /changelog pattern: dozens of release entries with identical
   // structure. A depth-capped selector named them all the same thing.
   const changelog = (entries: number) =>
     '<main>' +
