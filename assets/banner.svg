@@ -21,36 +21,28 @@
       <stop offset="0" stop-color="#1c2140"/>
       <stop offset="1" stop-color="#0a0d1a"/>
     </linearGradient>
-    <linearGradient id="bh-shell" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#bef264"/>
+    <linearGradient id="bh-lime" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#d9f99d"/>
       <stop offset="1" stop-color="#65a30d"/>
     </linearGradient>
+    <radialGradient id="bh-glow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#bef264" stop-opacity="0.35"/>
+      <stop offset="1" stop-color="#bef264" stop-opacity="0"/>
+    </radialGradient>
   </defs>
   <rect width="256" height="256" rx="56" fill="url(#bh-bg)"/>
-  <g stroke="#f8fafc" stroke-linecap="round" fill="none" opacity="0.9">
-    <circle cx="128" cy="132" r="86" stroke-width="8"/>
-    <line x1="128" y1="30" x2="128" y2="58" stroke-width="8"/>
-    <line x1="128" y1="206" x2="128" y2="234" stroke-width="8"/>
-    <line x1="26" y1="132" x2="54" y2="132" stroke-width="8"/>
-    <line x1="202" y1="132" x2="230" y2="132" stroke-width="8"/>
+  <circle cx="128" cy="138" r="84" fill="url(#bh-glow)"/>
+  <!-- The viewfinder: Bughunters looks at the app the way a tester does. -->
+  <g fill="none" stroke="#f8fafc" stroke-width="12" stroke-linecap="round" stroke-linejoin="round" opacity="0.92">
+    <path d="M50 94V66a16 16 0 0 1 16-16h28"/>
+    <path d="M162 50h28a16 16 0 0 1 16 16v28"/>
+    <path d="M206 162v28a16 16 0 0 1-16 16h-28"/>
+    <path d="M94 206H66a16 16 0 0 1-16-16v-28"/>
   </g>
-  <g stroke="#bef264" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" fill="none">
-    <path d="M104 122 L86 110 L78 96"/>
-    <path d="M152 122 L170 110 L178 96"/>
-    <path d="M100 142 L76 144"/>
-    <path d="M156 142 L180 144"/>
-    <path d="M104 162 L88 176 L84 190"/>
-    <path d="M152 162 L168 176 L172 190"/>
-    <path d="M120 94 Q112 78 100 74"/>
-    <path d="M136 94 Q144 78 156 74"/>
-  </g>
-  <circle cx="128" cy="104" r="15" fill="#bef264"/>
-  <ellipse cx="128" cy="146" rx="31" ry="38" fill="url(#bh-shell)"/>
-  <line x1="128" y1="116" x2="128" y2="182" stroke="#0a0d1a" stroke-width="5" stroke-linecap="round"/>
-  <circle cx="115" cy="140" r="5" fill="#0a0d1a"/>
-  <circle cx="141" cy="140" r="5" fill="#0a0d1a"/>
-  <circle cx="117" cy="162" r="4" fill="#0a0d1a"/>
-  <circle cx="139" cy="162" r="4" fill="#0a0d1a"/>
+  <!-- The bug: a head and a shell in two halves. -->
+  <circle cx="128" cy="84" r="14" fill="url(#bh-lime)"/>
+  <path d="M122 106C98 109 82 127 82 150C82 172 99 188 122 191Z" fill="url(#bh-lime)"/>
+  <path d="M134 106C158 109 174 127 174 150C174 172 157 188 134 191Z" fill="url(#bh-lime)"/>
 </g>
   <g font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif">
     <text x="400" y="178" fill="#f8fafc" font-size="96" font-weight="800" letter-spacing="-2">bug<tspan fill="#bef264">hunters</tspan></text>
