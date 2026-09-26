@@ -43,8 +43,8 @@ A maintainer runs the **Release** workflow in GitHub Actions and selects `patch`
 | Folder | What it shows |
 | --- | --- |
 | `examples/fixture-app` | A small web app for the deterministic gate, with defects you can switch on (`BREAK=...`) |
-| `examples/nebula-desktop` | A real Electron app: a test session from the E2E harness, CDP, onboarding, the fixer, and GitHub |
-| `examples/nebula-mobile` | A real React Native app on the iOS simulator: Metro, a deep-link sign-in, and Maestro |
+| `examples/electron-app` | An Electron app: a test user from the app's E2E harness, CDP, onboarding, the fixer, and GitHub |
+| `examples/expo-app` | An Expo app on the iOS simulator: Metro, a deep-link sign-in, and Maestro |
 
 ## Packages
 

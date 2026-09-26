@@ -136,7 +136,7 @@ human can audit it:
 
 ### 9. Noise control
 
-The live runs on the two Nebula apps showed that the judge spends most of
+The live runs on two real apps (an Electron app and an Expo app) showed that the judge spends most of
 its effort on noise unless Bughunters removes it first. These rules apply
 before a candidate reaches the judge:
 
