@@ -22,7 +22,7 @@ describe('Workspace', () => {
       const repeated = await workspace.upsertScreen({ id: 'home', transitions: [{ ...transition, steps: 1 }], visits: 0 });
       expect(repeated.transitions).toMatchObject([{ to: 'settings', count: 2, steps: 1 }]);
       expect(repeated.transitions?.[0]?.lastSeenAt).not.toBe('old');
-      expect((await readdir(paths.dir(root))).some((name) => name.includes('.tmp-'))).toBe(false);
+      expect((await readdir(paths.data(root))).some((name) => name.includes('.tmp-'))).toBe(false);
       const session = await workspace.startSession('explorer');
       const vars = new Vars();
       vars.set('TOKEN', 'secret-value');
@@ -35,7 +35,7 @@ describe('Workspace', () => {
         summary: 'next',
       });
       const screenshot = await workspace.saveScreenshot(session.id, Buffer.from('png'), 'home');
-      expect(screenshot).toMatch(/^\.bughunters\/sessions\/.*\/001-home\.png$/);
+      expect(screenshot).toMatch(/^\.bughunters\/runs\/sessions\/.*\/001-home\.png$/);
       await new Promise((done) => setTimeout(done, 20));
       const events = await readFile(join(paths.session(root, session.id), 'events.jsonl'), 'utf8');
       expect(events).toContain('{{TOKEN}}');
@@ -84,7 +84,7 @@ describe('agent status under concurrency', () => {
     const two = new Workspace(root);
     await Promise.all(Array.from({ length: 40 }, (_, index) =>
       (index % 2 ? one : two).setAgentStatus(index % 3 ? 'explorer' : 'judge', { activity: `step ${index}` })));
-    const file = JSON.parse(readFileSync(join(root, '.bughunters', 'agents.json'), 'utf8'));
+    const file = JSON.parse(readFileSync(join(root, '.bughunters', 'runs', 'agents.json'), 'utf8'));
     expect(file.agents.map((agent: { role: string }) => agent.role).sort()).toEqual(['explorer', 'judge']);
   });
 });

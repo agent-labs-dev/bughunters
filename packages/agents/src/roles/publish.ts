@@ -1,6 +1,6 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
-import type { BughuntersConfig, Candidate, FixProposal, Issue } from '@bughunters/core';
+import { paths, type BughuntersConfig, type Candidate, type FixProposal, type Issue } from '@bughunters/core';
 import { createIssue, createPr, defaultGh, ensureAssetsBranch, ensureLabels, ghReady,
   resolveRepo, uploadImage, type Gh } from '../github.js';
 import { judgePublishSystem } from '../prompts.js';
@@ -177,7 +177,7 @@ export async function runPublisher(root: string, config: BughuntersConfig, deps:
             closes: item.kind === 'pr' ? item.issue.github?.number : undefined });
           let url: string;
           if (deps.dryRun) {
-            const dir = join(root, '.bughunters', 'publish');
+            const dir = paths.publish(root);
             await mkdir(dir, { recursive: true });
             url = join(dir, `${item.issue.id}.md`);
             await writeFile(url, body);

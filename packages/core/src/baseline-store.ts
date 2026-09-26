@@ -19,7 +19,7 @@ export function baselineKeyFor(screenId: string, viewport: string): BaselineKey 
 /**
  * The committed manifest holds hashes and the image digest; the pixels live
  * beside it as content-addressed objects (spec 12.1). In local mode the object
- * directory is on disk under `.bughunters/baselines/`; in CI it is backed by object
+ * directory is on disk under `.bughunters/runs/baselines/`; in CI it is backed by object
  * storage, which is why nothing here assumes a path shape beyond the hash.
  */
 export class BaselineStore {
@@ -65,7 +65,7 @@ export class BaselineStore {
 
   /** Absolute path to the stored pixels for a hash. */
   objectPath(hash: string): string {
-    return join(this.root, '.bughunters', 'baselines', `${hash}.png`);
+    return join(paths.baselines(this.root), `${hash}.png`);
   }
 
   pathFor(key: BaselineKey): string | undefined {
@@ -76,7 +76,7 @@ export class BaselineStore {
   put(key: BaselineKey, viewport: string, image: Buffer): BaselineEntry {
     const hash = sha256(image);
     const target = this.objectPath(hash);
-    mkdirSync(join(this.root, '.bughunters', 'baselines'), { recursive: true });
+    mkdirSync(paths.baselines(this.root), { recursive: true });
     // Content-addressed: an identical capture is already stored, so re-writing
     // it would only churn mtimes.
     if (!existsSync(target)) writeFileSync(target, image);

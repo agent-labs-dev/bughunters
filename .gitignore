@@ -5,21 +5,18 @@ coverage/
 .DS_Store
 *.log
 
-# Bughunters local state. The committed files under .bughunters/ are whitelisted below;
-# everything else in there is run-local scratch.
+# Bughunters local data. Everything else in .bughunters/ (the config, the app
+# guide, and the gate's manifests) is committed.
 #
 # A pattern containing a slash is anchored to this file's directory, so a bare
-# `.bughunters/*` misses `examples/*/.bughunters/`. The `**/` prefix applies it at
-# every depth.
-**/.bughunters/*
-!**/.bughunters/appmodel.json
-!**/.bughunters/baselines.manifest.json
-!**/.bughunters/intents.json
-!**/.bughunters/README.md
+# `.bughunters/runs/` misses `examples/*/.bughunters/runs/`. The `**/` prefix
+# applies it at every depth.
+**/.bughunters/runs/
 
 # The fixture app is a test subject, not a project: its baselines are captured
 # fresh by scripts/determinism-check.sh and are tied to one machine's rendering.
-examples/*/.bughunters/
+examples/fixture-app/.bughunters/*
+!examples/fixture-app/.bughunters/bughunters.yml
 
 .env
 .env.*

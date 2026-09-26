@@ -1,6 +1,5 @@
 import { readFile } from 'node:fs/promises';
-import { resolve } from 'node:path';
-import type { AgentEvent, BughuntersConfig, Lesson } from '@bughunters/core';
+import { instructionsPath, type AgentEvent, type BughuntersConfig, type Lesson } from '@bughunters/core';
 import { createRuntime as makeRuntime } from '../runtime/index.js';
 import type { Tool } from '../types.js';
 import { Vars } from '../vars.js';
@@ -62,7 +61,8 @@ export async function reflectOnSession(root: string, config: BughuntersConfig, s
   const existing = lessonsFor(memory, 'explorer');
   const ids = new Set(existing.map((item) => item.id));
   const vars = deps.vars ?? new Vars(config.app.secrets);
-  const guide = config.app.instructions ? await readFile(resolve(root, config.app.instructions), 'utf8') : '';
+  const file = instructionsPath(root, config.app.instructions);
+  const guide = file ? await readFile(file, 'utf8') : '';
   const record = await workspace.startSession('explorer');
   const emit = workspace.recordEvent(record.id, 'explorer', vars);
   let added = 0;

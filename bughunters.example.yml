@@ -1,4 +1,4 @@
-# A fully-populated bughunters.yml, for reference.
+# A fully-populated .bughunters/bughunters.yml, for reference.
 # `bughunters init` writes a smaller version with detected values and TODO markers.
 version: 1
 

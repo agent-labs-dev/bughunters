@@ -12,10 +12,16 @@ npx bughunters dashboard    # look at the results on http://127.0.0.1:4311
 
 ## Set up with your agent
 
-Give this prompt to your coding agent:
+Install the skill for your coding agent, then ask the agent to "set up Bughunters for this repo":
+
+```bash
+npx skills add agent-labs-dev/bughunters
+```
+
+If your agent cannot install skills, give it the skill URL:
 
 ```text
-Read https://raw.githubusercontent.com/agent-labs-dev/bughunters/main/skill/SKILL.md and set up Bughunters for this repo.
+Read https://raw.githubusercontent.com/agent-labs-dev/bughunters/main/skills/bughunters/SKILL.md and set up Bughunters for this repo.
 ```
 
 ## Documentation

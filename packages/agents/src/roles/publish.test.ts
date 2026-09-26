@@ -112,7 +112,7 @@ describe('runPublisher', () => {
     expect(await runPublisher(f.root, f.config, { gh: fakeGh(calls), createRuntime, dryRun: true })).toMatchObject([
       { kind: 'issue' }]);
     expect(calls).toEqual([]);
-    expect(await readFile(join(f.root, '.bughunters/publish/iss_1.md'), 'utf8')).toContain('## What happened');
+    expect(await readFile(join(f.root, '.bughunters/runs/publish/iss_1.md'), 'utf8')).toContain('## What happened');
     expect((await f.workspace.readIssue(f.issue.id))?.github).toBeUndefined();
   });
 });

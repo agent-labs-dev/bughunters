@@ -46,7 +46,7 @@ jobs:
         with:
           name: determinism-diffs
           path: |
-            examples/fixture-app/.bughunters/runs/
+            examples/fixture-app/.bughunters/runs/gate/
             /tmp/determinism-run-*.log
           retention-days: 7
 

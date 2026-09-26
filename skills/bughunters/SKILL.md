@@ -1,11 +1,13 @@
 ---
 name: bughunters
-description: Set up and run Bughunters, a QA team of AI agents that explores a web, Electron, iOS, or Android app, finds bugs, fixes them, and opens GitHub PRs and issues. Use this skill when the user wants to add Bughunters to a repo, write or fix bughunters.yml, run an explore, judge, fix, or patrol cycle, or look at the bugs that Bughunters found.
+description: Set up and run Bughunters, a QA team of AI agents that explores a web, Electron, iOS, or Android app, finds bugs, fixes them, and opens GitHub PRs and issues. Use this skill when the user wants to add Bughunters to a repo, write or fix .bughunters/bughunters.yml, run an explore, judge, fix, or patrol cycle, or look at the bugs that Bughunters found.
 ---
 
 # Bughunters
 
-Bughunters is a QA team made of AI agents. It runs the user's app the way a human tester does. The CLI is the npm package `bughunters`. Run it with `npx bughunters <command>`. Do not build it from source.
+Bughunters is a QA team made of AI agents. It runs the user's app the way a human tester does. The CLI is the npm package `bughunters`. Run it with `npx bughunters@latest <command>`. Do not build it from source.
+
+Always add `@latest`, because `npx` can run an old copy from its cache. An old copy can have different commands and a different config layout. There is one exception: if the repo lists `bughunters` in `package.json`, run `npx bughunters <command>`, so that you use the version that the repo selected.
 
 Source and full docs: https://github.com/agent-labs-dev/bughunters
 
@@ -24,7 +26,7 @@ Platforms: `web` (Playwright), `electron` (CDP), `ios` and `android` (Maestro).
 
 The explorer, the judge, and the fixer are LLM agents. Each one runs on a local agent CLI (`claude`, `codex`, `kimi`, or `pi`) or on an API key (OpenRouter, Vercel AI Gateway, OpenAI, Anthropic). Jev does the repeated triage, so the LLM agents see only the findings that need them. This split keeps an all-day loop fast and low in cost.
 
-Bughunters keeps all its state in the `.bughunters/` folder next to `bughunters.yml`. The first session learns **routines** (for example `enter-app`), so later sessions start faster and replay these paths with no model.
+Bughunters keeps all of its files in one `.bughunters/` folder at the project root. The config and the app guide are committed. The local data goes in `.bughunters/runs/`, and git ignores it. The first session learns **routines** (for example `enter-app`), so later sessions start faster and replay these paths with no model.
 
 ## 2. Configure it for the repo
 
@@ -71,7 +73,7 @@ If the app has a sign-in, find one of these ways, best first:
 
 1. **The app starts signed in.** For example: a dev auth bypass, a seeded session, a session token in an environment variable, or a deep link that installs a session. Put the command in `app.setup`.
 2. **A setup command makes a test user.** For example: a seed script, or a test-only login endpoint that the E2E tests use. Put it in `app.setup`, and use `capture` to read a value from its output.
-3. **A test account.** The user sets the email and the password as environment variables. List their names in `app.secrets`, and write the sign-in steps in `instructions.md` with `{{NAME}}` placeholders.
+3. **A test account.** The user sets the email and the password as environment variables. List their names in `app.secrets`, and write the sign-in steps in `.bughunters/instructions.md` with `{{NAME}}` placeholders.
 
 The explorer cannot get through a one-time code, a CAPTCHA, a hardware key, or a third-party SSO page. If the sign-in has one of these, the app needs a test bypass.
 
@@ -89,7 +91,7 @@ Do not use a person's own account without their permission. Do not make test use
 2. For web: run `npx -y playwright@1.48.2 install chromium`. Use this exact version, because the bundle pins Playwright 1.48.2.
 3. For iOS or Android: run `maestro --version`. If Maestro is missing, tell the user to install it from https://maestro.mobile.dev. Make sure that a simulator is booted (`xcrun simctl list devices booted`) or an emulator runs (`adb devices`).
 4. For Electron: make sure that the app starts with `--remote-debugging-port=<port>`, and that the start command prints the port.
-5. Run `npx bughunters --version`. This confirms that the package runs.
+5. Run `npx bughunters@latest --version`. This confirms that the package runs.
 
 ### 2.3 Run `init` with yourself as the LLM
 
@@ -109,17 +111,26 @@ You are an LLM agent, so use yourself as the provider for all the agents. Then t
 4. Run `init` in the repo root, with the start command and the URL or app ID from step 2.1:
 
    ```bash
-   npx bughunters init --yes --agent claude \
+   npx bughunters@latest init --yes --agent claude \
      --platform web --start "npm run dev" --url http://localhost:3000
    ```
 
    Other flags: `--app-id <id>` (mobile), `--explorer`, `--judge`, and `--fixer` (a different provider for one agent), and `--jev <typesafe|openrouter|vercel|auto>`.
 
-`init` writes `bughunters.yml` and an `instructions.md` template, and it adds `.bughunters/` to `.gitignore`. It never overwrites a file. If `bughunters.yml` already exists, edit it instead.
+`init` writes these files. It never overwrites a file:
 
-### 2.4 Correct `bughunters.yml`
+```text
+.bughunters/
+  bughunters.yml     # the config: commit it
+  instructions.md    # the app guide template: commit it
+  runs/              # the local data: init adds .bughunters/runs/ to .gitignore
+```
 
-Read the file that `init` wrote, and correct the values that it could not know. Run all commands from the folder that holds this file. Paths in the file (`source`, `cwd`, `instructions`) are relative to this file.
+If `.bughunters/bughunters.yml` already exists, edit it instead. Do not write a `bughunters.yml` at the project root: Bughunters does not read it there. If you find an old one there, `npx bughunters@latest doctor` shows the commands that move it.
+
+### 2.4 Correct `.bughunters/bughunters.yml`
+
+Read the file that `init` wrote, and correct the values that it could not know. Paths in the file (`source`, `cwd`, `instructions`) are relative to the project root, the folder that holds `.bughunters/`. Commands work from any folder in the project.
 
 Web app with a dev server:
 
@@ -136,7 +147,7 @@ app:
       timeoutMs: 120000
   connect:
     url: http://localhost:3000
-  instructions: instructions.md
+  instructions: .bughunters/instructions.md
   secrets: [TEST_EMAIL, TEST_PASSWORD]   # env vars; the explorer sees {{TEST_EMAIL}}
 ```
 
@@ -157,7 +168,7 @@ app:
     - run: ./scripts/stop-test-app.sh
   connect:
     cdp: http://127.0.0.1:${CDP_PORT}
-  instructions: instructions.md
+  instructions: .bughunters/instructions.md
 ```
 
 iOS or Android app:
@@ -176,7 +187,7 @@ app:
   connect:
     appId: com.example.app           # bundle ID (iOS) or package name (Android)
     # device: <simulator UDID or emulator serial>   # default: the booted one
-  instructions: instructions.md
+  instructions: .bughunters/instructions.md
 ```
 
 Setup command fields:
@@ -184,7 +195,7 @@ Setup command fields:
 | Field | Use |
 | --- | --- |
 | `run` | The shell command |
-| `cwd` | The folder, relative to `bughunters.yml` |
+| `cwd` | The folder, relative to the project root |
 | `capture` | `{ NAME: 'regex' }`. The first group becomes `${NAME}` in later commands and `connect`, and `{{NAME}}` for the explorer. Bughunters treats it as a secret |
 | `background` | `true` for a server that stays alive |
 | `readyWhen` | For a background command: a regex on its output |
@@ -192,7 +203,7 @@ Setup command fields:
 
 `teardown` has the same fields. Use it to stop what `setup` started, if the process does not stop by itself.
 
-### 2.5 Write `instructions.md`
+### 2.5 Write `.bughunters/instructions.md`
 
 This file is plain English for the explorer. `init` writes a template. Replace it with a note to a new human tester. Include:
 
@@ -251,36 +262,57 @@ Before each agent command starts the app, Bughunters checks each agent's LLM. If
 
 ## 3. Run it
 
-Run each command from the folder that holds `bughunters.yml`.
+Run each command in the project. Bughunters finds `.bughunters/` in the current folder or in a folder above it.
 
 1. Run a short session first. It proves that Bughunters can launch the app and sign in:
 
    ```bash
-   npx bughunters explore --steps 10 --goal "Sign in, then open the main screen"
+   npx bughunters@latest explore --steps 10 --goal "Sign in, then open the main screen"
    ```
 
-   Read the output. If setup fails, or the explorer stays on the sign-in screen, correct `bughunters.yml` or `instructions.md`, and run it again. If you cannot make it work, stop and tell the user what failed.
+   Read the output. If setup fails, or the explorer stays on the sign-in screen, correct `.bughunters/bughunters.yml` or `.bughunters/instructions.md`, and run it again. If you cannot make it work, stop and tell the user what failed.
 
 2. Run a full explorer session:
 
    ```bash
-   npx bughunters explore
-   npx bughunters explore --goal "Test the checkout flow" --steps 40
+   npx bughunters@latest explore
+   npx bughunters@latest explore --goal "Test the checkout flow" --steps 40
    ```
 
-   The command runs `setup`, explores, reports, and runs `teardown`. It can take several minutes. Read the output. If setup fails, correct `bughunters.yml` and run it again.
+   The command runs `setup`, explores, reports, and runs `teardown`. It can take several minutes. Read the output. If setup fails, correct `.bughunters/bughunters.yml` and run it again.
 
 3. Judge the session:
 
    ```bash
-   npx bughunters judge
+   npx bughunters@latest judge
    ```
 
 4. Show the issues:
 
    ```bash
-   npx bughunters issue list
+   npx bughunters@latest issue list
    ```
+
+5. Show the dashboard to the user. The dashboard gives the user the screenshots, the steps, and the screen graph:
+
+   1. Check if the dashboard runs already:
+
+      ```bash
+      curl -fsS http://127.0.0.1:4311/api/overview > /dev/null && echo running
+      ```
+
+   2. If it does not run, start it in the background. It does not stop by itself:
+
+      ```bash
+      npx bughunters@latest dashboard
+      ```
+
+   3. Wait for the line `Bughunters dashboard on http://127.0.0.1:4311`.
+   4. Open the URL in the user's browser: `open` on macOS, `xdg-open` on Linux, `start` on Windows.
+   5. Tell the user which page to look at. Use the table in [The dashboard](#the-dashboard).
+   6. Give a short text summary too: the number of issues at each severity, and the title of each `critical` or `major` issue.
+
+   The dashboard updates live when a session finishes. You can start it before `explore`, so that the user can watch the explorer work.
 
 ### Optional: let it fix bugs
 
@@ -298,12 +330,12 @@ agents:
 ```
 
 ```bash
-npx bughunters fix                     # fix the worst open issues, then retest each fix
-npx bughunters fix --issue <id>
-npx bughunters retest --issue <id>
+npx bughunters@latest fix                     # fix the worst open issues, then retest each fix
+npx bughunters@latest fix --issue <id>
+npx bughunters@latest retest --issue <id>
 ```
 
-The fixer works only in `.bughunters/worktrees/`. It never changes the user's checkout.
+The fixer works only in `.bughunters/runs/worktrees/`. It never changes the user's checkout.
 
 ### Optional: publish to GitHub
 
@@ -318,9 +350,9 @@ agents:
 ```
 
 ```bash
-npx bughunters publish --dry-run   # write the reports to .bughunters/publish/ for review
-npx bughunters publish             # open the PRs and issues
-npx bughunters github sync         # read the PR and issue states back
+npx bughunters@latest publish --dry-run   # write the reports to .bughunters/runs/publish/ for review
+npx bughunters@latest publish             # open the PRs and issues
+npx bughunters@latest github sync         # read the PR and issue states back
 ```
 
 Always run `--dry-run` first, and show the user the result.
@@ -328,8 +360,8 @@ Always run `--dry-run` first, and show the user the result.
 ### Optional: run all day
 
 ```bash
-npx bughunters patrol --once       # one full cycle: setup, explore, judge, teardown, fix, retest, publish
-npx bughunters patrol              # repeat every agents.patrol.intervalMinutes (default 30)
+npx bughunters@latest patrol --once       # one full cycle: setup, explore, judge, teardown, fix, retest, publish
+npx bughunters@latest patrol              # repeat every agents.patrol.intervalMinutes (default 30)
 ```
 
 `patrol` does not stop by itself. Run it in the background or in a separate terminal.
@@ -339,29 +371,31 @@ npx bughunters patrol              # repeat every agents.patrol.intervalMinutes 
 ### The dashboard
 
 ```bash
-npx bughunters dashboard               # http://127.0.0.1:4311
-npx bughunters dashboard --port 5000
+npx bughunters@latest dashboard               # http://127.0.0.1:4311
+npx bughunters@latest dashboard --port 5000
 ```
 
-The dashboard does not stop by itself. Run it in the background, and give the user the URL. It listens on 127.0.0.1 only, and it is read-only. Its pages:
+The dashboard does not stop by itself. Run it in the background, open the URL in the user's browser, and give the user the URL. It listens on 127.0.0.1 only, and it is read-only. If port 4311 is in use by a different program, add `--port`.
 
-- **Overview**: what each agent does now and what it spent, the issues that need a human, the live screen, and the screens found so far.
-- **Issues**: each issue with screenshots, steps, the judge's reason, the fix diff, the before and after retest, and the GitHub state.
-- **Activity**: each session as a timeline.
-- **Screens**: a graph of the screens and how they connect.
-- **Memory**: the lessons that the agents learned.
+| Page | What it shows | Show it when the user asks |
+| --- | --- | --- |
+| **Overview** | What each agent does now and what it spent, the issues that need a human, the live screen, and the screens found so far | "What is Bughunters doing?" |
+| **Issues** | Each issue with screenshots, steps, the judge's reason, the fix diff, the before and after retest, and the GitHub state | "What bugs did it find?", "Did the fix work?" |
+| **Activity** | Each session as a timeline | "What did the explorer do?" |
+| **Screens** | A graph of the screens and how they connect | "What parts of the app did it test?" |
+| **Memory** | The lessons that the agents learned | "What does it know about my app?" |
 
 ### The terminal
 
 | Command | Use |
 | --- | --- |
-| `npx bughunters issue list` | The issues, worst first |
-| `npx bughunters issue dismiss <id> --reason "..."` | Close an issue as not a bug. It does not come back |
-| `npx bughunters issue reopen <id>` | Open a dismissed issue again |
-| `npx bughunters memory list` | The lessons that the agents learned |
-| `npx bughunters memory add --role explorer "text"` | Add a lesson, for example a hint about the app |
-| `npx bughunters replay <routine-id>` | Replay a learned routine with no model |
-| `npx bughunters worktrees clean` | Remove the worktrees of finished fixes |
+| `npx bughunters@latest issue list` | The issues, worst first |
+| `npx bughunters@latest issue dismiss <id> --reason "..."` | Close an issue as not a bug. It does not come back |
+| `npx bughunters@latest issue reopen <id>` | Open a dismissed issue again |
+| `npx bughunters@latest memory list` | The lessons that the agents learned |
+| `npx bughunters@latest memory add --role explorer "text"` | Add a lesson, for example a hint about the app |
+| `npx bughunters@latest replay <routine-id>` | Replay a learned routine with no model |
+| `npx bughunters@latest worktrees clean` | Remove the worktrees of finished fixes |
 
 ### The files
 
@@ -369,21 +403,22 @@ To summarize the results for the user, read these files:
 
 | Path | Content |
 | --- | --- |
-| `.bughunters/issues/<id>.json` | One issue: `title`, `severity`, `status`, `body` (the judge's report), `judgement.reason`, and `evidence` (screenshots) |
-| `.bughunters/fixes/<id>.json` | One fix: `status`, `branch`, `diff`, `retests`, and `pr` |
-| `.bughunters/sessions/<id>/` | One explorer session and its screenshots |
-| `.bughunters/appmap.json` | The screens that the explorer found |
-| `.bughunters/memory.json` | The lessons |
+| `.bughunters/runs/issues/<id>.json` | One issue: `title`, `severity`, `status`, `body` (the judge's report), `judgement.reason`, and `evidence` (screenshots) |
+| `.bughunters/runs/fixes/<id>.json` | One fix: `status`, `branch`, `diff`, `retests`, and `pr` |
+| `.bughunters/runs/sessions/<id>/` | One explorer session and its screenshots |
+| `.bughunters/runs/appmap.json` | The screens that the explorer found |
+| `.bughunters/runs/memory.json` | The lessons |
 
 Severity, worst first: `critical`, `major`, `minor`, `cosmetic`. Issue status: `new`, `filed`, `fixing`, `fix-proposed`, `fixed`, `dismissed`.
 
 ## Rules
 
+- Run the CLI as `npx bughunters@latest`, unless the repo lists `bughunters` in `package.json`.
 - Do not continue without a defined way to launch the app and to sign in. If you do not have one, ask the user.
 - Never print, log, or commit a secret value. Put secrets in environment variables, and list their names in `app.secrets`.
 - Never point Bughunters at production data, unless the user says that it is safe.
 - Ask the user before you turn on `agents.fixer` or `agents.github`.
-- Do not edit files in `.bughunters/` by hand. Use the CLI commands.
+- Do not edit files in `.bughunters/runs/` by hand. Use the CLI commands.
 - When a human dismissed an issue or closed a PR, do not undo that decision.
 
 ## Troubleshooting
@@ -393,10 +428,12 @@ Severity, worst first: `critical`, `major`, `minor`, `cosmetic`. Issue status: `
 | `Web driver requires app.connect.url or run.url` | Set `app.connect.url` |
 | Setup times out | Correct the `readyWhen` regex, or increase `timeoutMs` |
 | Playwright cannot find Chromium | Run `npx -y playwright@1.48.2 install chromium` |
-| The explorer stays on the sign-in screen | Write clearer sign-in steps in `instructions.md`, and check that the secrets are set |
+| The explorer stays on the sign-in screen | Write clearer sign-in steps in `.bughunters/instructions.md`, and check that the secrets are set |
 | Electron does not connect | Make sure that the app opens a CDP port, and that `capture` reads the port from the output |
 | Mobile does not connect | Boot a simulator or start an emulator, check `maestro --version`, and check `connect.appId` |
-| No issues after `explore` | Run `npx bughunters judge`. The judge files the issues |
+| `No .bughunters/bughunters.yml found` | Run `npx bughunters@latest init` at the project root |
+| `Bughunters now keeps its config in .bughunters/` | An old version wrote the config at the root. Run the commands in the message |
+| No issues after `explore` | Run `npx bughunters@latest judge`. The judge files the issues |
 | `... is not set` or `... is not on PATH` at the start | Set the key, install the CLI, or change `agents.<role>.use` |
 | `Decider: none` in the output | No Jev key is set. Ask the user to set `TYPESAFE_API_KEY`, `OPENROUTER_API_KEY`, or `AI_GATEWAY_API_KEY` |
 

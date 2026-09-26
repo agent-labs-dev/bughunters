@@ -134,7 +134,7 @@ export async function runCommand(options: RunCommandOptions): Promise<RunResult>
 }
 
 /**
- * Writes `.bughunters/runs/live.json` as the run proceeds.
+ * Writes `.bughunters/runs/gate/live.json` as the run proceeds.
  *
  * Every write is best-effort: a dashboard that cannot be updated must never be
  * the reason a run fails. The file is rewritten whole rather than appended, so
@@ -335,11 +335,11 @@ function snapshotFile(root: string, key: string): string {
   // The slug alone is not unique: `/::desktop` slugifies to `desktop`, which
   // collides with any other screen whose path is punctuation-only. The hash
   // suffix keys the file to the exact screen+viewport pair.
-  return join(root, '.bughunters', 'baselines', `${slugify(key)}-${shortHash(key, 8)}.snapshot.json`);
+  return join(paths.baselines(root), `${slugify(key)}-${shortHash(key, 8)}.snapshot.json`);
 }
 
 function saveBaselineSnapshot(root: string, key: string, snapshot: ScreenSnapshot): void {
-  mkdirSync(join(root, '.bughunters', 'baselines'), { recursive: true });
+  mkdirSync(paths.baselines(root), { recursive: true });
   writeFileSync(snapshotFile(root, key), `${JSON.stringify(snapshot)}\n`);
 }
 

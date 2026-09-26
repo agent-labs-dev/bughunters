@@ -23,19 +23,26 @@ npx bughunters explore
 
 ## Set up with your agent
 
-Give this prompt to your coding agent (Claude Code, Codex, Cursor, or a different agent):
+1. Install the Bughunters skill in your repo:
+
+   ```bash
+   npx skills add agent-labs-dev/bughunters
+   ```
+
+   The [skills CLI](https://github.com/vercel-labs/skills) installs the skill for Claude Code, Codex, Cursor, and many other agents.
+
+2. Give this prompt to your agent:
+
+   ```text
+   Set up Bughunters for this repo.
+   ```
+
+The [skill](skills/bughunters/SKILL.md) tells the agent what Bughunters does, how to configure it for your app, how to run it, and how to show you the results.
+
+If your agent cannot install skills, give it the skill URL:
 
 ```text
-Read https://raw.githubusercontent.com/agent-labs-dev/bughunters/main/skill/SKILL.md and set up Bughunters for this repo.
-```
-
-The [skill](skill/SKILL.md) tells the agent what Bughunters does, how to configure it for your app, how to run it, and how to show you the results.
-
-To keep the skill in Claude Code, save it in your repo:
-
-```bash
-mkdir -p .claude/skills/bughunters
-curl -fsSL https://raw.githubusercontent.com/agent-labs-dev/bughunters/main/skill/SKILL.md -o .claude/skills/bughunters/SKILL.md
+Read https://raw.githubusercontent.com/agent-labs-dev/bughunters/main/skills/bughunters/SKILL.md and set up Bughunters for this repo.
 ```
 
 ## Set up by hand
@@ -54,9 +61,18 @@ npx -y playwright@1.48.2 install chromium
    npx bughunters init
    ```
 
-2. Check `bughunters.yml`. It tells Bughunters how to start your app.
+   `init` puts all the Bughunters files in one `.bughunters/` folder:
 
-3. Write `instructions.md`. It is a plain-English note for the explorer: what the app is, how to sign in, and what never to do.
+   ```text
+   .bughunters/
+     bughunters.yml     # the config: commit it
+     instructions.md    # the app guide for the explorer: commit it
+     runs/              # sessions, issues, fixes, and screenshots: git ignores it
+   ```
+
+2. Check `.bughunters/bughunters.yml`. It tells Bughunters how to start your app.
+
+3. Write `.bughunters/instructions.md`. It is a plain-English note for the explorer: what the app is, how to sign in, and what never to do.
    Refer to secrets as `{{NAME}}`, and list their names in `app.secrets`. Bughunters never sends the real values to a model.
 
 4. Explore, judge, and look at the results:
@@ -104,7 +120,7 @@ Jev needs a TypeSafe, OpenRouter, or Vercel AI Gateway key. We recommend a Jev k
 | Agent LLMs | Claude Code, Codex, Kimi CLI, pi, or any CLI agent; or an API key for OpenRouter, Vercel AI Gateway, OpenAI, Anthropic, or a custom endpoint |
 | Triage | Jev, through TypeSafe, OpenRouter, or Vercel AI Gateway |
 | GitHub | PRs, issues, and state sync through the `gh` CLI |
-| Output | A local dashboard, GitHub PRs and issues, and JSON files under `.bughunters/` |
+| Output | A local dashboard, GitHub PRs and issues, and JSON files under `.bughunters/runs/` |
 
 ## Documentation
 
@@ -112,7 +128,7 @@ Jev needs a TypeSafe, OpenRouter, or Vercel AI Gateway key. We recommend a Jev k
 | --- | --- |
 | [Getting started](docs/getting-started.md) | Add Bughunters to your repo, step by step |
 | [LLMs and Jev](docs/models.md) | What each model does, and the providers for each agent |
-| [Configuration](docs/configuration.md) | All the settings in `bughunters.yml` |
+| [Configuration](docs/configuration.md) | All the settings in `.bughunters/bughunters.yml` |
 | [Commands](docs/commands.md) | All the CLI commands |
 | [The dashboard](docs/dashboard.md) | What each page shows, and the files behind it |
 | [How it works](docs/how-it-works.md) | The cycle, noise control, memory, GitHub, and safety |

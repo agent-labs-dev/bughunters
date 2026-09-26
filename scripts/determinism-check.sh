@@ -15,8 +15,8 @@ CLI="$(cd "$(dirname "$0")/.." && pwd)/packages/cli/dist/bin.js"
 APP="$(cd "$(dirname "$0")/.." && pwd)/examples/fixture-app"
 
 cd "$APP"
-rm -rf .bughunters
-mkdir -p .bughunters
+# Keep the config in .bughunters/; start from no baselines and no local data.
+rm -rf .bughunters/runs .bughunters/appmodel.json .bughunters/baselines.manifest.json .bughunters/intents.json
 
 echo "== capturing baselines =="
 node "$CLI" run --no-models >/dev/null

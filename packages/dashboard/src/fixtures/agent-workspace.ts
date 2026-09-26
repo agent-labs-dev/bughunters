@@ -8,7 +8,7 @@ const PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwM
 
 /** Write a complete desktop patrol workspace for human UI review and API tests. */
 export function writeAgentFixture(root: string): void {
-  const dir = join(root, '.bughunters');
+  const dir = join(root, '.bughunters', 'runs');
   const now = new Date();
   const at = (minutes: number): string => new Date(now.getTime() - minutes * 60_000).toISOString();
   const save = (relative: string, value: unknown): void => {
@@ -16,7 +16,7 @@ export function writeAgentFixture(root: string): void {
     mkdirSync(join(file, '..'), { recursive: true });
     writeFileSync(file, JSON.stringify(value, null, 2));
   };
-  const shot = (session: string, name: string): string => `.bughunters/sessions/${session}/${name}.png`;
+  const shot = (session: string, name: string): string => `.bughunters/runs/sessions/${session}/${name}.png`;
   const screens = ['home', 'settings', 'billing', 'projects', 'profile'].map((id, index) => ({
     id,
     name: id[0]!.toUpperCase() + id.slice(1),

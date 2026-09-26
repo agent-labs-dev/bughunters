@@ -45,7 +45,7 @@ Set one of these keys. Bughunters tries them in this order:
 | OpenRouter | `OPENROUTER_API_KEY` | https://openrouter.ai/keys |
 | Vercel AI Gateway | `AI_GATEWAY_API_KEY` | https://vercel.com/ai-gateway |
 
-To use one route only, set it in `bughunters.yml`:
+To use one route only, set it in `.bughunters/bughunters.yml`:
 
 ```yaml
 decisions:
