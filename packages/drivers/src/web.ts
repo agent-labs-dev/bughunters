@@ -1,6 +1,6 @@
 import { chromium, type Browser, type BrowserContext, type Page } from 'playwright';
-import { sha256 } from '@autoqa/core';
-import { PROBE_SOURCE, type ScreenSnapshot } from '@autoqa/invariants';
+import { sha256 } from '@bughunters/core';
+import { PROBE_SOURCE, type ScreenSnapshot } from '@bughunters/invariants';
 import { observeDom, resolveTarget, stepFor } from './dom.js';
 import type { ActResult, Driver, DriverAction, Observation, UiElement } from './types.js';
 

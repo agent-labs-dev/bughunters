@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { decisionsSchema, InfrastructureError, type Question } from '@autoqa/core';
+import { decisionsSchema, InfrastructureError, type Question } from '@bughunters/core';
 import { resolveDecider } from '../index.js';
 import { JevDecider, normalizeAnswers } from './jev.js';
 

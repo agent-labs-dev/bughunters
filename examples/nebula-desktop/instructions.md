@@ -14,7 +14,7 @@ do not report it as blank.
 
 ## Sign in
 
-You start signed in. AutoQA gave the app a test session before it started.
+You start signed in. Bughunters gave the app a test session before it started.
 
 - If you see the sign-in gate (`sign-in-gate`) with an email field, sign in
   failed. Report it as a critical bug, then finish.
@@ -23,11 +23,11 @@ You start signed in. AutoQA gave the app a test session before it started.
 
 A new test identity sees two onboarding screens first. Complete them:
 
-1. "Tell us who you are": type `AutoQA` as the first name and `Patrol` as the
-   last name. If the screen asks for a username, type `autoqa-{{RUN_TAG}}`:
+1. "Tell us who you are": type `Bughunters` as the first name and `Patrol` as the
+   last name. If the screen asks for a username, type `bughunters-{{RUN_TAG}}`:
    each patrol has a new test identity, and a username must be unique. Then
    click Continue.
-2. "Name your workspace": type `AutoQA Patrol` as the workspace name. Keep the
+2. "Name your workspace": type `Bughunters Patrol` as the workspace name. Keep the
    slug that the app suggests. Then click the submit button.
 
 You are in the app when you see the Rail and a Channel with a message composer.
@@ -38,9 +38,9 @@ Save the path through onboarding as the routine `enter-app`.
 - Each Rail row: the Nebula DM, Notifications, Tasks, each Channel, and people.
 - Settings and each of its sections.
 - The "New channel" flow. You may create Channels whose names start with
-  `autoqa-`.
+  `bughunters-`.
 - In a Channel that you created, you may send one short message, such as
-  `AutoQA test message`. Look at how the message and the reply render.
+  `Bughunters test message`. Look at how the message and the reply render.
 - Menus, tabs, dialogs, and empty states.
 
 ## Never do these things

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { buildTestPlan, buildFileIndex, smokeSet } from './change-map.js';
-import { id } from '@autoqa/core';
-import type { AppModel, Screen } from '@autoqa/core';
+import { id } from '@bughunters/core';
+import type { AppModel, Screen } from '@bughunters/core';
 
 function screen(path: string, files: string[]): Screen {
   return {

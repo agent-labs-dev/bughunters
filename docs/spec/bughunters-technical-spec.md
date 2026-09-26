@@ -1,4 +1,4 @@
-# AutoQA - Technical Specification
+# Bughunters - Technical Specification
 
 **Status:** Draft v0.1
 **Date:** 2026-09-19
@@ -8,7 +8,7 @@
 
 ## 0. Summary
 
-AutoQA runs from your repo. It performs a one-time **Recon** pass that boots your product, works out how to log in, crawls every screen it can reach, and builds a model of the app - screens, flows, a screen-to-source-file map, baselines, screenshots, and a written picture of what the product does and who it is for. Every run after that either re-tests the blast radius of a change or sweeps everything, judges what it sees, and surfaces results as a GitHub Check, an HTML report, a GitHub Issue, or a question for a human when it isn't sure.
+Bughunters runs from your repo. It performs a one-time **Recon** pass that boots your product, works out how to log in, crawls every screen it can reach, and builds a model of the app - screens, flows, a screen-to-source-file map, baselines, screenshots, and a written picture of what the product does and who it is for. Every run after that either re-tests the blast radius of a change or sweeps everything, judges what it sees, and surfaces results as a GitHub Check, an HTML report, a GitHub Issue, or a question for a human when it isn't sure.
 
 ### 0.1 The one architectural decision everything else follows from
 
@@ -31,10 +31,10 @@ This is what makes an ~80%-accurate agent safe to put in a merge gate. Without t
 ### 0.2 Design principles
 
 1. **Deterministic by construction, not by configuration.** Baselines are captured in the same pinned container image that runs the tests, so cross-OS font and rasterisation drift is structurally impossible rather than something the user is told to work around. This is the headline feature, not a footnote, because it is the single largest complaint in the category.
-2. **Capture is a dependency, not a product.** Playwright already captures screenshots and video better than anything we would write. AutoQA integrates with it, and with Cypress, Selenium and Puppeteer, rather than competing.
-3. **Every automated judgment needs an escape hatch.** Anything AutoQA can flag, a human must be able to mark as intended in one action, permanently, with an audit trail.
+2. **Capture is a dependency, not a product.** Playwright already captures screenshots and video better than anything we would write. Bughunters integrates with it, and with Cypress, Selenium and Puppeteer, rather than competing.
+3. **Every automated judgment needs an escape hatch.** Anything Bughunters can flag, a human must be able to mark as intended in one action, permanently, with an audit trail.
 4. **Noise kills adoption faster than missed bugs.** A tool that reports 40% false positives is worse than no tool, because it trains engineers to ignore red. Defaults are conservative; every rule is tunable; nothing is blocking until it has earned it.
-5. **Auto-fix is opt-in and always a pull request.** AutoQA never pushes to a branch and never merges.
+5. **Auto-fix is opt-in and always a pull request.** Bughunters never pushes to a branch and never merges.
 
 ---
 
@@ -43,12 +43,12 @@ This is what makes an ~80%-accurate agent safe to put in a merge gate. Without t
 ```mermaid
 flowchart TB
   subgraph client["Developer / CI"]
-    CLI["autoqa CLI"]
+    CLI["bughunters CLI"]
     CI["GitHub Actions runner"]
   end
 
   subgraph github["GitHub"]
-    APP["AutoQA GitHub App"]
+    APP["Bughunters GitHub App"]
     CHK["Check Runs"]
     ISS["Issues"]
     PR["Pull Requests"]
@@ -88,7 +88,7 @@ flowchart TB
 
 | Component | Language | Responsibility |
 |---|---|---|
-| `autoqa` CLI | TypeScript / Node 22+ | Init, recon, run, baseline management, local dev loop |
+| `bughunters` CLI | TypeScript / Node 22+ | Init, recon, run, baseline management, local dev loop |
 | GitHub App | TypeScript | Webhooks, Checks API, Issues, PRs, PR slash-commands |
 | Control plane | TypeScript | Run orchestration, state, scheduling, hosted reports |
 | Agent service | TypeScript | Provider-agnostic LLM calls; owns all prompting and budgets |
@@ -99,9 +99,9 @@ flowchart TB
 
 ### 1.2 Three deployment modes
 
-- **Local.** CLI only. No control plane, no server. State lives in `.autoqa/` (gitignored) plus a committed baseline manifest. The deterministic tier runs fully offline with zero LLM calls. This is the default for open-source users and the only mode that works in an air-gapped environment.
+- **Local.** CLI only. No control plane, no server. State lives in `.bughunters/` (gitignored) plus a committed baseline manifest. The deterministic tier runs fully offline with zero LLM calls. This is the default for open-source users and the only mode that works in an air-gapped environment.
 - **Self-hosted.** Control plane runs in the user's own infrastructure. Full feature set including tier 3 and the hosted report UI. This is the answer for regulated users who cannot send data to a third party.
-- **Managed.** AutoQA-hosted control plane. Convenience tier; the deterministic tier still runs in the user's own CI.
+- **Managed.** Bughunters-hosted control plane. Convenience tier; the deterministic tier still runs in the user's own CI.
 
 The deterministic gate must never require the managed mode. That is the entire value proposition.
 
@@ -112,7 +112,7 @@ The deterministic gate must never require the managed mode. That is the entire v
 ```mermaid
 stateDiagram-v2
   [*] --> Installed
-  Installed --> Recon: autoqa recon
+  Installed --> Recon: bughunters recon
   Recon --> AwaitingReview: AppModel built
   AwaitingReview --> Ready: human approves
   AwaitingReview --> Recon: corrections requested
@@ -125,8 +125,8 @@ stateDiagram-v2
 
 | Phase | Trigger | Duration | Blocks merge |
 |---|---|---|---|
-| 0 Install | `autoqa init` | seconds | n/a |
-| 1 Recon | `autoqa recon` | minutes | n/a |
+| 0 Install | `bughunters init` | seconds | n/a |
+| 1 Recon | `bughunters recon` | minutes | n/a |
 | 1.7 Review gate | human | minutes | n/a |
 | 2 Change mapping | push / PR | seconds | no |
 | 3 Execution | push / PR | minutes | tier 1 only |
@@ -140,12 +140,12 @@ stateDiagram-v2
 
 ### Phase 0 - Install and connect
 
-`autoqa init` does four things:
+`bughunters init` does four things:
 
-1. **Install the GitHub App** on the org or user account. The user picks which repositories to grant ("all" or a selected subset). AutoQA never requests more than it needs.
+1. **Install the GitHub App** on the org or user account. The user picks which repositories to grant ("all" or a selected subset). Bughunters never requests more than it needs.
 2. **Authenticate the CLI** via GitHub device flow. No PATs, no pasted tokens.
 3. **Select the target repo** from the App's accessible set, then detect the stack.
-4. **Write `autoqa.yml`** into the repo with detected defaults and a `TODO` marker on anything it could not determine.
+4. **Write `bughunters.yml`** into the repo with detected defaults and a `TODO` marker on anything it could not determine.
 
 **Stack detection** reads, in order of reliability: existing config, `package.json` scripts and dependencies, lockfiles (`pnpm-lock.yaml`, `bun.lockb`, `package-lock.json`), `Dockerfile`/`docker-compose.yml`, `devcontainer.json`, framework signature files (`next.config.*`, `vite.config.*`, `angular.json`, `manage.py`, `Gemfile`, `go.mod`, `Cargo.toml`, Expo/React Native config), `.github/workflows/*.yml` for the CI build command, and finally README quickstart sections.
 
@@ -153,7 +153,7 @@ The output is a `StackProfile` that seeds the Recipe. Everything detected is wri
 
 ### Phase 1 - Recon
 
-This is the one-time pass that builds context and baselines. It is the most expensive thing AutoQA ever does, and it runs once per project (re-run only when the app changes shape, not on every commit).
+This is the one-time pass that builds context and baselines. It is the most expensive thing Bughunters ever does, and it runs once per project (re-run only when the app changes shape, not on every commit).
 
 Recon is a **human-supervised, agent-driven** process. It is explicitly allowed to be slow and to use a frontier model, because it is not in the hot path.
 
@@ -184,13 +184,13 @@ Same ladder shape. Auth is the single largest Recon failure mode and the largest
 | `none` | Public site | Default |
 | `form` | Username/password form | Find password input + submit; credential from the secret store |
 | `storageState` | Any authenticated app | Reuse a recorded Playwright `storageState`; expires, must be refreshable |
-| `seededUser` | Repo has seed/fixture scripts | Preferred - AutoQA creates its own test user |
+| `seededUser` | Repo has seed/fixture scripts | Preferred - Bughunters creates its own test user |
 | `ssoBypass` | Test-only header/token grants a session | Best case for CI; requires a hook in the app |
-| `manual` | None of the above | Human records a session once; AutoQA replays it |
+| `manual` | None of the above | Human records a session once; Bughunters replays it |
 
-AutoQA **never** stores credentials in artifacts, in the repo, or in the AppModel. It stores a `SecretRef` and resolves it at run time from the user's secret store.
+Bughunters **never** stores credentials in artifacts, in the repo, or in the AppModel. It stores a `SecretRef` and resolves it at run time from the user's secret store.
 
-**Production safety.** Before any write action, AutoQA determines whether it is pointed at production - via config, `NODE_ENV`, hostname heuristics, or a canary probe. If it looks like production, mutation actions are disabled and the run continues read-only. There is no flag that silently overrides this; overriding is explicit, logged, and announced in the report.
+**Production safety.** Before any write action, Bughunters determines whether it is pointed at production - via config, `NODE_ENV`, hostname heuristics, or a canary probe. If it looks like production, mutation actions are disabled and the run continues read-only. There is no flag that silently overrides this; overriding is explicit, logged, and announced in the report.
 
 #### 1.3 Crawl and exploration
 
@@ -205,11 +205,11 @@ A breadth-first traversal with a frontier queue and a visited set.
 
 #### 1.4 Screen, flow and product modelling
 
-Screens become nodes, actions become edges. On top of that graph AutoQA builds the context the user asked for:
+Screens become nodes, actions become edges. On top of that graph Bughunters builds the context the user asked for:
 
 - **Per screen:** a one-line semantic description, its purpose, its primary action, and its named entities (`Project`, `Invoice`, `Workspace` - whatever the product's own vocabulary is).
 - **Flows:** sequences of screens and actions that accomplish a goal (`sign up`, `create a project`, `invite a teammate`, `upgrade plan`, `delete account`). Goals are inferred by a frontier model from the screen graph and then frozen as replayable action lists.
-- **Product summary:** what the product does, who it appears to be for, its domain vocabulary, and its core objects. This is the context injected into every downstream judgment prompt, and it is what lets AutoQA say "this is inconsistent with how the product works" rather than just "this pixel changed".
+- **Product summary:** what the product does, who it appears to be for, its domain vocabulary, and its core objects. This is the context injected into every downstream judgment prompt, and it is what lets Bughunters say "this is inconsistent with how the product works" rather than just "this pixel changed".
 
 The AppModel is a **versioned, reviewable artifact**. It is committed to the repo (or stored in the control plane) so a human can read it and diff it.
 
@@ -280,7 +280,7 @@ Everything here is reproducible and has no marginal cost. Per screen and per flo
 
 #### Tier 2 - the decided layer
 
-This is where Jev does its work. For each screen, AutoQA assembles a **state** - a compact, textual description of what is true about that screen right now:
+This is where Jev does its work. For each screen, Bughunters assembles a **state** - a compact, textual description of what is true about that screen right now:
 
 ```
 state = {
@@ -338,7 +338,7 @@ Every answer returns a probability and a confidence value. **Confidence is used 
 | Between thresholds | Route to `question`, or escalate to tier 3 |
 | Below low threshold | Always `question`. Never auto-suppress, never auto-fix |
 
-The asymmetry is deliberate: **AutoQA can be wrong about raising something, but it must never be wrong about silencing something.** A missed bug is recoverable; a suppressed real bug is not.
+The asymmetry is deliberate: **Bughunters can be wrong about raising something, but it must never be wrong about silencing something.** A missed bug is recoverable; a suppressed real bug is not.
 
 #### Tier 3 - the judged layer
 
@@ -385,14 +385,14 @@ Only a **tier-1 deterministic regression** may fail a Check. Everything Jev deci
 
 #### 4.4 Noise control
 
-- **Per-run issue cap.** Above N new root causes in one run, AutoQA stops filing individual issues and files one summary issue listing them. A first-run avalanche is expected and must not spam a repo.
+- **Per-run issue cap.** Above N new root causes in one run, Bughunters stops filing individual issues and files one summary issue listing them. A first-run avalanche is expected and must not spam a repo.
 - **First-run quarantine.** Nothing blocks on a project's first approved run; it reports only.
 - **Flake quarantine.** A finding that fails to reproduce on retry, twice, is quarantined: still reported, never blocking, tracked in the flake rate. Quarantine is a signal that the baseline or the determinism contract needs attention, and it is surfaced as such.
 - **Unchanged-state short circuit.** If a screen's state hash is unchanged since the last run, no model call happens at all - the previous decision is reused. This is the single largest cost and latency saving in the system.
 
 #### 4.5 The Intent Ledger
 
-The Ledger is AutoQA's institutional memory and the answer to the single biggest adoption risk in this category: a tool that keeps flagging deliberate behaviour until people stop reading it.
+The Ledger is Bughunters's institutional memory and the answer to the single biggest adoption risk in this category: a tool that keeps flagging deliberate behaviour until people stop reading it.
 
 Any finding can be marked as intended, in one action, permanently, with a reason and an author. A ledger entry can be scoped to a fingerprint, a screen, a selector, a rule, or a rule-on-a-screen, and can carry an expiry so a suppression gets revisited rather than silently outliving its reason.
 
@@ -404,7 +404,7 @@ Four surfaces, each with a different job. All four are generated from the same `
 
 #### 5.1 GitHub Check Run
 
-Summary line, then annotations at file and line where source mapping resolved a screen to a file. Annotations are where AutoQA meets engineers in their normal workflow - a red squiggle on the changed component is worth more than a report nobody opens.
+Summary line, then annotations at file and line where source mapping resolved a screen to a file. Annotations are where Bughunters meets engineers in their normal workflow - a red squiggle on the changed component is worth more than a report nobody opens.
 
 Exit semantics are strictly separated, because conflating an infrastructure failure with a product failure is how CI gets distrusted:
 
@@ -416,7 +416,7 @@ Exit semantics are strictly separated, because conflating an infrastructure fail
 | 3 | Recon required or AppModel unapproved |
 | 4 | **Infrastructure error** - could not boot, browser crashed, no network |
 
-Exit 4 is never reported as a product failure and never blocks on its own. It says "AutoQA could not test", which is a different statement from "AutoQA found a bug".
+Exit 4 is never reported as a product failure and never blocks on its own. It says "Bughunters could not test", which is a different statement from "Bughunters found a bug".
 
 #### 5.2 The PR comment
 
@@ -426,19 +426,19 @@ Slash commands, handled by the GitHub App:
 
 | Command | Effect |
 |---|---|
-| `/autoqa run` | Re-run now |
-| `/autoqa run --all` | Full sweep instead of changed-only |
-| `/autoqa explain <id>` | Why was this flagged? (the evidence, not a model rationale) |
-| `/autoqa accept <id>` | Mark intended - writes the Ledger |
-| `/autoqa mute <fingerprint>` | Mute with an expiry |
-| `/autoqa fix <id>` | Attempt an automated fix |
-| `/autoqa baseline update` | Accept current state as the new baseline |
+| `/bughunters run` | Re-run now |
+| `/bughunters run --all` | Full sweep instead of changed-only |
+| `/bughunters explain <id>` | Why was this flagged? (the evidence, not a model rationale) |
+| `/bughunters accept <id>` | Mark intended - writes the Ledger |
+| `/bughunters mute <fingerprint>` | Mute with an expiry |
+| `/bughunters fix <id>` | Attempt an automated fix |
+| `/bughunters baseline update` | Accept current state as the new baseline |
 
-`/autoqa accept` is the most important command in the product. It is the one-action escape hatch that converts a false positive into permanent context instead of a grudge.
+`/bughunters accept` is the most important command in the product. It is the one-action escape hatch that converts a false positive into permanent context instead of a grudge.
 
 #### 5.3 GitHub Issues - bugs
 
-For confirmed findings, AutoQA files an issue written the way a good QA engineer writes one:
+For confirmed findings, Bughunters files an issue written the way a good QA engineer writes one:
 
 - **Title** - specific and reproducible.
 - **What I did** - the flow and the exact action list, replayable.
@@ -452,7 +452,7 @@ For confirmed findings, AutoQA files an issue written the way a good QA engineer
 
 A question is a first-class outcome, not a failure of the tool. It is filed as an issue carrying a `needs-decision` label with a single crisp question, the evidence, and one-click answers (via slash command or a checkbox list rendered in the body).
 
-The answer becomes a Ledger entry, so the same question is never asked twice. That is how AutoQA gets quieter over time instead of louder - the property every tool in this category currently lacks.
+The answer becomes a Ledger entry, so the same question is never asked twice. That is how Bughunters gets quieter over time instead of louder - the property every tool in this category currently lacks.
 
 #### 5.5 The HTML report
 
@@ -470,7 +470,7 @@ Self-contained, static, no server required, published as a CI artifact and (in c
 
 Video is a first-class artifact, which no open-source tool in this space currently does. Two practical constraints shape it:
 
-- **Attachment size.** GitHub's attachment limits are small, so AutoQA never attaches a full run video. It generates a **short, compressed highlight clip** covering only the failing interaction (trimmed and re-encoded with ffmpeg), attaches that, and links the full-resolution video and trace from the report.
+- **Attachment size.** GitHub's attachment limits are small, so Bughunters never attaches a full run video. It generates a **short, compressed highlight clip** covering only the failing interaction (trimmed and re-encoded with ffmpeg), attaches that, and links the full-resolution video and trace from the report.
 - **Cost.** Video is generated per flow and retained only for failures by default; a `--video=always` mode exists for local debugging.
 
 ### Phase 6 - Autonomous fix
@@ -516,15 +516,15 @@ Additional caps: maximum diff size, maximum files touched, and one fix per root-
 1. **Reproduce** deterministically and capture the failing artifact set.
 2. **Locate** the cause using the source map plus a code-aware agent (Claude Code or Codex).
 3. **Propose** a minimal diff - minimal being a hard requirement, since a sprawling diff cannot be reviewed.
-4. **Verify** by running the fix against the affected screens: the failing test must now pass, the rest of the blast radius must stay green, and the full tier-1 suite must not regress. **AutoQA validates its own fix with its own deterministic gate** - the fix PR only opens if the gate goes green, which is the property that makes automated fixes trustworthy at all.
-5. **Open a PR** on `autoqa/fix/<fingerprint>` with the evidence bundle, the failing-before/passing-after artifacts, and a link to the issue.
+4. **Verify** by running the fix against the affected screens: the failing test must now pass, the rest of the blast radius must stay green, and the full tier-1 suite must not regress. **Bughunters validates its own fix with its own deterministic gate** - the fix PR only opens if the gate goes green, which is the property that makes automated fixes trustworthy at all.
+5. **Open a PR** on `bughunters/fix/<fingerprint>` with the evidence bundle, the failing-before/passing-after artifacts, and a link to the issue.
 
 #### 6.4 Hard limits
 
 - Never pushes to a branch the human owns, never to `main`, never force-pushes.
 - Never merges. The merge is always a human action.
 - If verification fails, no PR is opened - the issue is filed instead, with the failed attempt attached as evidence. A failed fix attempt is genuinely useful information.
-- Every fix PR is labelled `autoqa-fix` and lists the exact evidence that justified it.
+- Every fix PR is labelled `bughunters-fix` and lists the exact evidence that justified it.
 - A fix that later proves wrong is traceable back to its fingerprint, its evidence, and the model version that produced it.
 
 ## 4. Model and decision architecture
@@ -544,11 +544,11 @@ The single rule: **spend model tokens only where deterministic logic cannot reac
 
 ### 4.2 Why Jev is the right always-on brain
 
-Jev is the first "System One" model from TypeSafe AI (released 2026-09-15). It is not an LLM - it does not generate text. It takes a **state** plus a set of typed **questions** and returns **answers with calibrated probabilities**. That shape is precisely what AutoQA's decision layer needs.
+Jev is the first "System One" model from TypeSafe AI (released 2026-09-15). It is not an LLM - it does not generate text. It takes a **state** plus a set of typed **questions** and returns **answers with calibrated probabilities**. That shape is precisely what Bughunters's decision layer needs.
 
-**The three primitives, and what each does in AutoQA:**
+**The three primitives, and what each does in Bughunters:**
 
-| Primitive | Returns | AutoQA use |
+| Primitive | Returns | Bughunters use |
 |---|---|---|
 | **Noul** | Boolean probability 0-1 | Gates and yes/no filters: is this anomalous, does this match a known intended behaviour, are these two findings one root cause, is this click destructive, does this need the frontier model |
 | **Choice** | One of a declared option set, with the full probability distribution and confidence | Routing and classification: what kind of issue is this, where should it surface, which element should the crawler act on next |
@@ -600,11 +600,11 @@ The `needs_frontier` question is the cost-control mechanism of the entire system
 
 This is a hard constraint with three consequences:
 
-1. **A companion vision model is mandatory.** Anything genuinely about pixels - "does this screen look broken" - needs an L2 VLM. AutoQA cannot pretend otherwise.
-2. **Jev never writes the fix.** Code generation is L3 work, done by a code-capable agent. Jev's job is to decide *whether* a fix should be attempted, and to classify it. AutoQA must never route code generation through Jev.
+1. **A companion vision model is mandatory.** Anything genuinely about pixels - "does this screen look broken" - needs an L2 VLM. Bughunters cannot pretend otherwise.
+2. **Jev never writes the fix.** Code generation is L3 work, done by a code-capable agent. Jev's job is to decide *whether* a fix should be attempted, and to classify it. Bughunters must never route code generation through Jev.
 3. **The state must be engineered, not dumped.** Jev's ~64k context is generous but the state must still be compact, because cost scales with input tokens. In practice this means the accessibility-tree snapshot and DOM digest must be **pruned**: drop non-interactive decorative nodes, collapse repeated list rows, cap node count, and summarise rather than serialise.
 
-That third constraint is a feature. Because Jev cannot see images, AutoQA's default reasoning path carries **no image tokens at all** - and image tokens are where vision-model costs and latency explode. The text-only constraint pushes the architecture toward the cheap design rather than away from it. A 4,000-token text digest is a tiny fraction of the cost of a screenshot at useful resolution, and it is faster to produce.
+That third constraint is a feature. Because Jev cannot see images, Bughunters's default reasoning path carries **no image tokens at all** - and image tokens are where vision-model costs and latency explode. The text-only constraint pushes the architecture toward the cheap design rather than away from it. A 4,000-token text digest is a tiny fraction of the cost of a screenshot at useful resolution, and it is faster to produce.
 
 ### 4.5 The accuracy caveat, handled honestly
 
@@ -614,7 +614,7 @@ The architecture absorbs this rather than ignoring it:
 
 - Jev is used as a **filter and router**, not an oracle. Its errors are recoverable because the expensive path is still available.
 - **Confidence thresholds are load-bearing.** High confidence acts; medium asks a human; low always asks. Nothing low-confidence is ever auto-suppressed or auto-fixed.
-- **The asymmetry is enforced in code:** auto-suppression and auto-fix both require high confidence, while raising a question has no confidence floor. AutoQA may over-ask; it may never over-silence.
+- **The asymmetry is enforced in code:** auto-suppression and auto-fix both require high confidence, while raising a question has no confidence floor. Bughunters may over-ask; it may never over-silence.
 - **Every decision is recorded** with the model version, the state hash, the answers and the confidences, so a wrong decision can be replayed and diagnosed.
 - **Thresholds are tuned per repo** against the outcomes of decisions people actually reversed.
 
@@ -642,9 +642,9 @@ Implementations: `JevDecider` (default), `ModelDecider` (a small hosted model pr
 
 Because answers are typed, the caller never knows which implementation ran. Swapping deciders is a config change, and the `LocalDecider`/`HeuristicDecider` pair is what makes the fully-offline mode in section 1.2 real rather than aspirational.
 
-**Access paths**, in the order AutoQA tries them: the official SDK against `api.typesafe.ai` with a TypeSafe key; the gateway routes `typesafe-ai/jev` (Vercel AI Gateway), `typesafe/jev` (Cloudflare Workers AI), and the Netlify AI Gateway, which lets an existing gateway credential work without a separate TypeSafe key; then fall back to `ModelDecider`.
+**Access paths**, in the order Bughunters tries them: the official SDK against `api.typesafe.ai` with a TypeSafe key; the gateway routes `typesafe-ai/jev` (Vercel AI Gateway), `typesafe/jev` (Cloudflare Workers AI), and the Netlify AI Gateway, which lets an existing gateway credential work without a separate TypeSafe key; then fall back to `ModelDecider`.
 
-### 4.7 Navigation: how AutoQA drives the app cheaply
+### 4.7 Navigation: how Bughunters drives the app cheaply
 
 The user's question - can the decider model navigate the app? - has a precise answer: **yes, on the text path; no, on the pixels.**
 
@@ -752,7 +752,7 @@ Each row is a decision, with the runner-up named so the choice can be revisited 
 
 ### 5.5 Build versus adopt - where the moat actually is
 
-This is the most strategically important table in the section, because it says what AutoQA is *for*.
+This is the most strategically important table in the section, because it says what Bughunters is *for*.
 
 | Adopt (do not build) | Build (this is the product) |
 |---|---|
@@ -779,7 +779,7 @@ type Project = {
   repo: { owner: string; name: string; defaultBranch: string };
   installationId: number;          // GitHub App installation
   stack: StackProfile;             // detected frameworks, package manager, ports
-  config: AutoQAConfig;            // parsed autoqa.yml
+  config: BughuntersConfig;            // parsed bughunters.yml
   createdAt: Date;
 };
 
@@ -954,7 +954,7 @@ type DecisionRecord = {
 
 Two design notes worth stating explicitly:
 
-- **`suspectedFiles` and `fileIndex` are why this system can act.** Without the screen-to-file map, AutoQA can report but never annotate a line or propose a fix. Mapping confidence is carried on every screen and every finding so downstream consumers can discount it.
+- **`suspectedFiles` and `fileIndex` are why this system can act.** Without the screen-to-file map, Bughunters can report but never annotate a line or propose a fix. Mapping confidence is carried on every screen and every finding so downstream consumers can discount it.
 - **`stateHash` is the cost boundary.** It decides whether a model is called at all, and it is what makes `DecisionRecord` cacheable and a reversed decision reproducible.
 
 ## 7. The determinism contract
@@ -967,7 +967,7 @@ So determinism is not a configuration surface. It is a **contract** the tool gua
 
 **Baselines are captured in exactly the same pinned image that later runs the comparison.**
 
-This single decision removes the entire class of cross-machine drift. If the image digest changes, baselines are invalidated and re-captured rather than silently producing diffs. Where competing tools tell users to "generate baselines on a machine that matches CI", AutoQA makes the question structurally impossible to get wrong.
+This single decision removes the entire class of cross-machine drift. If the image digest changes, baselines are invalidated and re-captured rather than silently producing diffs. Where competing tools tell users to "generate baselines on a machine that matches CI", Bughunters makes the question structurally impossible to get wrong.
 
 | Enforced | How |
 |---|---|
@@ -1114,7 +1114,7 @@ This is the closest to the user's "not logical" and is deliberately the tier tha
 | **Feedback-free success** | A submit that succeeds with no confirmation the user can perceive |
 | **Broken internal link** | A link resolving to a 404 or to a route absent from the route table |
 | **Inconsistent affordance** | The same visual treatment implying different behaviour on different screens |
-| **Flow regression** | A recorded flow can no longer complete - the highest-severity functional signal AutoQA produces |
+| **Flow regression** | A recorded flow can no longer complete - the highest-severity functional signal Bughunters produces |
 
 ### 8.6 Visual semantics (tier 3, sampled)
 
@@ -1144,46 +1144,46 @@ Where a detector cannot produce such a sentence, it reports at a lower confidenc
 
 ```bash
 # Setup
-autoqa init                                    # install the App, auth, detect stack, write config
-autoqa doctor                                  # verify env: pinned image, fonts, browser, network, disk
+bughunters init                                    # install the App, auth, detect stack, write config
+bughunters doctor                                  # verify env: pinned image, fonts, browser, network, disk
 
 # Recon
-autoqa recon [--review] [--max-screens N] [--budget-usd X]
-autoqa recon resume                            # continue an interrupted crawl
-autoqa model show | diff | approve             # inspect and approve the AppModel
+bughunters recon [--review] [--max-screens N] [--budget-usd X]
+bughunters recon resume                            # continue an interrupted crawl
+bughunters model show | diff | approve             # inspect and approve the AppModel
 
 # Running
-autoqa run                                     # changed-only (default)
-autoqa run --all                               # full sweep
-autoqa run --smoke                             # entry points only
-autoqa run --screens /settings,/billing        # explicit selection
-autoqa run --no-models                         # deterministic tier only, fully offline
+bughunters run                                     # changed-only (default)
+bughunters run --all                               # full sweep
+bughunters run --smoke                             # entry points only
+bughunters run --screens /settings,/billing        # explicit selection
+bughunters run --no-models                         # deterministic tier only, fully offline
 
 # Baselines
-autoqa baseline capture                        # (re)capture baselines in the pinned image
-autoqa baseline pull|push                      # sync with object storage
-autoqa baseline accept <finding-id...>         # accept current state as the new baseline
-autoqa baseline accept --clean                 # bulk-accept everything non-blocking
+bughunters baseline capture                        # (re)capture baselines in the pinned image
+bughunters baseline pull|push                      # sync with object storage
+bughunters baseline accept <finding-id...>         # accept current state as the new baseline
+bughunters baseline accept --clean                 # bulk-accept everything non-blocking
 
 # Triage
-autoqa findings list [--route issue|question]
-autoqa findings explain <id>
-autoqa findings accept <id> --reason "intentional"   # writes the Intent Ledger
-autoqa intent list|export|prune
+bughunters findings list [--route issue|question]
+bughunters findings explain <id>
+bughunters findings accept <id> --reason "intentional"   # writes the Intent Ledger
+bughunters intent list|export|prune
 
 # Output
-autoqa report --open
-autoqa export --format junit|sarif|json
+bughunters report --open
+bughunters export --format junit|sarif|json
 
 # Local loop
-autoqa watch                                   # re-run affected screens on file change
+bughunters watch                                   # re-run affected screens on file change
 ```
 
 ### 9.2 Exit codes
 
-As specified in 5.1: `0` clean, `1` tier-1 regression, `2` usage error, `3` recon required, `4` infrastructure error. The separation between `1` and `4` is the most operationally important decision in the CLI, because a build that goes red because AutoQA could not start the dev server is a build nobody will keep.
+As specified in 5.1: `0` clean, `1` tier-1 regression, `2` usage error, `3` recon required, `4` infrastructure error. The separation between `1` and `4` is the most operationally important decision in the CLI, because a build that goes red because Bughunters could not start the dev server is a build nobody will keep.
 
-### 9.3 `autoqa.yml`
+### 9.3 `bughunters.yml`
 
 ```yaml
 version: 1
@@ -1200,10 +1200,10 @@ run:
 auth:
   kind: form
   loginUrl: /login
-  credentials: ${AUTOQA_TEST_USER}
+  credentials: ${BUGHUNTERS_TEST_USER}
   steps:
-    - fill: { selector: "#email", value: "${AUTOQA_TEST_EMAIL}" }
-    - fill: { selector: "#password", value: "${AUTOQA_TEST_PASSWORD}" }
+    - fill: { selector: "#email", value: "${BUGHUNTERS_TEST_EMAIL}" }
+    - fill: { selector: "#password", value: "${BUGHUNTERS_TEST_PASSWORD}" }
     - click: { selector: "button[type=submit]" }
     - expect: { url: "/dashboard" }
 
@@ -1251,21 +1251,21 @@ production:
   allowMutations: false     # never enable against a production system
 ```
 
-**Config precedence:** CLI flags > repo `autoqa.yml` > organisation defaults > detected defaults. Everything AutoQA detects is written into the file with provenance, so a human can see *why* it chose a value and correct it.
+**Config precedence:** CLI flags > repo `bughunters.yml` > organisation defaults > detected defaults. Everything Bughunters detects is written into the file with provenance, so a human can see *why* it chose a value and correct it.
 
 ### 9.4 The local loop
 
-`autoqa watch` is what makes this a tool engineers use rather than a CI bot they tolerate. It watches the mapped source files, re-runs only the affected screens, and serves the report locally with the same UI as CI - so a developer sees the regression before pushing, and the first time they meet AutoQA it is being helpful rather than blocking.
+`bughunters watch` is what makes this a tool engineers use rather than a CI bot they tolerate. It watches the mapped source files, re-runs only the affected screens, and serves the report locally with the same UI as CI - so a developer sees the regression before pushing, and the first time they meet Bughunters it is being helpful rather than blocking.
 
 ---
 
 ## 10. GitHub App
 
-The App is how AutoQA reaches the repo, and its permission model is designed to be defensible in a security review.
+The App is how Bughunters reaches the repo, and its permission model is designed to be defensible in a security review.
 
 ### 10.1 Permissions - tiered by feature
 
-Most visual-testing tools request a broad, fixed set. AutoQA requests the minimum for the mode you actually use, and asks for more only when you enable the feature that needs it.
+Most visual-testing tools request a broad, fixed set. Bughunters requests the minimum for the mode you actually use, and asks for more only when you enable the feature that needs it.
 
 | Permission | Level | Needed for | When requested |
 |---|---|---|---|
@@ -1293,48 +1293,48 @@ That last row is the important one: read-only access to code is the default, and
 
 | Label | Meaning |
 |---|---|
-| `autoqa` | Filed by AutoQA |
-| `autoqa:bug` | Confirmed finding |
-| `autoqa:question` | Needs a human decision on intent |
-| `autoqa:regression` | Something that used to work stopped working |
-| `autoqa:a11y` / `autoqa:content` / `autoqa:flow` | Class |
-| `autoqa-fix` | A PR containing an automated fix |
+| `bughunters` | Filed by Bughunters |
+| `bughunters:bug` | Confirmed finding |
+| `bughunters:question` | Needs a human decision on intent |
+| `bughunters:regression` | Something that used to work stopped working |
+| `bughunters:a11y` / `bughunters:content` / `bughunters:flow` | Class |
+| `bughunters-fix` | A PR containing an automated fix |
 | `needs-decision` | Waiting on a human answer; blocks nothing |
 
-### 10.4 The workflow AutoQA writes
+### 10.4 The workflow Bughunters writes
 
-`autoqa init` commits a workflow so the user does not have to write CI config:
+`bughunters init` commits a workflow so the user does not have to write CI config:
 
 ```yaml
-name: AutoQA
+name: Bughunters
 on:
   pull_request:
   push: { branches: [main] }
   schedule: [{ cron: '0 6 * * *' }]   # nightly full sweep
 
 jobs:
-  autoqa:
+  bughunters:
     runs-on: ubuntu-latest
     permissions: { contents: read, checks: write, issues: write, pull-requests: write }
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }        # need history for the compare API
-      - uses: autoqa/run@v1
+      - uses: bughunters/run@v1
         with:
           mode: ${{ github.event_name == 'schedule' && 'all' || 'changed-only' }}
 ```
 
-Note the explicit `permissions:` block - AutoQA's own workflow is least-privilege, and the fix-mode job is a separate, opt-in workflow so that a repo granting read-only never has write access in a sibling job by accident.
+Note the explicit `permissions:` block - Bughunters's own workflow is least-privilege, and the fix-mode job is a separate, opt-in workflow so that a repo granting read-only never has write access in a sibling job by accident.
 
 ### 10.5 Monorepos and multi-repo
 
 - **Monorepo:** the unit of a `Project` is a package or app inside the repo, not the repo, so a monorepo can hold several. Change mapping respects package boundaries, which is what keeps run times sane. A root-level shared component still fans out to every app that uses it.
 - **Multiple repos:** one App installation, many Projects. Cross-repo shared components are out of scope for v1 and should be stated as such rather than half-supported.
-- **Uninstall:** deleting the installation revokes access and stops all runs; AutoQA retains no source code. Baselines and the AppModel are deleted on request.
+- **Uninstall:** deleting the installation revokes access and stops all runs; Bughunters retains no source code. Baselines and the AppModel are deleted on request.
 
 ## 11. Security, privacy and safety
 
-AutoQA drives a real application, reads real data, holds CI credentials, and runs a model over arbitrary page content. Each of those is a distinct threat surface.
+Bughunters drives a real application, reads real data, holds CI credentials, and runs a model over arbitrary page content. Each of those is a distinct threat surface.
 
 ### 11.1 Prompt injection - the defining risk of this design
 
@@ -1364,10 +1364,10 @@ Screenshots of a real application contain real user data, and a visual testing t
 | **Retention** | Raw artifacts 30 days by default; baselines and the AppModel retained until deleted |
 | **Third-party request blocking** | External requests are blocked by default, which prevents an accidental data path out via a crawled page |
 | **Self-hosting** | The control plane is self-hostable, and the deterministic tier requires no external service at all |
-| **Offline mode** | `autoqa run --no-models` performs a full deterministic run with no network egress whatsoever |
+| **Offline mode** | `bughunters run --no-models` performs a full deterministic run with no network egress whatsoever |
 | **Deletion** | Uninstalling the App stops all processing; a deletion request removes baselines, artifacts and the AppModel |
 
-The offline mode is the answer for regulated teams for whom "is this data sent to a model provider?" is a procurement blocker rather than a preference. It also means AutoQA degrades to a useful tool rather than a broken one when a model provider is unavailable.
+The offline mode is the answer for regulated teams for whom "is this data sent to a model provider?" is a procurement blocker rather than a preference. It also means Bughunters degrades to a useful tool rather than a broken one when a model provider is unavailable.
 
 ### 11.3 Running against real systems
 
@@ -1384,7 +1384,7 @@ The offline mode is the answer for regulated teams for whom "is this data sent t
 - The CLI and runner are signed; releases are reproducible.
 - GitHub App uses short-lived installation tokens; no long-lived PATs anywhere in the system.
 - Test-user credentials live in the user's own secret store, referenced by `SecretRef` and resolved at run time.
-- Model provider keys are user-supplied and never proxied through AutoQA infrastructure in local or self-hosted mode.
+- Model provider keys are user-supplied and never proxied through Bughunters infrastructure in local or self-hosted mode.
 
 ### 11.5 Auditability
 
@@ -1407,7 +1407,7 @@ The choice that generates the most long-term operational pain, and the one teams
 ### 12.1 The recommended layout
 
 ```
-.autoqa/
+.bughunters/
   appmodel.json          # committed - the AppModel, human-reviewable
   baselines.manifest.json# committed - hashes + image digest, NOT the pixels
   intents.json           # committed - the Intent Ledger, reviewable in PRs
@@ -1488,7 +1488,7 @@ Each milestone has a concrete "done when". Feature lists without acceptance crit
 
 Bring-up resolution, auth resolution, the crawl, screen and flow modelling, baseline capture across viewports, and the human review gate.
 
-**Done when:** an unaided `autoqa recon` against a real authenticated app produces an AppModel containing the app's actual screens, and a human can correct it in a review surface in under ten minutes. Auth is the gate here - if this milestone does not work on a real app with real login, nothing downstream matters.
+**Done when:** an unaided `bughunters recon` against a real authenticated app produces an AppModel containing the app's actual screens, and a human can correct it in a review surface in under ten minutes. Auth is the gate here - if this milestone does not work on a real app with real login, nothing downstream matters.
 
 ### M2 - Source mapping and change-aware runs
 
@@ -1500,7 +1500,7 @@ The mapping cascade, the inverse file-to-screen index, blast-radius expansion, `
 
 Layout invariants, new-versus-baseline a11y, console and network checks, the stability gate, masking, and the full determinism contract.
 
-**Done when:** three consecutive runs against an unchanged commit produce zero diffs across every screen and viewport. **This is the single most important acceptance criterion in the entire roadmap** - it is the property every competitor fails, and until it holds, nothing above this layer can be trusted. It should be treated as a CI test of AutoQA itself and run on every commit.
+**Done when:** three consecutive runs against an unchanged commit produce zero diffs across every screen and viewport. **This is the single most important acceptance criterion in the entire roadmap** - it is the property every competitor fails, and until it holds, nothing above this layer can be trusted. It should be treated as a CI test of Bughunters itself and run on every commit.
 
 ### M4 - The decision layer
 
@@ -1510,7 +1510,7 @@ The state digest and pruner, the Jev question set, confidence thresholds, cluste
 
 ### M5 - Reporting and the local loop
 
-Static HTML report, sticky PR comment, slash commands, `autoqa watch`, JUnit/SARIF export.
+Static HTML report, sticky PR comment, slash commands, `bughunters watch`, JUnit/SARIF export.
 
 **Done when:** a developer fixes a regression using only the PR comment, without opening the full report.
 
@@ -1518,7 +1518,7 @@ Static HTML report, sticky PR comment, slash commands, `autoqa watch`, JUnit/SAR
 
 The narrow allowlist, deterministic reproduction, locate, minimal diff, verification against the full tier-1 suite, and PR creation.
 
-**Done when:** a real bug is found, filed, fixed by an AutoQA PR, and merged by a human who read the evidence and agreed. One end-to-end example is worth more than ten features here.
+**Done when:** a real bug is found, filed, fixed by an Bughunters PR, and merged by a human who read the evidence and agreed. One end-to-end example is worth more than ten features here.
 
 ### Beyond M6 - deliberately deferred
 
@@ -1561,4 +1561,4 @@ The narrow allowlist, deterministic reproduction, locate, minimal diff, verifica
 
 ### 15.3 The one thing to get right first
 
-If only one part of this spec gets built well, it should be the determinism contract and the layout invariant engine. Every other layer - decisions, issues, fixes - sits on top of a signal that must be trustworthy. Get the flake rate to zero and the invariants explainable, and the rest of the system has something real to reason about. Skip it, and AutoQA becomes another visual testing tool that everyone turns off.
+If only one part of this spec gets built well, it should be the determinism contract and the layout invariant engine. Every other layer - decisions, issues, fixes - sits on top of a signal that must be trustworthy. Get the flake rate to zero and the invariants explainable, and the rest of the system has something real to reason about. Skip it, and Bughunters becomes another visual testing tool that everyone turns off.

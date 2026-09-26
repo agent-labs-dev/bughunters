@@ -1,7 +1,7 @@
 import { compare } from 'odiff-bin';
 import type { DiffRequest, DiffResult } from '../types.js';
 import { boundingRegionsFromLines, maskedPixelCount } from '../mask-accounting.js';
-import { InfrastructureError } from '@autoqa/core';
+import { InfrastructureError } from '@bughunters/core';
 
 /**
  * The primary engine. Published benchmark on cypress.io screenshots: 1.168s vs

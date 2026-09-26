@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import type { AgentEvent, AutoQAConfig, Lesson } from '@autoqa/core';
+import type { AgentEvent, BughuntersConfig, Lesson } from '@bughunters/core';
 import { createRuntime as makeRuntime } from '../runtime/index.js';
 import type { Tool } from '../types.js';
 import { Vars } from '../vars.js';
@@ -51,7 +51,7 @@ export function troubleLog(events: AgentEvent[], summary = ''): string[] {
   return lines.slice(0, 150).map((line) => line.slice(0, 500));
 }
 
-export async function reflectOnSession(root: string, config: AutoQAConfig, sessionId: string,
+export async function reflectOnSession(root: string, config: BughuntersConfig, sessionId: string,
   deps: { createRuntime?: typeof makeRuntime; onLog?: (message: string) => void; vars?: Vars } = {}): Promise<void> {
   if (!config.agents.memory.enabled) return;
   const workspace = new Workspace(root);

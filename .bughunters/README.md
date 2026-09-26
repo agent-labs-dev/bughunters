@@ -1,4 +1,4 @@
-# .autoqa/
+# .bughunters/
 
 Three files here are **committed** and reviewable in the pull request:
 

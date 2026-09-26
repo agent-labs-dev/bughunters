@@ -5,24 +5,27 @@ coverage/
 .DS_Store
 *.log
 
-# AutoQA local state. The committed files under .autoqa/ are whitelisted below;
+# Bughunters local state. The committed files under .bughunters/ are whitelisted below;
 # everything else in there is run-local scratch.
 #
 # A pattern containing a slash is anchored to this file's directory, so a bare
-# `.autoqa/*` misses `examples/*/.autoqa/`. The `**/` prefix applies it at
+# `.bughunters/*` misses `examples/*/.bughunters/`. The `**/` prefix applies it at
 # every depth.
-**/.autoqa/*
-!**/.autoqa/appmodel.json
-!**/.autoqa/baselines.manifest.json
-!**/.autoqa/intents.json
-!**/.autoqa/README.md
+**/.bughunters/*
+!**/.bughunters/appmodel.json
+!**/.bughunters/baselines.manifest.json
+!**/.bughunters/intents.json
+!**/.bughunters/README.md
 
 # The fixture app is a test subject, not a project: its baselines are captured
 # fresh by scripts/determinism-check.sh and are tied to one machine's rendering.
-examples/*/.autoqa/
+examples/*/.bughunters/
 
 .env
 .env.*
 !.env.example
 test-results/
 playwright-report/
+
+# Copied from packages/dashboard/src/ui by the bughunters bundle build.
+packages/bughunters/src/ui/

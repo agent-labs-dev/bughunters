@@ -2,7 +2,7 @@ import { spawn } from 'node:child_process';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { RoleRuntime } from '@autoqa/core';
+import type { RoleRuntime } from '@bughunters/core';
 import { serveTools } from '../mcp-server.js';
 import { firstLine } from './model.js';
 import type { EventSink, RoleOutcome, RoleTask, Runtime } from '../types.js';
@@ -22,7 +22,7 @@ export class CliRuntime implements Runtime {
   }
 
   async run(task: RoleTask, emit: EventSink): Promise<RoleOutcome> {
-    const temp = await mkdtemp(join(tmpdir(), 'autoqa-agent-'));
+    const temp = await mkdtemp(join(tmpdir(), 'bughunters-agent-'));
     let summary = '';
     let steps = 0;
     let stderr = '';
@@ -71,7 +71,7 @@ export class CliRuntime implements Runtime {
       const mcpFile = join(temp, 'mcp.json');
       const prompt = `${task.system}\n\n${task.prompt}`;
       await writeFile(promptFile, prompt);
-      await writeFile(mcpFile, JSON.stringify({ mcpServers: { autoqa: { type: 'http', url: mcp.url } } }));
+      await writeFile(mcpFile, JSON.stringify({ mcpServers: { bughunters: { type: 'http', url: mcp.url } } }));
       const workdir = task.workdir ?? process.cwd();
       const replacements = {
         prompt: promptFile,

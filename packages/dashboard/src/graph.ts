@@ -1,9 +1,9 @@
-import type { AppModel, LiveProgress } from '@autoqa/core';
+import type { AppModel, LiveProgress } from '@bughunters/core';
 import type { RunRecord } from './project.js';
 
 export type GraphNodeState =
   | 'visited'
-  /** Linked to from a visited screen, but AutoQA has never captured it. */
+  /** Linked to from a visited screen, but Bughunters has never captured it. */
   | 'discovered'
   /** Off-origin. Recorded as a finding, never followed (spec 11.1). */
   | 'external';
@@ -56,7 +56,7 @@ export type AppGraph = {
  *
  * That derived graph is genuinely useful rather than a placeholder, because it
  * makes the gap visible: a `discovered` node is somewhere the app links to that
- * AutoQA has never looked at. Showing coverage honestly is the whole point --
+ * Bughunters has never looked at. Showing coverage honestly is the whole point --
  * a map that only draws what was tested implies the rest does not exist.
  */
 export function buildGraph(
@@ -64,7 +64,7 @@ export function buildGraph(
   run: RunRecord | undefined,
   live?: LiveProgress,
 ): AppGraph {
-  // A run in flight wins: watching the map fill in as AutoQA walks the app is
+  // A run in flight wins: watching the map fill in as Bughunters walks the app is
   // the point of having it live, and the finished run is one refresh away.
   if (live?.status === 'running' && live.captured.length > 0) return fromLive(live);
   if (model && model.screens.length > 0) return fromAppModel(model, run);

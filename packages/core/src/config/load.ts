@@ -1,22 +1,22 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { parse as parseYaml } from 'yaml';
-import { autoqaConfigSchema, type AutoQAConfig } from './schema.js';
+import { bughuntersConfigSchema, type BughuntersConfig } from './schema.js';
 import type { z } from 'zod';
 import type { runSchema } from './schema.js';
 import { ConfigError } from '../errors.js';
 
-export const CONFIG_FILENAME = 'autoqa.yml';
+export const CONFIG_FILENAME = 'bughunters.yml';
 
 /**
- * Config precedence: CLI flags > repo autoqa.yml > org defaults > detected
+ * Config precedence: CLI flags > repo bughunters.yml > org defaults > detected
  * defaults (spec 9.3). This loader handles the middle two; the CLI layers flags
  * on top of whatever comes back.
  */
-export function loadConfig(cwd = process.cwd(), overrides: Partial<AutoQAConfig> = {}): AutoQAConfig {
+export function loadConfig(cwd = process.cwd(), overrides: Partial<BughuntersConfig> = {}): BughuntersConfig {
   const path = resolve(cwd, CONFIG_FILENAME);
   if (!existsSync(path)) {
-    throw new ConfigError(`No ${CONFIG_FILENAME} found in ${cwd}. Run \`autoqa init\` first.`);
+    throw new ConfigError(`No ${CONFIG_FILENAME} found in ${cwd}. Run \`bughunters init\` first.`);
   }
 
   let raw: unknown;
@@ -29,8 +29,8 @@ export function loadConfig(cwd = process.cwd(), overrides: Partial<AutoQAConfig>
   return parseConfig(mergeShallow(raw, overrides), path);
 }
 
-export function parseConfig(raw: unknown, source = '<inline>'): AutoQAConfig {
-  const result = autoqaConfigSchema.safeParse(raw);
+export function parseConfig(raw: unknown, source = '<inline>'): BughuntersConfig {
+  const result = bughuntersConfigSchema.safeParse(raw);
   if (!result.success) {
     const issues = result.error.issues
       .map((i) => `  ${i.path.join('.') || '<root>'}: ${i.message}`)
@@ -40,7 +40,7 @@ export function parseConfig(raw: unknown, source = '<inline>'): AutoQAConfig {
   return result.data;
 }
 
-function mergeShallow(raw: unknown, overrides: Partial<AutoQAConfig>): unknown {
+function mergeShallow(raw: unknown, overrides: Partial<BughuntersConfig>): unknown {
   if (typeof raw !== 'object' || raw === null) return raw;
   return { ...(raw as Record<string, unknown>), ...overrides };
 }
@@ -69,12 +69,12 @@ export function resolveSecretRefs<T>(value: T, env: NodeJS.ProcessEnv = process.
 
 /**
  * The `run` block, for commands that start a web app themselves. Only
- * `autoqa run` and the web driver need it; other platforms start through
+ * `bughunters run` and the web driver need it; other platforms start through
  * `app.setup` (ADR 0005).
  */
-export function requireRun(config: AutoQAConfig): z.infer<typeof runSchema> {
+export function requireRun(config: BughuntersConfig): z.infer<typeof runSchema> {
   if (!config.run) {
-    throw new ConfigError('This command needs a `run` block (command and url) in autoqa.yml.');
+    throw new ConfigError('This command needs a `run` block (command and url) in bughunters.yml.');
   }
   return config.run;
 }

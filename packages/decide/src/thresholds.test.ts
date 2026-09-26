@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { route, fixEligible, severityFrom } from './thresholds.js';
-import type { Answer } from '@autoqa/core';
+import type { Answer } from '@bughunters/core';
 
 const thresholds = { high: 0.85, low: 0.55 };
 

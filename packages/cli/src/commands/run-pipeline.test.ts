@@ -2,20 +2,20 @@ import { describe, expect, it, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, rmSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { parseConfig, ExitCode, type AutoQAConfig } from '@autoqa/core';
-import type { ScreenSnapshot } from '@autoqa/invariants';
-import type { CrossCheckResult, DiffResult } from '@autoqa/diff';
+import { parseConfig, ExitCode, type BughuntersConfig } from '@bughunters/core';
+import type { ScreenSnapshot } from '@bughunters/invariants';
+import type { CrossCheckResult, DiffResult } from '@bughunters/diff';
 import { executeRun, PIXEL_DIFF_RULE, type CapturedScreen } from './run-pipeline.js';
 
 let root: string;
 
 beforeEach(() => {
-  root = mkdtempSync(join(tmpdir(), 'autoqa-pipeline-'));
-  mkdirSync(join(root, '.autoqa'), { recursive: true });
+  root = mkdtempSync(join(tmpdir(), 'bughunters-pipeline-'));
+  mkdirSync(join(root, '.bughunters'), { recursive: true });
 });
 afterEach(() => rmSync(root, { recursive: true, force: true }));
 
-const config: AutoQAConfig = parseConfig({
+const config: BughuntersConfig = parseConfig({
   version: 1,
   run: { command: 'noop', url: 'http://localhost:3000' },
 });

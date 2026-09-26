@@ -1,4 +1,4 @@
-import type { AgentEvent, AgentRole, RoleRuntime } from '@autoqa/core';
+import type { AgentEvent, AgentRole, RoleRuntime } from '@bughunters/core';
 
 /**
  * A tool is the contract between a role and its runtime (ADR 0005). The model

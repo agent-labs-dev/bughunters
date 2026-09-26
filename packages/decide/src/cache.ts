@@ -1,4 +1,4 @@
-import type { Answer, DeciderName, DecisionRecord } from '@autoqa/core';
+import type { Answer, DeciderName, DecisionRecord } from '@bughunters/core';
 
 /**
  * Keyed on the state hash. This is the single largest cost and latency saving

@@ -3,8 +3,8 @@ import { parseSlashCommand } from './slash-commands.js';
 import { requiredPermissions } from './permissions.js';
 import { buildCheckRun } from './checks.js';
 import { buildIssue, labelsFor } from './issues.js';
-import { id, ExitCode } from '@autoqa/core';
-import type { Finding, Run } from '@autoqa/core';
+import { id, ExitCode } from '@bughunters/core';
+import type { Finding, Run } from '@bughunters/core';
 
 const run: Run = {
   id: id.run('r1'),
@@ -42,12 +42,12 @@ const finding: Finding = {
 
 describe('parseSlashCommand', () => {
   it('parses run and run --all', () => {
-    expect(parseSlashCommand('/autoqa run')).toEqual({ kind: 'run', all: false });
-    expect(parseSlashCommand('/autoqa run --all')).toEqual({ kind: 'run', all: true });
+    expect(parseSlashCommand('/bughunters run')).toEqual({ kind: 'run', all: false });
+    expect(parseSlashCommand('/bughunters run --all')).toEqual({ kind: 'run', all: true });
   });
 
   it('parses accept with a reason', () => {
-    expect(parseSlashCommand('/autoqa accept f1 --reason "intentional"')).toEqual({
+    expect(parseSlashCommand('/bughunters accept f1 --reason "intentional"')).toEqual({
       kind: 'accept',
       findingId: 'f1',
       reason: 'intentional',
@@ -55,7 +55,7 @@ describe('parseSlashCommand', () => {
   });
 
   it('parses a mute expiry so suppressions get revisited', () => {
-    expect(parseSlashCommand('/autoqa mute fp1 --expires 30d')).toEqual({
+    expect(parseSlashCommand('/bughunters mute fp1 --expires 30d')).toEqual({
       kind: 'mute',
       fingerprint: 'fp1',
       expiresInDays: 30,
@@ -63,7 +63,7 @@ describe('parseSlashCommand', () => {
   });
 
   it('finds the command on any line of a longer comment', () => {
-    expect(parseSlashCommand('Looks intentional to me.\n\n/autoqa accept f1')).toMatchObject({ kind: 'accept' });
+    expect(parseSlashCommand('Looks intentional to me.\n\n/bughunters accept f1')).toMatchObject({ kind: 'accept' });
   });
 
   it('ignores unrelated comments', () => {
@@ -113,12 +113,12 @@ describe('buildIssue', () => {
   });
 
   it('always offers the one-action escape hatch', () => {
-    expect(buildIssue(finding, {}).body).toContain('/autoqa accept');
+    expect(buildIssue(finding, {}).body).toContain('/bughunters accept');
   });
 
   it('labels a question so it never looks like a confirmed bug', () => {
     const labels = labelsFor({ ...finding, route: 'question' });
     expect(labels).toContain('needs-decision');
-    expect(labels).not.toContain('autoqa:bug');
+    expect(labels).not.toContain('bughunters:bug');
   });
 });

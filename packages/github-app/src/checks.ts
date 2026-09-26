@@ -1,5 +1,5 @@
-import type { Finding, Run } from '@autoqa/core';
-import { ExitCode } from '@autoqa/core';
+import type { Finding, Run } from '@bughunters/core';
+import { ExitCode } from '@bughunters/core';
 
 export type CheckAnnotation = {
   path: string;
@@ -20,7 +20,7 @@ export type CheckRunPayload = {
 const MAX_ANNOTATIONS = 50;
 
 /**
- * Annotations are where AutoQA meets engineers in their normal workflow: a red
+ * Annotations are where Bughunters meets engineers in their normal workflow: a red
  * squiggle on the changed component is worth more than a report nobody opens
  * (spec 5.1).
  *
@@ -53,7 +53,7 @@ export function buildCheckRun(run: Run, findings: Finding[]): CheckRunPayload {
     }));
 
   return {
-    name: 'AutoQA',
+    name: 'Bughunters',
     conclusion,
     output: {
       title: summaryTitle(run, blocking.length),
@@ -61,7 +61,7 @@ export function buildCheckRun(run: Run, findings: Finding[]): CheckRunPayload {
         `Mode: \`${run.mode}\` · ${run.plan.coverage.screensSelected}/${run.plan.coverage.screensTotal} screens · mapping confidence ${(run.plan.mappingConfidence * 100).toFixed(0)}%`,
         '',
         run.exitCode === ExitCode.Infrastructure
-          ? 'AutoQA could not test this change. This is an infrastructure failure and does not indicate a product defect.'
+          ? 'Bughunters could not test this change. This is an infrastructure failure and does not indicate a product defect.'
           : blocking.length > 0
             ? `${blocking.length} tier-1 regression(s). Only deterministic regressions can turn this check red.`
             : 'No tier-1 regressions.',

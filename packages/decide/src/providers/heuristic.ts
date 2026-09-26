@@ -1,8 +1,8 @@
-import type { Answer, Decider, Question } from '@autoqa/core';
+import type { Answer, Decider, Question } from '@bughunters/core';
 
 /**
  * Rule-only, zero model, zero network. This is what makes
- * `autoqa run --no-models` and the air-gapped deployment real rather than
+ * `bughunters run --no-models` and the air-gapped deployment real rather than
  * aspirational: with this decider installed, the deterministic tier runs end to
  * end with no egress whatsoever.
  *

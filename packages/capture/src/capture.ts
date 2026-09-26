@@ -1,9 +1,9 @@
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import type { Page } from 'playwright';
-import type { AutoQAConfig, MaskConfig, ViewportConfig } from '@autoqa/core';
-import { sha256 } from '@autoqa/core';
-import { PROBE_SOURCE, type ScreenSnapshot } from '@autoqa/invariants';
+import type { BughuntersConfig, MaskConfig, ViewportConfig } from '@bughunters/core';
+import { sha256 } from '@bughunters/core';
+import { PROBE_SOURCE, type ScreenSnapshot } from '@bughunters/invariants';
 import { STABILITY_STYLESHEET } from './determinism.js';
 import { waitForStableFrame } from './stability-gate.js';
 import { assertNoFontFallback } from './browser.js';
@@ -31,7 +31,7 @@ export type CaptureOutput = {
 
 export async function captureScreen(
   page: Page,
-  config: AutoQAConfig,
+  config: BughuntersConfig,
   request: CaptureRequest,
 ): Promise<CaptureOutput> {
   await page.goto(request.url, { waitUntil: 'load' });
@@ -49,7 +49,7 @@ export async function captureScreen(
     fullPage: request.fullPage ?? true,
     animations: 'disabled',
     caret: 'hide',
-    // Playwright paints over masked elements. AutoQA still records the geometry
+    // Playwright paints over masked elements. Bughunters still records the geometry
     // so the masked fraction can be reported rather than silently applied.
     mask: masks.map((m) => page.locator(m.selector)),
   });

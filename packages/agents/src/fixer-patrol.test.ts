@@ -5,7 +5,7 @@ import { chmod, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:f
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { parseConfig, type Candidate, type FixProposal, type Issue } from '@autoqa/core';
+import { parseConfig, type Candidate, type FixProposal, type Issue } from '@bughunters/core';
 import { FakeDriver } from './testing/fake-driver.js';
 import { AgentSession } from './session.js';
 import { Vars } from './vars.js';
@@ -21,12 +21,12 @@ async function git(cwd: string, ...args: string[]) {
 }
 
 async function repoFixture() {
-  const root = await mkdtemp(join(tmpdir(), 'autoqa-fixer-'));
+  const root = await mkdtemp(join(tmpdir(), 'bughunters-fixer-'));
   const source = join(root, 'source');
   await exec('mkdir', ['-p', source]);
   await git(source, 'init');
   await git(source, 'config', 'user.email', 'test@example.com');
-  await git(source, 'config', 'user.name', 'AutoQA Test');
+  await git(source, 'config', 'user.name', 'Bughunters Test');
   await git(source, 'config', 'commit.gpgsign', 'false');
   await git(source, 'config', 'core.hooksPath', '/dev/null');
   await writeFile(join(source, 'app.txt'), 'broken\n');
@@ -69,7 +69,7 @@ describe('fixer', () => {
         return { stop: 'done', steps: 1, costUsd: 0, summary: 'Fixed screen' };
       } };
       const [proposal] = await runFixer(f.session, runtime);
-      expect(proposal).toMatchObject({ status: 'retesting', branch: 'autoqa/fix-iss_1' });
+      expect(proposal).toMatchObject({ status: 'retesting', branch: 'bughunters/fix-iss_1' });
       expect(proposal?.diff).toContain('+fixed');
       expect((await f.workspace.readIssue('iss_1'))).toMatchObject({ status: 'fix-proposed', fixId: 'fix_iss_1' });
       expect((await git(proposal!.worktree, 'log', '-1', '--pretty=%s')).stdout.trim())
@@ -183,7 +183,7 @@ describe('fix cycle', () => {
         } }) });
       expect(result.closed).toEqual(['iss_1']);
       expect((await f.workspace.readFix(fix.id))?.retests?.[0]).toMatchObject({ build: 'main', outcome: 'fixed' });
-      expect((await f.workspace.readIssue('iss_1'))).toMatchObject({ status: 'fixed', closedBy: { by: 'AutoQA' } });
+      expect((await f.workspace.readIssue('iss_1'))).toMatchObject({ status: 'fixed', closedBy: { by: 'Bughunters' } });
       expect((await readFile(join(f.source, 'main-source'), 'utf8')).trim()).toBe(await realpath(f.source));
       expect(existsSync(join(worktree, 'prepare-ran'))).toBe(false);
     } finally { await rm(f.root, { recursive: true, force: true }); }
@@ -196,7 +196,7 @@ describe('fix cycle', () => {
       await f.workspace.saveRoutine({ version: 1, id: 'enter-app', description: 'Enter app', platform: 'web',
         steps: [{ kind: 'open', url: 'fake://home' }], createdAt: 'now', updatedAt: 'now' });
       const config = parseConfig({ ...f.config, app: { ...f.config.app,
-        setup: [{ run: 'pwd > retest-cwd; echo "$AUTOQA_SOURCE" > retest-source', cwd: 'source' }] } });
+        setup: [{ run: 'pwd > retest-cwd; echo "$BUGHUNTERS_SOURCE" > retest-source', cwd: 'source' }] } });
       const driver = new FakeDriver({ home: { elements: [] } });
       const roles: string[] = [];
       const [fix] = await runFixCycle(f.root, config, { createDriver: () => driver,
@@ -426,7 +426,7 @@ describe('patrol', () => {
     agents: { fixer: { enabled: false }, patrol: { cycles: 1 } } });
 
   it('runs explorer then judge and closes the driver', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'autoqa-patrol-'));
+    const root = await mkdtemp(join(tmpdir(), 'bughunters-patrol-'));
     const driver = new FakeDriver({ home: { elements: [] } });
     const roles: string[] = [];
     try {
@@ -454,7 +454,7 @@ describe('patrol', () => {
   });
 
   it('leaves known screen routines for the explorer to revisit', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'autoqa-patrol-'));
+    const root = await mkdtemp(join(tmpdir(), 'bughunters-patrol-'));
     const workspace = new Workspace(root);
     const now = new Date().toISOString();
     await workspace.saveRoutine({ version: 1, id: 'screen-home', description: 'Home', platform: 'web',
@@ -474,7 +474,7 @@ describe('patrol', () => {
   });
 
   it('tears down when explorer throws', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'autoqa-patrol-'));
+    const root = await mkdtemp(join(tmpdir(), 'bughunters-patrol-'));
     const driver = new FakeDriver({ home: { elements: [] } });
     const withTeardown = parseConfig({ version: 1,
       app: { connect: { url: 'fake://home' }, teardown: [{ run: 'touch stopped.txt' }] },

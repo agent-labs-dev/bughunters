@@ -207,7 +207,7 @@ const cliRuntimeSchema = z.object({
   runtime: z.literal('cli'),
   /**
    * A shell command. Placeholders: {prompt} (a file holding the prompt),
-   * {mcp} (an MCP config file for the AutoQA tools), {mcpUrl}, {workdir}.
+   * {mcp} (an MCP config file for the Bughunters tools), {mcpUrl}, {workdir}.
    * The prompt also goes to stdin.
    */
   command: z.string(),
@@ -272,8 +272,8 @@ export const agentsSchema = z
       repo: z.string().optional(),
       pullRequests: z.enum(['draft', 'ready']).default('draft'),
       issueMinSeverity: z.enum(['cosmetic', 'minor', 'major', 'critical']).default('major'),
-      assetsBranch: z.string().default('autoqa-assets'),
-      labels: z.array(z.string()).default(['autoqa']),
+      assetsBranch: z.string().default('bughunters-assets'),
+      labels: z.array(z.string()).default(['bughunters']),
   /** The scope in PR titles, e.g. 'app'. Default: the scope in fixer.commitMessage. */
   prScope: z.string().optional(),
     }).default({}),
@@ -287,7 +287,7 @@ export const agentsSchema = z
   })
   .default({});
 
-export const autoqaConfigSchema = z.object({
+export const bughuntersConfigSchema = z.object({
   version: z.literal(1),
   /** Web only: how to start and reach the app. Other platforms use `app`. */
   run: runSchema.optional(),
@@ -320,7 +320,7 @@ export const autoqaConfigSchema = z.object({
   }
 });
 
-export type AutoQAConfig = z.infer<typeof autoqaConfigSchema>;
+export type BughuntersConfig = z.infer<typeof bughuntersConfigSchema>;
 export type AppConfig = z.infer<typeof appSchema>;
 export type AppCommand = z.infer<typeof appCommandSchema>;
 export type AgentsConfig = z.infer<typeof agentsSchema>;

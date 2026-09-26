@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { InfrastructureError, type Question } from '@autoqa/core';
+import { InfrastructureError, type Question } from '@bughunters/core';
 import { ModelDecider } from './model.js';
 
 const questions: Record<string, Question> = {
@@ -27,7 +27,7 @@ describe('ModelDecider', () => {
     expect(body.model).toBe('custom/model');
     expect(body.temperature).toBeUndefined();
     expect(body.response_format.type).toBe('json_schema');
-    expect(body.response_format.json_schema).toMatchObject({ name: 'autoqa_answers', strict: true });
+    expect(body.response_format.json_schema).toMatchObject({ name: 'bughunters_answers', strict: true });
     const schema = body.response_format.json_schema.schema;
     expect(schema.required).toEqual(['yes', 'category', 'mood']);
     expect(schema.additionalProperties).toBe(false);

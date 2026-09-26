@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { LiveProgress, RunTrace } from '@autoqa/core';
+import type { LiveProgress, RunTrace } from '@bughunters/core';
 import { buildGraph } from './graph.js';
 import type { RunRecord } from './project.js';
 
@@ -103,7 +103,7 @@ describe('buildGraph', () => {
     expect(home.severity).toBe('critical');
   });
 
-  it('prefers a run in flight, so the map fills in as AutoQA walks', () => {
+  it('prefers a run in flight, so the map fills in as Bughunters walks', () => {
     const live: LiveProgress = {
       version: 1,
       runId: 'pending',

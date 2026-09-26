@@ -1,4 +1,4 @@
-import type { Finding, Run } from '@autoqa/core';
+import type { Finding, Run } from '@bughunters/core';
 import { escapeXml } from './junit.js';
 
 export type ReportInput = {
@@ -27,12 +27,12 @@ export function renderHtml(input: ReportInput): string {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>AutoQA run ${escapeXml(run.id)}</title>
+<title>Bughunters run ${escapeXml(run.id)}</title>
 <style>${STYLES}</style>
 </head>
 <body>
 <header>
-  <h1>AutoQA</h1>
+  <h1>Bughunters</h1>
   <p class="meta">
     <span class="badge ${blocking.length > 0 ? 'bad' : 'good'}">${blocking.length > 0 ? 'regression' : 'clean'}</span>
     commit <code>${escapeXml(run.commit.slice(0, 8))}</code> &middot; mode ${escapeXml(run.mode)} &middot;

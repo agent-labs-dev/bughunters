@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
-import { fingerprint, shortHash, type Candidate, type Locator, type Routine, type RoutineStep, type ScreenTransition } from '@autoqa/core';
-import type { DriverAction, Observation, UiElement } from '@autoqa/drivers';
+import { fingerprint, shortHash, type Candidate, type Locator, type Routine, type RoutineStep, type ScreenTransition } from '@bughunters/core';
+import type { DriverAction, Observation, UiElement } from '@bughunters/drivers';
 import { addOccurrence, evaluateScreen } from '../evaluate.js';
 import { replayRoutine } from '../replay.js';
 import type { AgentSession } from '../session.js';

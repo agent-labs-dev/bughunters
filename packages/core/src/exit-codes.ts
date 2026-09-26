@@ -1,7 +1,7 @@
 /**
  * Exit semantics are strictly separated (spec 5.1). Conflating an
  * infrastructure failure with a product failure is how CI gets distrusted:
- * "AutoQA could not test" is a different statement from "AutoQA found a bug",
+ * "Bughunters could not test" is a different statement from "Bughunters found a bug",
  * and only the latter may ever turn a build red.
  */
 export const ExitCode = {
@@ -30,7 +30,7 @@ export function describeExit(code: ExitCodeValue): string {
     case ExitCode.ReconRequired:
       return 'recon required, or the AppModel is unapproved';
     case ExitCode.Infrastructure:
-      return 'infrastructure error -- AutoQA could not test';
+      return 'infrastructure error -- Bughunters could not test';
   }
 }
 

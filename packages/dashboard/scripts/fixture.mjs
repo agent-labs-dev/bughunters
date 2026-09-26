@@ -6,4 +6,4 @@ import { writeAgentFixture } from '../dist/fixtures/agent-workspace.js';
 const root = resolve(process.argv[2] || '/tmp/nebula-desktop');
 mkdirSync(root, { recursive: true });
 writeAgentFixture(root);
-console.log(`Fixture written to ${root}. Run autoqa dashboard there.`);
+console.log(`Fixture written to ${root}. Run bughunters dashboard there.`);

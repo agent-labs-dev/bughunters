@@ -1,11 +1,11 @@
-import type { Finding, Run } from '@autoqa/core';
+import type { Finding, Run } from '@bughunters/core';
 
 /** Marker used to find and edit the sticky comment in place, never append. */
-export const STICKY_MARKER = '<!-- autoqa:sticky-comment -->';
+export const STICKY_MARKER = '<!-- bughunters:sticky-comment -->';
 
 /**
  * One comment per PR, edited on every run. The commands are listed inline
- * because `/autoqa accept` is the most important affordance in the product: it
+ * because `/bughunters accept` is the most important affordance in the product: it
  * is the one-action escape hatch that turns a false positive into permanent
  * context instead of a grudge (spec 5.2).
  */
@@ -22,14 +22,14 @@ export function renderPrComment(input: {
 
   const verdict =
     run.status === 'infra-error'
-      ? '**AutoQA could not test this change.** This is an infrastructure failure, not a product failure, and it does not block the merge.'
+      ? '**Bughunters could not test this change.** This is an infrastructure failure, not a product failure, and it does not block the merge.'
       : blocking.length > 0
         ? `**${blocking.length} tier-1 regression(s).** These block the merge.`
         : '**No regressions.**';
 
   return [
     STICKY_MARKER,
-    '### AutoQA',
+    '### Bughunters',
     '',
     verdict,
     '',
@@ -52,7 +52,7 @@ export function renderPrComment(input: {
     '',
     input.reportUrl ? `[Full report](${input.reportUrl})` : '',
     '',
-    '<sub>`/autoqa run` · `/autoqa run --all` · `/autoqa explain <id>` · `/autoqa accept <id>` · `/autoqa mute <fingerprint>` · `/autoqa fix <id>` · `/autoqa baseline update`</sub>',
+    '<sub>`/bughunters run` · `/bughunters run --all` · `/bughunters explain <id>` · `/bughunters accept <id>` · `/bughunters mute <fingerprint>` · `/bughunters fix <id>` · `/bughunters baseline update`</sub>',
   ]
     .filter((line) => line !== '')
     .join('\n');

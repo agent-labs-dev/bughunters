@@ -1,6 +1,7 @@
 {
-  "name": "@autoqa/recon",
+  "name": "@bughunters/recon",
   "version": "0.0.0",
+  "private": true,
   "license": "Apache-2.0",
   "type": "module",
   "main": "./dist/index.js",
@@ -9,8 +10,8 @@
   "files": ["dist"],
   "scripts": { "build": "tsc --build" },
   "dependencies": {
-    "@autoqa/core": "workspace:*",
-    "@autoqa/capture": "workspace:*",
-    "@autoqa/decide": "workspace:*"
+    "@bughunters/core": "workspace:*",
+    "@bughunters/capture": "workspace:*",
+    "@bughunters/decide": "workspace:*"
   }
 }

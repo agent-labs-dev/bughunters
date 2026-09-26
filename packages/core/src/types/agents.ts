@@ -1,7 +1,7 @@
 import type { Severity } from './finding.js';
 
 /**
- * The agent layer (ADR 0005). Everything here is written to `.autoqa/` as
+ * The agent layer (ADR 0005). Everything here is written to `.bughunters/` as
  * plain JSON so the dashboard can render it and a human can audit it.
  */
 
@@ -24,7 +24,7 @@ export type MemoryFile = { version: 1; lessons: Lesson[] };
 export type Platform = 'web' | 'electron' | 'ios' | 'android';
 
 /**
- * How AutoQA finds an element again on a later run. The locator is tried
+ * How Bughunters finds an element again on a later run. The locator is tried
  * first; the point is the last resort, and a replay that needed it is
  * reported as degraded.
  */
@@ -86,7 +86,7 @@ export type ScreenTransition = {
 
 /** A screen the explorer found. `appmap.json` holds these. */
 export type AppMapScreen = {
-  /** Kebab-case, stable. The explorer names it; AutoQA de-duplicates it. */
+  /** Kebab-case, stable. The explorer names it; Bughunters de-duplicates it. */
   id: string;
   name: string;
   description: string;

@@ -2,7 +2,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { parseConfig } from '@autoqa/core';
+import { parseConfig } from '@bughunters/core';
 import { AgentSession } from './session.js';
 import { Vars } from './vars.js';
 import { Workspace } from './workspace.js';
@@ -35,7 +35,7 @@ async function capture(root: string) {
 
 describe('evaluateScreen', () => {
   it('runs the absolute checks on first sight and groups one rule into one candidate', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'autoqa-eval-'));
+    const root = await mkdtemp(join(tmpdir(), 'bughunters-eval-'));
     try {
       const { candidates } = await capture(root);
       const taps = candidates.filter((item) => item.ruleId === 'usability/tap-target');
@@ -48,7 +48,7 @@ describe('evaluateScreen', () => {
   });
 
   it('does not raise a fingerprint the judge dismissed', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'autoqa-eval-'));
+    const root = await mkdtemp(join(tmpdir(), 'bughunters-eval-'));
     try {
       const first = await capture(root);
       const record = await first.workspace.startSession('judge');
@@ -64,7 +64,7 @@ describe('evaluateScreen', () => {
   });
 
   it('adds an occurrence to a filed issue instead of a new candidate', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'autoqa-eval-'));
+    const root = await mkdtemp(join(tmpdir(), 'bughunters-eval-'));
     try {
       const first = await capture(root);
       const record = await first.workspace.startSession('judge');
@@ -88,7 +88,7 @@ describe('evaluateScreen', () => {
   });
 
   it('closes an automatic-check issue after three clean visits', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'autoqa-eval-'));
+    const root = await mkdtemp(join(tmpdir(), 'bughunters-eval-'));
     const original = screens.home!.elements;
     try {
       const first = await capture(root);
@@ -104,7 +104,7 @@ describe('evaluateScreen', () => {
         expect((await first.workspace.readIssue(issue!.id))?.notSeen).toBe(visit);
       }
       expect(await first.workspace.readIssue(issue!.id)).toMatchObject({ status: 'fixed',
-        closedBy: { by: 'AutoQA', reason: expect.stringContaining('in 3 visits') } });
+        closedBy: { by: 'Bughunters', reason: expect.stringContaining('in 3 visits') } });
     } finally {
       screens.home!.elements = original;
       await rm(root, { recursive: true, force: true });
@@ -114,7 +114,7 @@ describe('evaluateScreen', () => {
 
 describe('file_issue with issue_id', () => {
   it('adds a new session\'s candidates to the named open issue', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'autoqa-eval-'));
+    const root = await mkdtemp(join(tmpdir(), 'bughunters-eval-'));
     try {
       const first = await capture(root);
       const judgeOnce = async (sessionId: string, input: Record<string, unknown>) => {
@@ -146,7 +146,7 @@ describe('file_issue with issue_id', () => {
   });
 
   it('reopens a fixed issue as a regression and refuses a dismissed issue', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'autoqa-eval-'));
+    const root = await mkdtemp(join(tmpdir(), 'bughunters-eval-'));
     try {
       const first = await capture(root);
       const record = await first.workspace.startSession('judge');

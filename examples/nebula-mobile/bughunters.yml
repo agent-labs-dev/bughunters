@@ -1,8 +1,8 @@
-# AutoQA on the Nebula mobile app (React Native, Expo dev client) on the booted
+# Bughunters on the Nebula mobile app (React Native, Expo dev client) on the booted
 # iOS simulator, against the deployed dev backend.
 #
 # nebula-mobile's own E2E scripts mint a session through /auth/test-login and
-# print a deep link that installs it. AutoQA captures the link as a secret: the
+# print a deep link that installs it. Bughunters captures the link as a secret: the
 # explorer sees only {{E2E_LOGIN_LINK}}, and the driver opens the real link.
 version: 1
 

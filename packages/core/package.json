@@ -1,6 +1,7 @@
 {
-  "name": "@autoqa/core",
+  "name": "@bughunters/core",
   "version": "0.0.0",
+  "private": true,
   "license": "Apache-2.0",
   "type": "module",
   "main": "./dist/index.js",

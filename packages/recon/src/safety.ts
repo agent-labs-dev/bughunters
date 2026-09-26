@@ -1,5 +1,5 @@
-import type { Decider } from '@autoqa/core';
-import { IS_DESTRUCTIVE } from '@autoqa/decide';
+import type { Decider } from '@bughunters/core';
+import { IS_DESTRUCTIVE } from '@bughunters/decide';
 
 export type ActionClass = 'navigation' | 'safe-action' | 'destructive' | 'external' | 'auth-gated';
 
@@ -23,10 +23,10 @@ export async function classifyAction(
   candidate: ElementCandidate,
   options: { origin: string; decider?: Decider } = { origin: '' },
 ): Promise<{ class: ActionClass; reason: string }> {
-  if (candidate.dataAttributes?.['autoqaSafe'] === 'true') {
+  if (candidate.dataAttributes?.['bughuntersSafe'] === 'true') {
     return { class: 'safe-action', reason: 'Explicitly marked safe by the repo.' };
   }
-  if (candidate.dataAttributes?.['autoqaDestructive'] === 'true') {
+  if (candidate.dataAttributes?.['bughuntersDestructive'] === 'true') {
     return { class: 'destructive', reason: 'Explicitly marked destructive by the repo.' };
   }
 

@@ -1,16 +1,16 @@
 import { execFileSync } from 'node:child_process';
-import { ConfigError, type AutoQAConfig, type Issue } from '@autoqa/core';
-import { Workspace, closeOnGitHub, dismissedFingerprints } from '@autoqa/agents';
+import { ConfigError, type BughuntersConfig, type Issue } from '@bughunters/core';
+import { Workspace, closeOnGitHub, dismissedFingerprints } from '@bughunters/agents';
 
 /**
- * `autoqa issue list | dismiss <id> --reason "..." [--by name] | reopen <id>`
+ * `bughunters issue list | dismiss <id> --reason "..." [--by name] | reopen <id>`
  *
  * The judge is a model, and a model is sometimes wrong. A human override is
  * the last word: a dismissed issue closes, and its fingerprints go into
  * triage.json, so the same finding does not come back on the next patrol.
  */
 export async function runIssueCommand(args: string[], root: string, log: (line: string) => void,
-  config?: AutoQAConfig): Promise<void> {
+  config?: BughuntersConfig): Promise<void> {
   const [action, id, ...rest] = args;
   const workspace = new Workspace(root);
 
@@ -23,13 +23,13 @@ export async function runIssueCommand(args: string[], root: string, log: (line: 
     return;
   }
 
-  if (!id) throw new ConfigError(`autoqa issue ${action} needs an issue id`);
+  if (!id) throw new ConfigError(`bughunters issue ${action} needs an issue id`);
   const issue = await workspace.readIssue(id);
-  if (!issue) throw new ConfigError(`No issue ${id}. Run \`autoqa issue list\`.`);
+  if (!issue) throw new ConfigError(`No issue ${id}. Run \`bughunters issue list\`.`);
 
   if (action === 'dismiss') {
     const reason = flagValue(rest, '--reason');
-    if (!reason) throw new ConfigError('autoqa issue dismiss needs --reason "why this is not a problem"');
+    if (!reason) throw new ConfigError('bughunters issue dismiss needs --reason "why this is not a problem"');
     const by = flagValue(rest, '--by') ?? author();
     const at = new Date().toISOString();
     const dismissed: Issue = { ...issue, status: 'dismissed', closedBy: { by, reason, at } };

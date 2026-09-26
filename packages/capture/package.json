@@ -1,6 +1,7 @@
 {
-  "name": "@autoqa/capture",
+  "name": "@bughunters/capture",
   "version": "0.0.0",
+  "private": true,
   "license": "Apache-2.0",
   "type": "module",
   "main": "./dist/index.js",
@@ -18,8 +19,8 @@
     "build": "tsc --build"
   },
   "dependencies": {
-    "@autoqa/core": "workspace:*",
-    "@autoqa/invariants": "workspace:*",
+    "@bughunters/core": "workspace:*",
+    "@bughunters/invariants": "workspace:*",
     "playwright": "1.48.2",
     "pngjs": "^7.0.0"
   },

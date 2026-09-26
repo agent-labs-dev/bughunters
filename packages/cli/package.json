@@ -1,10 +1,11 @@
 {
-  "name": "@autoqa/cli",
+  "name": "@bughunters/cli",
   "version": "0.0.0",
+  "private": true,
   "license": "Apache-2.0",
   "type": "module",
   "bin": {
-    "autoqa": "./dist/bin.js"
+    "bughunters": "./dist/bin.js"
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -16,18 +17,18 @@
     "build": "tsc --build"
   },
   "dependencies": {
-    "@autoqa/agents": "workspace:*",
-    "@autoqa/capture": "workspace:*",
-    "@autoqa/core": "workspace:*",
-    "@autoqa/decide": "workspace:*",
-    "@autoqa/diff": "workspace:*",
-    "@autoqa/drivers": "workspace:*",
-    "@autoqa/github-app": "workspace:*",
-    "@autoqa/invariants": "workspace:*",
-    "@autoqa/recon": "workspace:*",
-    "@autoqa/report": "workspace:*",
-    "@autoqa/triage": "workspace:*",
+    "@bughunters/agents": "workspace:*",
+    "@bughunters/capture": "workspace:*",
+    "@bughunters/core": "workspace:*",
+    "@bughunters/decide": "workspace:*",
+    "@bughunters/diff": "workspace:*",
+    "@bughunters/drivers": "workspace:*",
+    "@bughunters/github-app": "workspace:*",
+    "@bughunters/invariants": "workspace:*",
+    "@bughunters/recon": "workspace:*",
+    "@bughunters/report": "workspace:*",
+    "@bughunters/triage": "workspace:*",
     "yaml": "^2.5.1",
-    "@autoqa/dashboard": "workspace:*"
+    "@bughunters/dashboard": "workspace:*"
   }
 }

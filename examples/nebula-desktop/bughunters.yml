@@ -1,8 +1,8 @@
-# AutoQA on the Nebula desktop app (Electron), against the deployed dev backend.
+# Bughunters on the Nebula desktop app (Electron), against the deployed dev backend.
 #
 # The nebula-desktop E2E harness does the parts only the app's own team knows:
 # it mints a session through /auth/test-login and launches the dev app with
-# the token and a CDP port. AutoQA captures the run id and the port from the
+# the token and a CDP port. Bughunters captures the run id and the port from the
 # output, connects over CDP, and the explorer does everything after that.
 version: 1
 

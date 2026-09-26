@@ -1,6 +1,6 @@
 import { appendFile, copyFile, readFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
-import { paths, shortHash, type Candidate, type Issue, type TriageFile } from '@autoqa/core';
+import { paths, shortHash, type Candidate, type Issue, type TriageFile } from '@bughunters/core';
 import type { AgentSession } from '../session.js';
 import type { Tool, ToolResult } from '../types.js';
 

@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { RecipeResolution, StackProfile } from '@autoqa/core';
+import type { RecipeResolution, StackProfile } from '@bughunters/core';
 
 export type BringUpCandidate = {
   command: string;

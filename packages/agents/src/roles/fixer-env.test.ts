@@ -7,7 +7,7 @@ import { linkEnvFiles } from './fixer.js';
 
 let root: string;
 beforeEach(async () => {
-  root = await mkdtemp(join(tmpdir(), 'autoqa-env-'));
+  root = await mkdtemp(join(tmpdir(), 'bughunters-env-'));
 });
 afterEach(async () => {
   await rm(root, { recursive: true, force: true });

@@ -25,6 +25,6 @@ Tier-1 tolerance is exact. There is no global threshold field in the config sche
 
 **Good.** The largest category of false positive becomes structurally impossible rather than something a user is told to work around. This is the headline feature, not a footnote.
 
-**Costly.** Ongoing maintenance: fonts, image pinning, browser revisions. The three-run flake test is AutoQA's own must-pass CI job (`.github/workflows/determinism.yml`) precisely because this decision only holds if it is continuously verified.
+**Costly.** Ongoing maintenance: fonts, image pinning, browser revisions. The three-run flake test is Bughunters's own must-pass CI job (`.github/workflows/determinism.yml`) precisely because this decision only holds if it is continuously verified.
 
 **Rejected alternative:** a global tolerance threshold. Every tool that ships one has a user who turned it up until the build went green and it stopped catching anything. The research documents a zero-threshold config reporting a completely missing button as PASSING.

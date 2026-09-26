@@ -2,13 +2,13 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import type { Lesson } from '@autoqa/core';
+import type { Lesson } from '@bughunters/core';
 import { explorerSystem } from './prompts.js';
 import { lessonsFor, Workspace } from './workspace.js';
 
 describe('memory', () => {
   it('upserts, sorts human lessons first, and retires the oldest past 40', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'autoqa-memory-'));
+    const root = await mkdtemp(join(tmpdir(), 'bughunters-memory-'));
     try {
       const workspace = new Workspace(root);
       const input = { role: 'explorer' as const, source: 'reflection' as const, text: 'Open Settings first.' };

@@ -6,8 +6,8 @@ import { BaselineStore, baselineKeyFor } from './baseline-store.js';
 
 let root: string;
 beforeEach(() => {
-  root = mkdtempSync(join(tmpdir(), 'autoqa-baseline-'));
-  mkdirSync(join(root, '.autoqa'), { recursive: true });
+  root = mkdtempSync(join(tmpdir(), 'bughunters-baseline-'));
+  mkdirSync(join(root, '.bughunters'), { recursive: true });
 });
 afterEach(() => rmSync(root, { recursive: true, force: true }));
 

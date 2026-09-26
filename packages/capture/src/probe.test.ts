@@ -1,6 +1,6 @@
 import { describe, expect, it, beforeAll, afterAll } from 'vitest';
 import { chromium, type Browser, type Page } from 'playwright';
-import { PROBE_SOURCE, evaluateAll, type ScreenSnapshot } from '@autoqa/invariants';
+import { PROBE_SOURCE, evaluateAll, type ScreenSnapshot } from '@bughunters/invariants';
 
 let browser: Browser;
 let page: Page;
