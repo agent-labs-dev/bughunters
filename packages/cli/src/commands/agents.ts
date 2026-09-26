@@ -1,7 +1,8 @@
-import { ConfigError, InfrastructureError, type BughuntersConfig } from '@bughunters/core';
+import { ConfigError, InfrastructureError, type AgentRole, type BughuntersConfig } from '@bughunters/core';
 import { createDriver } from '@bughunters/drivers';
-import { AgentSession, Vars, Workspace, createRuntime, replayRoutine, runExplorer, runJudge,
+import { AgentSession, Vars, Workspace, createRuntime, replayRoutine, runExplorer, runJudge, runtimeProblem,
   applyRetest, runFixCycle, runPatrol, runPublisher, retestFix, startApp, syncGitHub } from '@bughunters/agents';
+import { resolveDecider } from '@bughunters/decide';
 
 type AgentFlags = Record<string, string | string[] | boolean | number>;
 
@@ -60,6 +61,30 @@ export function parseAgentFlags(command: string, args: string[]): AgentFlags {
   return flags;
 }
 
+/** The roles each command runs. A retest runs the explorer and the judge. */
+function rolesFor(command: string, config: BughuntersConfig): AgentRole[] {
+  switch (command) {
+    case 'explore': return ['explorer'];
+    case 'judge': case 'publish': return ['judge'];
+    case 'retest': return ['explorer', 'judge'];
+    case 'fix': return ['fixer', 'explorer', 'judge'];
+    case 'patrol': return config.agents.fixer.enabled ? ['explorer', 'judge', 'fixer'] : ['explorer', 'judge'];
+    default: return [];
+  }
+}
+
+/**
+ * Every role needs an LLM: stop before the app starts when one cannot reach
+ * it, and say which decider will run, because no Jev key costs more.
+ */
+export function preflight(command: string, config: BughuntersConfig, env: NodeJS.ProcessEnv = process.env): string[] {
+  const problems = rolesFor(command, config)
+    .map((role) => runtimeProblem(role, config.agents[role].use, env))
+    .filter((problem): problem is string => Boolean(problem));
+  if (problems.length) throw new ConfigError(problems.join('\n'));
+  return ['explore', 'patrol'].includes(command) ? [resolveDecider(config.decisions, env).reason] : [];
+}
+
 /** Owns lifecycle cleanup for a single agent command, including interrupted runs. */
 export async function runAgentCommand(
   command: string,
@@ -69,6 +94,7 @@ export async function runAgentCommand(
   log: (message: string) => void,
 ): Promise<void> {
   const flags = parseAgentFlags(command, args);
+  for (const line of preflight(command, config)) log(line);
   const workspace = new Workspace(root);
   if (command === 'patrol') {
     await runPatrol({ root, config, once: Boolean(flags.once), onLog: log });

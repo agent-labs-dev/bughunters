@@ -16,7 +16,7 @@ export type Answer =
  * answers are typed, the caller never knows which implementation ran.
  */
 export interface Decider {
-  readonly name: 'jev' | 'model' | 'local' | 'heuristic';
+  readonly name: 'jev' | 'model';
   ask(state: string, questions: Record<string, Question>): Promise<Record<string, Answer>>;
 }
 

@@ -20,7 +20,7 @@ describe('JevDecider', () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ answers: {} }), { status: 200 }));
     vi.stubGlobal('fetch', fetchMock);
     const config = decisionsSchema.parse({ decider: 'jev', jev: { via } });
-    await resolveDecider(config, { [key]: 'secret' }).decider.ask('screen state', questions);
+    await resolveDecider(config, { [key]: 'secret' }).decider!.ask('screen state', questions);
     expect(fetchMock).toHaveBeenCalledOnce();
     const [calledUrl, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(calledUrl).toBe(url);

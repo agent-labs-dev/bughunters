@@ -1,0 +1,60 @@
+# Bughunters on an Expo app (React Native, with a development build) on the
+# booted iOS simulator, against a dev backend.
+#
+# The app's own E2E scripts make a test session through a test-only login
+# endpoint, and print a deep link that installs it. Bughunters captures the
+# link as a secret: the explorer sees only {{E2E_LOGIN_LINK}}, and the driver
+# opens the real link.
+#
+# The development build must be on the simulator already (`npx expo run:ios`).
+# Put this folder next to the app, or in the app repo (then set source and cwd to ..).
+version: 1
+
+app:
+  platform: ios
+  source: ../../../my-expo-app
+  setup:
+    # Start Metro for this checkout on 8083. A reused server can serve a different checkout.
+    - run: CI=1 exec npx expo start --port 8083
+      cwd: ../../../my-expo-app
+      background: true
+      readyWhen: 'Waiting on http'
+      timeoutMs: 180000
+    # Prints "E2E_LOGIN_LINK=myapp://e2e-login?token=...".
+    - run: npm run -s e2e:session
+      cwd: ../../../my-expo-app
+      capture:
+        E2E_LOGIN_LINK: 'E2E_LOGIN_LINK=(\S+)'
+    # Start signed out. The auth token is in the Keychain, which stays after an
+    # app data reset, so the script removes it too.
+    - run: bash scripts/e2e/reset-ios.sh
+      cwd: ../../../my-expo-app
+    # Open the development build on this checkout's Metro server.
+    - run: xcrun simctl openurl booted "myapp://expo-development-client/?url=http%3A%2F%2Flocalhost%3A8083" && sleep 20
+  teardown: []
+  connect:
+    appId: com.example.myapp
+  instructions: instructions.md
+
+agents:
+  # Needs a logged-in gh CLI with access to the app's repository.
+  github: { enabled: true }
+  explorer:
+    maxSteps: 80
+    budgetUsd: 0.5
+    use: claude
+  judge:
+    use: claude
+  fixer:
+    enabled: true
+    retest: { prepare: npm ci --prefer-offline }
+    # The fixer edits files in its own git worktree. It may install
+    # dependencies and run the checks, and nothing else in the shell.
+    use:
+      runtime: cli
+      command: >-
+        claude -p --permission-mode acceptEdits
+        --allowedTools "Bash(npm:*)" "Bash(git diff:*)" "Bash(git status:*)"
+
+decisions:
+  decider: jev

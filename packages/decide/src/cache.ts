@@ -66,13 +66,12 @@ export const JEV_USD_PER_INPUT_TOKEN = 0.042 / 1_000_000;
  *
  * Jev uses its published input rate. The general model estimate assumes the
  * spec 4.8 mid-tier frontier rate ($3/M input, $15/M output), including prompt
- * and output tokens. Heuristic and local make no paid call.
+ * and output tokens.
  */
 export function estimateDecisionCost(stateChars: number, decider: DeciderName = 'jev'): number {
   // ~4 chars per token is close enough for a budget guard.
   if (decider === 'jev') return (stateChars / 4) * JEV_USD_PER_INPUT_TOKEN;
-  if (decider === 'model') return ((stateChars / 4 + 1500) * 3 + 900 * 15) / 1_000_000;
-  return 0;
+  return ((stateChars / 4 + 1500) * 3 + 900 * 15) / 1_000_000;
 }
 
 export function answersSummary(answers: Record<string, Answer>): string {

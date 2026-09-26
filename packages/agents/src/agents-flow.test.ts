@@ -13,8 +13,7 @@ import { replayRoutine } from './replay.js';
 
 const element = (ref: string, name: string) => ({ ref, role: 'button', name,
   box: { x: 10, y: 10, width: 40, height: 40 }, interactive: true, enabled: true });
-const config = parseConfig({ version: 1, app: { connect: { url: 'fake://home' } },
-  decisions: { decider: 'heuristic' } });
+const config = parseConfig({ version: 1, app: { connect: { url: 'fake://home' } } });
 const run = async (tools: ReturnType<typeof explorerTools> | ReturnType<typeof judgeTools>,
   name: string, input: Record<string, unknown> = {}) => {
   const tool = tools.find((item) => item.name === name);

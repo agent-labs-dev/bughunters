@@ -22,7 +22,7 @@ export function writeAgentFixture(root: string): void {
     name: id[0]!.toUpperCase() + id.slice(1),
     description: `${id} controls and current account information`,
     platform: 'electron' as const,
-    location: `nebula://${id}`,
+    location: `acme://${id}`,
     routineId: index ? `open-${id}` : 'open-home',
     links: index < 4 ? [id === 'home' ? 'settings' : 'home'] : [],
     firstSeenAt: at(140 - index),
@@ -30,7 +30,7 @@ export function writeAgentFixture(root: string): void {
     visits: 8 - index,
     lastScreenshot: shot('ses_live', `00${index + 1}-${id}`),
   }));
-  const map: AppMap = { version: 1, platform: 'electron', summary: 'Nebula desktop workspace', screens,
+  const map: AppMap = { version: 1, platform: 'electron', summary: 'Acme desktop workspace', screens,
     updatedAt: at(1) };
   save('appmap.json', map);
   const agents: AgentsFile = { version: 1,
@@ -110,8 +110,8 @@ export function writeAgentFixture(root: string): void {
   }));
   for (const issue of issues) save(`issues/${issue.id}.json`, issue);
   const fix: FixProposal = { version: 1, id: 'fix-settings', issueId: 'iss-settings', status: 'proposed',
-    runtime: 'cli: claude', repo: 'nebula-desktop', branch: 'bughunters/fix-settings',
-    worktree: '/tmp/nebula-fix-settings', diffStat: 'src/settings.css | 2 +-',
+    runtime: 'cli: claude', repo: 'acme-desktop', branch: 'bughunters/fix-settings',
+    worktree: '/tmp/acme-fix-settings', diffStat: 'src/settings.css | 2 +-',
     diff: 'diff --git a/src/settings.css b/src/settings.css\n-old padding\n+new padding',
     summary: 'Give the account name enough room.', startedAt: at(22), endedAt: at(8), costUsd: 0.014 };
   save('fixes/fix-settings.json', fix);

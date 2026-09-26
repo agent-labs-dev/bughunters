@@ -1,4 +1,4 @@
-import { describe, expect, it, beforeEach, afterEach } from 'vitest';
+import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest';
 import { mkdtempSync, rmSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -80,7 +80,7 @@ describe('executeRun', () => {
     const result = await executeRun({ ...base, root, isFirstRun: false, screens: [screen()] });
     expect(result.exitCode).toBe(ExitCode.Clean);
     expect(result.findings).toHaveLength(0);
-    expect(result.notes).toContain('Decider: heuristic because --no-models was set.');
+    expect(result.notes).toContain('Decider: none because --no-models was set.');
   });
 
   it('blocks on a pixel regression even with no decision layer', async () => {
@@ -100,16 +100,24 @@ describe('executeRun', () => {
 
   it('still blocks on a pixel regression when a decider answers', async () => {
     // A live decider answered "question" / "needs_frontier" on a real
-    // BREAK=color run and the gate went green. The heuristic decider gives the
-    // same low-confidence answers with no network.
+    // BREAK=color run and the gate went green. This stub gives Jev the same
+    // low-confidence answers with no network.
+    vi.stubEnv('TYPESAFE_API_KEY', 'test-key');
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json({ answers: {
+      is_anomalous: { noul: 0.6 },
+      route: { choice: 'question', confidence: 0.4 },
+      severity: { score: 1, confidence: 0.4 },
+      needs_frontier: { noul: 0.9 },
+    } })));
     const result = await executeRun({
       ...base,
       root,
       noModels: false,
-      config: { ...config, decisions: { ...config.decisions, decider: 'heuristic' } },
+      config,
       isFirstRun: false,
       screens: [screen({ comparison: comparison(2400) })],
-    });
+    }).finally(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); });
+    expect(result.notes.join(' ')).toContain('jev via typesafe');
     expect(result.exitCode).toBe(ExitCode.Regression);
     expect(result.findings.filter((f) => f.route === 'check').map((f) => f.ruleId)).toEqual([PIXEL_DIFF_RULE]);
   });

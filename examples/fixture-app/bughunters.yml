@@ -22,5 +22,4 @@ mask:
 tolerance:
   default: exact
 
-decisions:
-  decider: heuristic   # no network in CI
+# CI runs this app with `run --no-models`, so no decider makes a network call.

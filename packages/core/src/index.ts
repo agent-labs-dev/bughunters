@@ -8,6 +8,7 @@ export * from './types/decision.js';
 export * from './types/trace.js';
 export * from './types/agents.js';
 export * from './config/schema.js';
+export * from './config/agents.js';
 export * from './config/load.js';
 export * from './exit-codes.js';
 export * from './errors.js';

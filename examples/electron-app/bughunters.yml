@@ -1,0 +1,62 @@
+# Bughunters on an Electron app, against a dev backend.
+#
+# The app's own E2E harness does the parts that only the app's team knows:
+# it makes a test user through a test-only login endpoint, and it starts the
+# dev app with the session token and a CDP port. Bughunters reads the run id
+# and the port from the output, connects over CDP, and the explorer does
+# everything after that.
+#
+# Put this folder next to the app, or in the app repo (then set source and cwd to ..).
+version: 1
+
+app:
+  platform: electron
+  source: ../../../my-electron-app
+  setup:
+    # Prints a line such as: "run e2e-20260101T000000Z-ab12 on dev".
+    - run: npm run e2e:up
+      cwd: ../../../my-electron-app
+      capture:
+        E2E_RUN_ID: 'run (e2e-[0-9A-Za-z-]+) on'
+        # The random end of the run id, for unique usernames.
+        RUN_TAG: 'run e2e-[0-9]{8}T[0-9]{6}Z-([0-9a-f]{4}) on'
+    # Makes a test user, and saves its session for the next step.
+    - run: npm run e2e:user
+      cwd: ../../../my-electron-app
+    # Starts the app with the session and --remote-debugging-port, and prints "CDP :<port>".
+    - run: npm run e2e:launch
+      cwd: ../../../my-electron-app
+      capture:
+        CDP_PORT: 'CDP :(\d+)'
+  teardown:
+    # Quits the app, and deletes the test user and its data. Nothing else.
+    - run: npm run e2e:down
+      cwd: ../../../my-electron-app
+  connect:
+    cdp: http://127.0.0.1:${CDP_PORT}
+  instructions: instructions.md
+
+agents:
+  # Needs a logged-in gh CLI with access to the app's repository.
+  github: { enabled: true }
+  explorer:
+    maxSteps: 80
+    budgetUsd: 0.5
+    use: claude
+  judge:
+    use: claude
+  fixer:
+    enabled: true
+    retest: { prepare: npm ci }
+    # The app's commit hook requires a scope.
+    commitMessage: 'fix(app): {title}'
+    # The fixer edits files in its own git worktree. It may install
+    # dependencies and run the checks, and nothing else in the shell.
+    use:
+      runtime: cli
+      command: >-
+        claude -p --permission-mode acceptEdits
+        --allowedTools "Bash(npm:*)" "Bash(git diff:*)" "Bash(git status:*)"
+
+decisions:
+  decider: jev
