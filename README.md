@@ -27,6 +27,49 @@ npx bughunters patrol
 
 ### How the patrol runs
 
+LLM agents do the work that needs reasoning. Jev screens each finding from the automatic checks, so the judge gets only the real findings.
+
+```mermaid
+flowchart TB
+  start(["npx bughunters patrol"]) --> pull["Pull main and start the app"]
+  pull --> explorer
+
+  subgraph explore ["1 · Explore"]
+    direction LR
+    explorer{{"LLM · Explorer<br/>uses the app"}} -->|"each screen"| checks["Automatic checks"]
+    checks -->|"each finding"| jev[["Jev · Decider<br/>drops the noise"]]
+  end
+
+  explorer -->|"bug reports"| judge
+  jev -->|"real findings"| judge
+
+  judge["2 · Judge<br/>LLM · Judge files the issues"] --> fixer["3 · Fix<br/>LLM · Fixer writes a fix"]
+  fixer --> retest["4 · Retest<br/>LLM · Explorer + Judge check the fix"]
+  retest --> publish["5 · Publish<br/>LLM · Judge opens PRs and issues"]
+
+  publish --> wait["Sync GitHub, then wait for a new commit on main"]
+  wait -->|"next cycle"| pull
+
+  subgraph legend ["Legend"]
+    direction LR
+    l1["LLM agent"] ~~~ l2[["Jev"]] ~~~ l3["Code, no model"] ~~~ l4["Off by default"]
+  end
+  wait ~~~ legend
+
+  classDef llm fill:#312e81,stroke:#a5b4fc,color:#ffffff
+  classDef jevc fill:#365314,stroke:#bef264,color:#ffffff
+  classDef code fill:#1e293b,stroke:#64748b,color:#e2e8f0
+  classDef opt fill:#312e81,stroke:#a5b4fc,color:#ffffff,stroke-width:2px,stroke-dasharray:6 4
+  class explorer,judge,l1 llm
+  class jev,l2 jevc
+  class start,pull,checks,wait,l3 code
+  class fixer,retest,publish,l4 opt
+  style explore fill:transparent,stroke:#bef264,stroke-width:2px,stroke-dasharray:6 4
+  style legend fill:transparent,stroke:#64748b
+```
+
+[How it works](docs/how-it-works.md#the-explore-loop) shows each step of the explore loop.
+
 - The patrol does not stop by itself. Every 30 minutes, it pulls the latest `origin/main`.
 - The patrol runs a full cycle only when `main` has new commits. If the commit did not change, the patrol only syncs the state of GitHub issues and PRs, and waits again. So a patrol that runs all day costs little when nobody merges code.
 - Bughunters keeps the last tested commit in `.bughunters/runs/`, so a restart also skips a commit that it tested before. To test again with no new commit, for example after a config change, use `patrol --force`.

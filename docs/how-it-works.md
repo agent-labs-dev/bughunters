@@ -22,6 +22,51 @@ A patrol cycle has these steps:
 7. The **fixer** fixes the worst issues. Each fix gets a **retest**: Bughunters starts the app from the fix worktree, the explorer repeats the flow on each affected screen, and the judge compares before and after.
 8. The judge **publishes**. A fix becomes a PR. A major bug with no fix becomes an issue.
 
+## The explore loop
+
+The explorer uses the app one step at a time. In each step, it looks at the screen and calls one tool. When it records a screen, the automatic checks run on that screen. Jev screens each new finding, and the judge gets only the findings that need a decision.
+
+```mermaid
+flowchart TD
+  start(["npx bughunters explore"]) --> setup["Start the app and connect the driver"]
+  setup --> look
+
+  subgraph loop ["The explore loop: one tool call in each step"]
+    look["Look at the screen:<br/>screenshot and element tree"] --> act{{"LLM · Explorer<br/>chooses the next action"}}
+    act -->|"tap, type, scroll, open"| next
+    act -->|"record_screen"| checks["Automatic checks: contrast, overlap,<br/>clipped text, tap size, visual change"]
+    act -->|"report_bug"| cand
+    checks --> seen{"Decided<br/>before?"}
+    seen -->|"yes"| next
+    seen -->|"no"| jev[["Jev · Decider<br/>Is it a problem? How bad?<br/>Does it need the judge?"]]
+    jev -->|"not a problem"| next
+    jev -->|"needs a decision"| cand[("Candidates")]
+    cand --> next(("next<br/>step"))
+    next --> look
+  end
+
+  act -->|"finish, or the step or budget limit"| reflect["LLM · Reflect<br/>writes lessons for the next run"]
+  reflect -->|"bughunters judge<br/>(patrol runs it for you)"| judge["LLM · Judge<br/>files, merges, or dismisses<br/>each candidate"]
+  judge --> issues[("Issues")]
+
+  subgraph legend ["Legend"]
+    direction LR
+    l1["LLM agent"]
+    l2[["Jev"]]
+    l3["Code, no model"]
+    l1 ~~~ l2 ~~~ l3
+  end
+
+  classDef llm fill:#312e81,stroke:#a5b4fc,color:#ffffff
+  classDef jevc fill:#365314,stroke:#bef264,color:#ffffff
+  classDef code fill:#1e293b,stroke:#64748b,color:#e2e8f0
+  class act,reflect,judge,l1 llm
+  class jev,l2 jevc
+  class start,setup,look,checks,seen,cand,issues,next,l3 code
+  style loop fill:transparent,stroke:#bef264,stroke-width:2px,stroke-dasharray:6 4
+  style legend fill:transparent,stroke:#64748b
+```
+
 ## Noise control
 
 Bughunters keeps the list of issues short:
