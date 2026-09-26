@@ -69,7 +69,7 @@ determinism:
   blockThirdPartyRequests: true
 
 decisions:
-  decider: jev              # jev | model | local | heuristic
+  decider: jev              # jev | model
   jev:
     via: auto               # auto | typesafe | openrouter | vercel
   model:

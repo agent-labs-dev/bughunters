@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { ExitCode, loadConfig, BughuntersError } from '@bughunters/core';
 import { USAGE } from './usage.js';
 import { runChecks, doctorExitCode } from './commands/doctor.js';
-import { writeInitialConfig } from './commands/init.js';
+import { runInit } from './commands/init.js';
 import { runCommand, exitCodeForError } from './commands/run.js';
 import { parseRunFlags, formatRunSummary } from './commands/run-cli.js';
 import { startDashboard } from '@bughunters/dashboard';
@@ -43,11 +43,7 @@ try {
       break;
 
     case 'init': {
-      const result = writeInitialConfig(root);
-      process.stdout.write(`Wrote ${result.configPath}\nWrote ${result.workflowPath}\n`);
-      if (result.stack.framework) process.stdout.write(`Detected ${result.stack.framework}\n`);
-      for (const note of result.notes) process.stdout.write(`  note: ${note}\n`);
-      process.stdout.write('\nNext: review the TODO markers, then run `bughunters doctor`.\n');
+      await runInit(root, args, (line) => process.stdout.write(`${line}\n`));
       process.exit(ExitCode.Clean);
       break;
     }
@@ -168,7 +164,7 @@ try {
     case 'export':
     case 'watch':
       process.stderr.write(`\`bughunters ${command}${args.length ? ` ${args.join(' ')}` : ''}\` is not implemented yet.\n`);
-      process.stderr.write('See ROADMAP.md for which milestone covers it.\n');
+      process.stderr.write('See https://github.com/agent-labs-dev/bughunters/blob/main/docs/commands.md for the commands that work now.\n');
       process.exit(ExitCode.Usage);
       break;
 

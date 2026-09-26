@@ -15,6 +15,8 @@ The decision layer is the `Decider` interface: a state string plus typed questio
 
 Four implementations ship: `JevDecider` (default), `ModelDecider` (a general model prompted into the same contract), `LocalDecider` (air-gapped), `HeuristicDecider` (rule-only, zero network).
 
+**Amendment (2026-09).** Bughunters is agentic, so a rule-only decider has no place in it. `LocalDecider` and `HeuristicDecider` are removed. Two implementations remain: `JevDecider` (the default, and the recommended one for cost and speed) and `ModelDecider` (the fallback when no Jev key is set). With no key at all, there is no decider: every finding goes to the LLM judge, which costs more. `run --no-models` does not need a decider: it skips tier 2.
+
 Confidence is used as a **threshold, not read as a fact**. The routing asymmetry is enforced in code: auto-suppression and auto-fix require high confidence; raising a question has no confidence floor.
 
 ## Consequences

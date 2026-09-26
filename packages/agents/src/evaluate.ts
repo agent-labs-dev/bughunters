@@ -295,6 +295,7 @@ async function decide(
 ): Promise<NonNullable<Candidate['route']>> {
   const config = session.config.decisions;
   const { decider } = resolveDecider(config, process.env);
+  if (!decider) return { to: 'judge', reason: 'no decider key is set, so the judge decides' };
   const { text } = buildState({
     screen: { id: screenId, description: snapshot.title ?? snapshot.url },
     product: { summary: '', audience: '', domainVocabulary: [] },

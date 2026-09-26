@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import type { AgentRole } from '../types/agents.js';
+import { CLI_AGENTS, cliPreset } from './agents.js';
 
 const secretRefString = z
   .string()
@@ -78,7 +80,7 @@ export const toleranceSchema = z
 
 export const decisionsSchema = z
   .object({
-    decider: z.enum(['jev', 'model', 'local', 'heuristic']).default('jev'),
+    decider: z.enum(['jev', 'model']).default('jev'),
     jev: z.object({ via: z.enum(['auto', 'typesafe', 'openrouter', 'vercel']).default('auto') }).default({}),
     model: z.object({
       via: z.enum(['auto', 'openrouter', 'vercel', 'openai', 'anthropic', 'custom']).default('auto'),
@@ -205,15 +207,36 @@ const modelRuntimeSchema = z.object({
 
 const cliRuntimeSchema = z.object({
   runtime: z.literal('cli'),
+  /** A local agent CLI. Bughunters fills in the command for the role. */
+  agent: z.enum(CLI_AGENTS).optional(),
   /**
    * A shell command. Placeholders: {prompt} (a file holding the prompt),
    * {mcp} (an MCP config file for the Bughunters tools), {mcpUrl}, {workdir}.
-   * The prompt also goes to stdin.
+   * The prompt also goes to stdin. Wins over `agent`.
    */
-  command: z.string(),
+  command: z.string().optional(),
 });
 
-const runtimeSchema = z.discriminatedUnion('runtime', [modelRuntimeSchema, cliRuntimeSchema]);
+/**
+ * One role's runtime. `use: claude` is short for `{ runtime: cli, agent: claude }`,
+ * and a preset becomes the role's command here, so the roles only ever see a
+ * model route or a command.
+ */
+function runtimeFor(role: AgentRole, fallback: z.input<typeof modelRuntimeSchema> | z.input<typeof cliRuntimeSchema>) {
+  return z.preprocess(
+    (value) => typeof value === 'string' ? { runtime: 'cli', agent: value } : value,
+    z.discriminatedUnion('runtime', [modelRuntimeSchema, cliRuntimeSchema]),
+  )
+    .default(fallback)
+    .superRefine((use, ctx) => {
+      if (use.runtime === 'cli' && !use.command && !use.agent) {
+        ctx.addIssue({ code: 'custom', message: `Set \`agent\` (${CLI_AGENTS.join(', ')}) or \`command\`.` });
+      }
+    })
+    .transform((use) => use.runtime === 'model'
+      ? use
+      : { runtime: 'cli' as const, ...(use.agent ? { agent: use.agent } : {}), command: use.command ?? cliPreset(use.agent!, role) });
+}
 
 const roleBase = {
   enabled: z.boolean().default(true),
@@ -231,18 +254,18 @@ export const agentsSchema = z
       reflectBudgetUsd: z.number().nonnegative().default(0.05),
     }).default({}),
     explorer: z
-      .object({ ...roleBase, use: runtimeSchema.default({ runtime: 'model' }) })
+      .object({ ...roleBase, use: runtimeFor('explorer', { runtime: 'model' }) })
       .default({}),
     judge: z
       .object({
         ...roleBase,
-        use: runtimeSchema.default({ runtime: 'model' }),
+        use: runtimeFor('judge', { runtime: 'model' }),
       })
       .default({}),
     fixer: z
       .object({
         ...roleBase,
-        use: runtimeSchema.default({ runtime: 'cli', command: 'claude -p --permission-mode acceptEdits' }),
+        use: runtimeFor('fixer', { runtime: 'cli', agent: 'claude' }),
         /** Off until a team opts in: a fixer writes code. */
         enabled: z.boolean().default(false),
         /** Run after the change; a non-zero exit marks the fix failed. */
@@ -324,7 +347,7 @@ export type BughuntersConfig = z.infer<typeof bughuntersConfigSchema>;
 export type AppConfig = z.infer<typeof appSchema>;
 export type AppCommand = z.infer<typeof appCommandSchema>;
 export type AgentsConfig = z.infer<typeof agentsSchema>;
-export type RoleRuntime = z.infer<typeof runtimeSchema>;
+export type RoleRuntime = z.infer<ReturnType<typeof runtimeFor>>;
 export type ViewportConfig = z.infer<typeof viewportSchema>;
 export type MaskConfig = z.infer<typeof maskSchema>;
 export type ToleranceConfig = z.infer<typeof toleranceSchema>;

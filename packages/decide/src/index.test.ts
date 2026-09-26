@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { decisionsSchema } from '@bughunters/core';
-import { createDecider, resolveDecider, type DeciderEnv } from './index.js';
+import { resolveDecider, type DeciderEnv } from './index.js';
 
 const jev = decisionsSchema.parse({ decider: 'jev' });
 const model = decisionsSchema.parse({ decider: 'model' });
 
-function resolve(config: typeof jev, env: DeciderEnv = {}, noModels = false) {
-  return resolveDecider(config, env, { noModels });
+function resolve(config: typeof jev, env: DeciderEnv = {}) {
+  return resolveDecider(config, env);
 }
 
 describe('resolveDecider', () => {
@@ -28,7 +28,7 @@ describe('resolveDecider', () => {
   });
 
   it('uses a custom route only when both endpoint and key exist', () => {
-    expect(resolve(model, { BUGHUNTERS_MODEL_ENDPOINT: 'https://example.test/chat/completions' }).via).toBe('heuristic');
+    expect(resolve(model, { BUGHUNTERS_MODEL_ENDPOINT: 'https://example.test/chat/completions' }).via).toBe('none');
     expect(resolve(model, { BUGHUNTERS_MODEL_ENDPOINT: 'https://example.test/chat/completions', BUGHUNTERS_MODEL_API_KEY: 'secret' }).via).toBe('model:custom');
   });
 
@@ -49,19 +49,18 @@ describe('resolveDecider', () => {
     const config = decisionsSchema.parse({ decider: 'jev', jev: { via: 'vercel' }, model: { via: 'openai' } });
     expect(resolve(config, { TYPESAFE_API_KEY: 'a', OPENROUTER_API_KEY: 'b', OPENAI_API_KEY: 'c' }).via).toBe('model:openai');
     expect(resolve(config, { TYPESAFE_API_KEY: 'a', AI_GATEWAY_API_KEY: 'b' }).via).toBe('jev:vercel');
-    expect(resolve(decisionsSchema.parse({ decider: 'model', model: { via: 'anthropic' } }), { OPENAI_API_KEY: 'a' }).via).toBe('heuristic');
+    expect(resolve(decisionsSchema.parse({ decider: 'model', model: { via: 'anthropic' } }), { OPENAI_API_KEY: 'a' }).via).toBe('none');
   });
 
-  it('explains missing keys and respects noModels and explicit heuristic', () => {
+  it('has no decider without a key, and says which key to set', () => {
     const fallback = resolve(jev);
-    expect(fallback.via).toBe('heuristic');
+    expect(fallback.via).toBe('none');
+    expect(fallback.decider).toBeUndefined();
+    expect(fallback.reason).toContain('the judge decides');
     expect(fallback.reason).toContain('TYPESAFE_API_KEY');
     expect(fallback.reason).toContain('OPENROUTER_API_KEY');
     expect(fallback.reason).toContain('AI_GATEWAY_API_KEY');
     expect(resolve(model).reason).toContain('ANTHROPIC_API_KEY');
-    expect(resolve(jev, { TYPESAFE_API_KEY: 'a' }, true).via).toBe('heuristic');
-    expect(resolve(decisionsSchema.parse({ decider: 'heuristic' }), { TYPESAFE_API_KEY: 'a' }).via).toBe('heuristic');
-    expect(createDecider(jev, {}, { noModels: true }).name).toBe('heuristic');
   });
 
   it('prefers configured model name over environment override', () => {

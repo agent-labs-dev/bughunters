@@ -9,7 +9,7 @@ import { Workspace } from './workspace.js';
 import { FakeDriver, type FakeScreen } from './testing/fake-driver.js';
 import { replayRoutine, replaySteps } from './replay.js';
 
-const config = parseConfig({ version: 1, app: { connect: { url: 'fake://home' } }, decisions: { decider: 'heuristic' } });
+const config = parseConfig({ version: 1, app: { connect: { url: 'fake://home' } } });
 const button = (ref: string, name: string) => ({
   ref, role: 'button', name, box: { x: 10, y: 10, width: 40, height: 40 }, interactive: true, enabled: true,
 });

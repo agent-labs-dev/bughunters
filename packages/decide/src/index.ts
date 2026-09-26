@@ -1,13 +1,12 @@
 import type { Decider, DecisionsConfig } from '@bughunters/core';
 import { JevDecider } from './providers/jev.js';
-import { LocalDecider, MODEL_ROUTES, ModelDecider, type ModelVia } from './providers/model.js';
-import { HeuristicDecider } from './providers/heuristic.js';
+import { MODEL_ROUTES, ModelDecider, type ModelVia } from './providers/model.js';
 
 export * from './questions.js';
 export * from './state.js';
 export * from './thresholds.js';
 export * from './cache.js';
-export { JevDecider, ModelDecider, LocalDecider, HeuristicDecider };
+export { JevDecider, ModelDecider };
 export { MODEL_ROUTES } from './providers/model.js';
 
 export type DeciderEnv = {
@@ -36,35 +35,16 @@ export const MODEL_KEYS = {
 const jevOrder = ['typesafe', 'openrouter', 'vercel'] as const;
 const modelOrder = ['openrouter', 'vercel', 'openai', 'anthropic', 'custom'] as const;
 
-type Resolution = { decider: Decider; via: string; reason: string };
+/** No decider means no key: the judge (an LLM) then decides each finding. */
+export type Resolution = { decider?: Decider; via: string; reason: string };
 
 /**
  * Access paths are tried in order: TypeSafe, then gateway routes through
- * OpenRouter and Vercel AI Gateway, then ModelDecider (spec 4.6).
- * `--no-models` short-circuits to the heuristic. A missing key degrades the
- * tool rather than breaking it, because Jev is waitlisted.
+ * OpenRouter and Vercel AI Gateway, then ModelDecider (spec 4.6). With no key
+ * at all there is no decider, and every finding goes to the judge: that costs
+ * more, so the reason says which key to set.
  */
-export function resolveDecider(
-  config: DecisionsConfig,
-  env: DeciderEnv,
-  options: { noModels?: boolean } = {},
-): Resolution {
-  if (options.noModels) return {
-    decider: new HeuristicDecider(),
-    via: 'heuristic',
-    reason: 'Decider: heuristic because --no-models was set.',
-  };
-  if (config.decider === 'heuristic') return {
-    decider: new HeuristicDecider(),
-    via: 'heuristic',
-    reason: 'Decider: heuristic by configuration.',
-  };
-  if (config.decider === 'local') return {
-    decider: new LocalDecider(),
-    via: 'local',
-    reason: 'Decider: local by configuration.',
-  };
-
+export function resolveDecider(config: DecisionsConfig, env: DeciderEnv): Resolution {
   let jevMissing = '';
   if (config.decider === 'jev') {
     const routes = config.jev.via === 'auto' ? jevOrder : [config.jev.via];
@@ -103,16 +83,7 @@ export function resolveDecider(
     .join(', ')
     .replace(/, ([^,]*)$/, ' or $1');
   return {
-    decider: new HeuristicDecider(),
-    via: 'heuristic',
-    reason: `Decider: heuristic because ${jevMissing ? `${jevMissing}, and ` : ''}no ${modelMissing} is set.`,
+    via: 'none',
+    reason: `Decider: none, so the judge decides each finding, because ${jevMissing ? `${jevMissing}, and ` : ''}no ${modelMissing} is set. Set a Jev key to cut cost.`,
   };
-}
-
-export function createDecider(
-  config: DecisionsConfig,
-  env: DeciderEnv = process.env as DeciderEnv,
-  options: { noModels?: boolean } = {},
-): Decider {
-  return resolveDecider(config, env, options).decider;
 }

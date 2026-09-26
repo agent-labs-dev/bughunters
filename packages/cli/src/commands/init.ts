@@ -1,17 +1,569 @@
-import { existsSync, writeFileSync, mkdirSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { appendFileSync, existsSync, readFileSync, readdirSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { paths, type StackProfile } from '@bughunters/core';
+import { createInterface } from 'node:readline/promises';
+import { CLI_AGENTS, ConfigError, cliPreset, paths, type AgentRole, type CliAgent, type StackProfile } from '@bughunters/core';
+import { onPath } from '@bughunters/agents';
 import { detectStack, detectBringUp } from '@bughunters/recon';
 
-export type InitResult = { configPath: string; workflowPath: string; stack: StackProfile; notes: string[] };
+export type Platform = 'web' | 'electron' | 'ios' | 'android';
+export const PLATFORMS: Platform[] = ['web', 'electron', 'ios', 'android'];
+
+/** Model routes that need only an API key. */
+export const KEY_PROVIDERS = {
+  openrouter: { env: 'OPENROUTER_API_KEY', label: 'OpenRouter', url: 'https://openrouter.ai/keys', model: 'z-ai/glm-5.3-flash' },
+  vercel: { env: 'AI_GATEWAY_API_KEY', label: 'Vercel AI Gateway', url: 'https://vercel.com/ai-gateway', model: 'anthropic/claude-haiku-4.5' },
+  openai: { env: 'OPENAI_API_KEY', label: 'OpenAI', url: 'https://platform.openai.com/api-keys', model: 'gpt-5-mini' },
+  anthropic: { env: 'ANTHROPIC_API_KEY', label: 'Anthropic', url: 'https://console.anthropic.com/settings/keys', model: 'claude-haiku-4-5' },
+} as const;
+export type KeyProvider = keyof typeof KEY_PROVIDERS;
+export type Provider = CliAgent | KeyProvider;
+
+/** Jev routes, in the order the decider tries them. */
+export const JEV_ROUTES = {
+  typesafe: { env: 'TYPESAFE_API_KEY', label: 'TypeSafe', url: 'https://typesafe.ai' },
+  openrouter: { env: 'OPENROUTER_API_KEY', label: 'OpenRouter', url: 'https://openrouter.ai/keys' },
+  vercel: { env: 'AI_GATEWAY_API_KEY', label: 'Vercel AI Gateway', url: 'https://vercel.com/ai-gateway' },
+} as const;
+export type JevRoute = keyof typeof JEV_ROUTES | 'auto';
+
+const CLI_LABELS: Record<CliAgent, string> = { claude: 'Claude Code', codex: 'Codex', kimi: 'Kimi CLI', pi: 'pi' };
+
+export type Detected = {
+  /** Agent CLIs on PATH that can run a role. */
+  clis: CliAgent[];
+  /** Model routes with a key in the environment. */
+  keys: KeyProvider[];
+  /** Jev routes with a key in the environment. */
+  jev: Exclude<JevRoute, 'auto'>[];
+  /** pi is on PATH but has no MCP: it needs pi-mcp-adapter. */
+  piWithoutMcp: boolean;
+  /** pi has pi-permission-modes, which blocks tool calls in print mode unless --perm yolo. */
+  piPermissionModes: boolean;
+};
+
+type Run = (command: string, args: string[]) => string;
+const run: Run = (command, args) =>
+  spawnSync(command, args, { encoding: 'utf8', timeout: 10_000 }).stdout ?? '';
+
+export function detectProviders(env: NodeJS.ProcessEnv = process.env, exec: Run = run): Detected {
+  const found = CLI_AGENTS.filter((agent) => onPath(agent, env));
+  const piList = found.includes('pi') ? exec('pi', ['list']) : '';
+  const piWithoutMcp = found.includes('pi') && !piList.includes('pi-mcp-adapter');
+  return {
+    clis: found.filter((agent) => agent !== 'pi' || !piWithoutMcp),
+    keys: (Object.keys(KEY_PROVIDERS) as KeyProvider[]).filter((key) => env[KEY_PROVIDERS[key].env]),
+    jev: (Object.keys(JEV_ROUTES) as Exclude<JevRoute, 'auto'>[]).filter((route) => env[JEV_ROUTES[route].env]),
+    piWithoutMcp,
+    piPermissionModes: piList.includes('pi-permission-modes'),
+  };
+}
+
+export type AppGuess = {
+  platform: Platform;
+  start?: string;
+  url?: string;
+  appId?: string;
+  cdpPort?: number;
+  /** Where each guess came from, for the summary. */
+  notes: string[];
+};
+
+type PackageJson = {
+  scripts?: Record<string, string>;
+  dependencies?: Record<string, string>;
+  devDependencies?: Record<string, string>;
+};
+
+function readJson<T>(file: string): T | undefined {
+  try {
+    return JSON.parse(readFileSync(file, 'utf8')) as T;
+  } catch {
+    return undefined;
+  }
+}
+
+const FRAMEWORK_PORTS: Record<string, number> = { vite: 5173, next: 3000, angular: 4200, django: 8000, rails: 3000 };
+
+function readText(file: string): string {
+  try {
+    return readFileSync(file, 'utf8');
+  } catch {
+    return '';
+  }
+}
+
+function list(dir: string): string[] {
+  try {
+    return readdirSync(dir);
+  } catch {
+    return [];
+  }
+}
+
+/** The Xcode projects at the root and in ios/, as project.pbxproj paths. */
+function xcodeProjects(root: string): string[] {
+  return ['.', 'ios'].flatMap((dir) => list(join(root, dir))
+    .filter((name) => name.endsWith('.xcodeproj'))
+    .map((name) => join(root, dir, name, 'project.pbxproj')));
+}
+
+/** The Gradle files of an Android app module, at the root or in android/. */
+function gradleFiles(root: string): string[] {
+  return ['android/app', 'app'].flatMap((dir) => ['build.gradle', 'build.gradle.kts'].map((file) => join(root, dir, file)))
+    .filter((file) => existsSync(file));
+}
+
+/** The bundle ID (iOS) or package name (Android), and the file it came from. */
+export function detectAppId(root: string, platform: 'ios' | 'android'): { appId: string; source: string } | undefined {
+  const expo = readJson<{ expo?: { ios?: { bundleIdentifier?: string }; android?: { package?: string } } }>(join(root, 'app.json'))?.expo;
+  const fromJson = platform === 'ios' ? expo?.ios?.bundleIdentifier : expo?.android?.package;
+  if (fromJson) return { appId: fromJson, source: 'app.json' };
+  for (const file of ['app.config.ts', 'app.config.js']) {
+    const match = readText(join(root, file)).match(platform === 'ios'
+      ? /bundleIdentifier:\s*['"`]([\w.-]+)['"`]/
+      : /package:\s*['"`]([\w.-]+)['"`]/);
+    if (match) return { appId: match[1]!, source: file };
+  }
+  if (platform === 'ios') {
+    for (const file of xcodeProjects(root)) {
+      const ids = [...readText(file).matchAll(/PRODUCT_BUNDLE_IDENTIFIER = "?([\w.-]+)"?;/g)].map((match) => match[1]!);
+      // The app target, not its test targets.
+      const appId = ids.find((id) => !/tests?$/i.test(id));
+      if (appId) return { appId, source: file.slice(root.length + 1) };
+    }
+    return undefined;
+  }
+  for (const file of gradleFiles(root)) {
+    const match = readText(file).match(/applicationId\s*=?\s*["']([\w.-]+)["']/);
+    if (match) return { appId: match[1]!, source: file.slice(root.length + 1) };
+  }
+  return undefined;
+}
+
+/** A dev server port from the scripts, the Vite config, or .env; else the framework default. */
+function detectPort(root: string, pkg: PackageJson, framework?: string): { port: number; source: string } {
+  const scripts = Object.values(pkg.scripts ?? {}).join(' ');
+  const fromScript = scripts.match(/(?:--port[= ]|-p )(\d{2,5})\b/)?.[1];
+  if (fromScript) return { port: Number(fromScript), source: 'package.json' };
+  for (const file of ['vite.config.ts', 'vite.config.js', 'vite.config.mjs']) {
+    const match = readText(join(root, file)).match(/\bport:\s*(\d{2,5})\b/);
+    if (match) return { port: Number(match[1]), source: file };
+  }
+  const fromEnv = readText(join(root, '.env')).match(/^PORT=(\d{2,5})\s*$/m)?.[1];
+  if (fromEnv) return { port: Number(fromEnv), source: '.env' };
+  return { port: (framework && FRAMEWORK_PORTS[framework]) || 3000, source: framework ? `the ${framework} default` : 'the usual default' };
+}
+
+/** The platform that this machine can run a mobile app on. */
+function mobilePlatform(root: string): 'ios' | 'android' {
+  const hasIos = xcodeProjects(root).length > 0 || existsSync(join(root, 'app.json')) || existsSync(join(root, 'ios'));
+  return process.platform === 'darwin' && hasIos ? 'ios' : 'android';
+}
 
 /**
- * Writes bughunters.yml with detected defaults and a TODO marker on anything it
- * could not determine. Detection is a first guess, never a silent decision --
- * everything is written to the file with its provenance so a human can see WHY
- * a value was chosen and correct it (spec, Phase 0).
+ * A first guess at the platform, the start command, and the URL or app ID,
+ * each with where it came from. The interview puts each guess on the input
+ * line, so the user presses Enter or edits it.
  */
-export function writeInitialConfig(root: string): InitResult {
+export function detectApp(root: string): AppGuess {
+  const pkg = readJson<PackageJson>(join(root, 'package.json')) ?? {};
+  const deps = { ...pkg.dependencies, ...pkg.devDependencies };
+  const notes: string[] = [];
+
+  if (deps.electron) {
+    notes.push('Platform electron: detected from package.json.');
+    return { platform: 'electron', start: 'npx electron . --remote-debugging-port=9222', cdpPort: 9222, notes };
+  }
+
+  const reactNative = deps.expo || deps['react-native'];
+  const nativeIos = !existsSync(join(root, 'package.json')) && xcodeProjects(root).length > 0;
+  const nativeAndroid = !existsSync(join(root, 'package.json')) && gradleFiles(root).length > 0;
+  if (reactNative || nativeIos || nativeAndroid) {
+    const platform = nativeIos ? 'ios' : nativeAndroid ? 'android' : mobilePlatform(root);
+    notes.push(`Platform ${platform}: detected from ${reactNative ? 'package.json' : platform === 'ios' ? 'the Xcode project' : 'the Gradle files'}.`);
+    const id = detectAppId(root, platform);
+    if (id) notes.push(`App ID ${id.appId}: detected from ${id.source}.`);
+    else notes.push('App ID: not found. Enter the bundle ID or the package name.');
+    // A native app has no dev server: the user installs it on the device.
+    const start = deps.expo ? 'npx expo start' : deps['react-native'] ? 'npx react-native start' : undefined;
+    if (!start) notes.push('Install the app on the simulator or the emulator before you run Bughunters.');
+    return { platform, start, appId: id?.appId, notes };
+  }
+
+  const stack = detectStack(root);
+  const best = detectBringUp(root)[0];
+  if (best) notes.push(`Start command: detected from ${best.source}.`);
+  const { port, source } = detectPort(root, pkg, stack.framework);
+  notes.push(`Port ${port}: from ${source}.`);
+  return { platform: 'web', start: best?.command, url: `http://localhost:${port}`, notes };
+}
+
+export type InitAnswers = {
+  platform: Platform;
+  /** The command that starts the app. Empty: the user starts it. */
+  start?: string;
+  url?: string;
+  appId?: string;
+  cdpPort?: number;
+  providers: Record<AgentRole, Provider>;
+  jev: JevRoute;
+  /** Add --perm yolo to pi, for installs that have pi-permission-modes. */
+  piPermissionModes?: boolean;
+};
+
+const READY: Record<Platform, string> = {
+  web: 'https?://(localhost|127\\.0\\.0\\.1)',
+  electron: 'DevTools listening',
+  ios: 'Waiting on http|Metro waiting|Dev server ready',
+  android: 'Waiting on http|Metro waiting|Dev server ready',
+};
+
+function quoteYaml(value: string): string {
+  return `'${value.replaceAll("'", "''")}'`;
+}
+
+function useLine(role: AgentRole, provider: Provider, piPermissionModes = false): string {
+  if (provider in KEY_PROVIDERS) {
+    const route = KEY_PROVIDERS[provider as KeyProvider];
+    return `{ runtime: model, via: ${provider}, model: ${route.model} }`;
+  }
+  if (provider === 'pi' && piPermissionModes) {
+    const command = cliPreset('pi', role).replace('pi -p --no-session', 'pi -p --no-session --perm yolo');
+    return `{ runtime: cli, command: ${quoteYaml(command)} }`;
+  }
+  return provider;
+}
+
+/** The starter bughunters.yml. Every value that init could not know has a comment. */
+export function renderConfig(answers: InitAnswers): string {
+  const { platform } = answers;
+  const lines = [
+    'version: 1',
+    '',
+    `# Written by \`bughunters init\` on ${new Date().toISOString().slice(0, 10)}. Correct any value that is wrong.`,
+    '# Docs: https://github.com/agent-labs-dev/bughunters/blob/main/docs/configuration.md',
+    '',
+    'app:',
+    `  platform: ${platform}`,
+    '  source: .                          # the repo that the fixer edits',
+  ];
+  if (answers.start) {
+    lines.push(
+      '  setup:',
+      `    - run: ${quoteYaml(answers.start)}`,
+      '      background: true               # keep the app alive for the session',
+      `      readyWhen: ${quoteYaml(READY[platform])}   # start when the output matches`,
+      `      timeoutMs: ${platform === 'web' ? 120000 : 180000}`,
+    );
+  } else {
+    lines.push('  setup: []                          # empty: start the app yourself before you run Bughunters');
+  }
+  lines.push('  connect:');
+  if (platform === 'web') lines.push(`    url: ${answers.url ?? 'http://localhost:3000'}`);
+  if (platform === 'electron') lines.push(`    cdp: http://127.0.0.1:${answers.cdpPort ?? 9222}   # the app must open this CDP port`);
+  if (platform === 'ios' || platform === 'android') {
+    lines.push(`    appId: ${answers.appId ?? 'com.example.app'}${answers.appId ? '' : '   # TODO: your bundle ID or package name'}`);
+    lines.push('    # device: <simulator UDID or emulator serial>   # default: the booted one');
+  }
+  lines.push(
+    '  instructions: instructions.md      # plain English for the explorer: sign in, main flows, never-do list',
+    '  secrets: []                        # env var names the explorer may use as {{NAME}}, e.g. [TEST_PASSWORD]',
+    '',
+    '# Each agent runs on an LLM: a local agent CLI (claude, codex, kimi, pi) or an API key.',
+    'agents:',
+    '  explorer:                          # uses the app and reports what looks wrong',
+    `    use: ${useLine('explorer', answers.providers.explorer, answers.piPermissionModes)}`,
+    '  judge:                             # decides which reports are real bugs, and writes the issues',
+    `    use: ${useLine('judge', answers.providers.judge, answers.piPermissionModes)}`,
+    '  fixer:                             # writes a fix in its own git worktree',
+    '    enabled: false                   # turn on when you want Bughunters to fix bugs',
+    `    use: ${useLine('fixer', answers.providers.fixer, answers.piPermissionModes)}`,
+    '  github:',
+    '    enabled: false                   # turn on to open PRs and issues (needs the gh CLI)',
+    '',
+    '# Jev triages each finding in one fast, low-cost call, so the LLM judge sees only the real ones.',
+    '# With no Jev key, a general model or the judge does this work, at a higher cost.',
+    'decisions:',
+    '  decider: jev',
+    `  jev: { via: ${answers.jev} }${answers.jev === 'auto' ? '             # tries TYPESAFE_API_KEY, OPENROUTER_API_KEY, AI_GATEWAY_API_KEY' : ''}`,
+    '',
+  );
+  return lines.join('\n');
+}
+
+const INSTRUCTIONS = `# About the app
+
+<!-- One or two sentences: what the app is, and its main areas. -->
+
+## Sign in
+
+<!-- How the explorer signs in. Use {{NAME}} for secrets, and list NAME in app.secrets.
+Example: Sign in with the email {{TEST_EMAIL}} and the password {{TEST_PASSWORD}}. -->
+
+## Important flows
+
+<!-- The flows that matter most. -->
+
+## Never do these things
+
+- Do not delete data that you did not make.
+- Do not send email or messages to real people.
+- Do not make payments.
+`;
+
+export type InitResult = { written: string[]; skipped: string[]; warnings: string[] };
+
+/** Writes bughunters.yml, instructions.md, and the .gitignore line. Never overwrites a file. */
+export function writeInitialConfig(root: string, answers: InitAnswers): InitResult {
+  const result: InitResult = { written: [], skipped: [], warnings: [] };
+  const configPath = paths.config(root);
+  if (existsSync(configPath)) result.skipped.push('bughunters.yml');
+  else {
+    writeFileSync(configPath, renderConfig(answers));
+    result.written.push('bughunters.yml');
+  }
+  const instructionsPath = join(root, 'instructions.md');
+  if (existsSync(instructionsPath)) result.skipped.push('instructions.md');
+  else {
+    writeFileSync(instructionsPath, INSTRUCTIONS);
+    result.written.push('instructions.md');
+  }
+  const gitignore = join(root, '.gitignore');
+  const ignored = existsSync(gitignore) ? readFileSync(gitignore, 'utf8') : '';
+  if (!/^\/?\.bughunters\/?$/m.test(ignored)) {
+    appendFileSync(gitignore, `${ignored && !ignored.endsWith('\n') ? '\n' : ''}# Bughunters: screenshots of the real app\n.bughunters/\n`);
+    result.written.push('.gitignore');
+  }
+  mkdirSync(paths.dir(root), { recursive: true });
+
+  for (const provider of new Set(Object.values(answers.providers))) {
+    if (provider in KEY_PROVIDERS && !process.env[KEY_PROVIDERS[provider as KeyProvider].env]) {
+      const route = KEY_PROVIDERS[provider as KeyProvider];
+      result.warnings.push(`Set ${route.env} before you run Bughunters. Get a key at ${route.url}`);
+    }
+  }
+  if (answers.jev !== 'auto' && !process.env[JEV_ROUTES[answers.jev].env]) {
+    result.warnings.push(`Set ${JEV_ROUTES[answers.jev].env} to use Jev. Get a key at ${JEV_ROUTES[answers.jev].url}`);
+  }
+  if (answers.jev === 'auto' && !Object.values(JEV_ROUTES).some((route) => process.env[route.env])) {
+    result.warnings.push('No Jev key is set, so Bughunters costs more. Get a key at https://typesafe.ai');
+  }
+  return result;
+}
+
+export type InitFlags = {
+  yes: boolean;
+  gate: boolean;
+  platform?: Platform;
+  start?: string;
+  url?: string;
+  appId?: string;
+  agent?: Provider;
+  explorer?: Provider;
+  judge?: Provider;
+  fixer?: Provider;
+  jev?: JevRoute;
+};
+
+const PROVIDERS: Provider[] = [...CLI_AGENTS, ...(Object.keys(KEY_PROVIDERS) as KeyProvider[])];
+
+export function parseInitFlags(args: string[]): InitFlags {
+  const flags: InitFlags = { yes: false, gate: false };
+  const oneOf = <T extends string>(flag: string, value: string | undefined, allowed: readonly T[]): T => {
+    if (!value || !allowed.includes(value as T)) throw new ConfigError(`${flag} needs one of: ${allowed.join(', ')}`);
+    return value as T;
+  };
+  for (let index = 0; index < args.length; index++) {
+    const flag = args[index]!;
+    const value = () => {
+      const next = args[++index];
+      if (next === undefined || next.startsWith('--')) throw new ConfigError(`${flag} needs a value`);
+      return next;
+    };
+    switch (flag) {
+      case '--yes': case '-y': flags.yes = true; break;
+      case '--gate': flags.gate = true; break;
+      case '--platform': flags.platform = oneOf(flag, args[++index], PLATFORMS); break;
+      case '--start': flags.start = value(); break;
+      case '--url': flags.url = value(); break;
+      case '--app-id': flags.appId = value(); break;
+      case '--agent': case '--explorer': case '--judge': case '--fixer':
+        flags[flag.slice(2) as 'agent' | AgentRole] = oneOf(flag, args[++index], PROVIDERS);
+        break;
+      case '--jev': flags.jev = oneOf(flag, args[++index], ['typesafe', 'openrouter', 'vercel', 'auto'] as const); break;
+      default: throw new ConfigError(`Unknown flag for init: ${flag}`);
+    }
+  }
+  return flags;
+}
+
+/** Detected CLIs first (no key to paste), then detected keys, then OpenRouter and Vercel as keys to get. */
+export function providerOptions(detected: Detected): { value: Provider; label: string }[] {
+  const options: { value: Provider; label: string }[] = [];
+  for (const cli of detected.clis) options.push({ value: cli, label: `${CLI_LABELS[cli]} (installed)` });
+  for (const key of detected.keys) options.push({ value: key, label: `${KEY_PROVIDERS[key].label} API key (${KEY_PROVIDERS[key].env} is set)` });
+  for (const key of ['openrouter', 'vercel'] as const) {
+    if (!detected.keys.includes(key)) {
+      options.push({ value: key, label: `${KEY_PROVIDERS[key].label} API key (get one at ${KEY_PROVIDERS[key].url})` });
+    }
+  }
+  return options;
+}
+
+export function defaultAnswers(guess: AppGuess, detected: Detected, flags: InitFlags): InitAnswers {
+  const platform = flags.platform ?? guess.platform;
+  const fallback = flags.agent ?? detected.clis[0] ?? detected.keys[0];
+  const providers = {
+    explorer: flags.explorer ?? fallback,
+    judge: flags.judge ?? fallback,
+    // The fixer edits code: a local agent CLI does that best.
+    fixer: flags.fixer ?? flags.agent ?? detected.clis[0] ?? fallback,
+  };
+  const missing = (Object.keys(providers) as AgentRole[]).filter((role) => !providers[role]);
+  if (missing.length) {
+    throw new ConfigError([
+      'Bughunters needs an LLM for each agent, and it found none on this machine.',
+      'Install an agent CLI (claude, codex, kimi, or pi), or set an API key:',
+      `  OpenRouter:        export OPENROUTER_API_KEY=...   (${KEY_PROVIDERS.openrouter.url})`,
+      `  Vercel AI Gateway: export AI_GATEWAY_API_KEY=...   (${KEY_PROVIDERS.vercel.url})`,
+      'Or name one: bughunters init --agent claude',
+    ].join('\n'));
+  }
+  return {
+    platform,
+    start: flags.start ?? (platform === guess.platform ? guess.start : undefined),
+    url: flags.url ?? guess.url,
+    appId: flags.appId ?? guess.appId,
+    cdpPort: guess.cdpPort,
+    providers: providers as Record<AgentRole, Provider>,
+    jev: flags.jev ?? detected.jev[0] ?? 'auto',
+    piPermissionModes: detected.piPermissionModes,
+  };
+}
+
+/** Asks one question. `prefill` goes on the input line, so the user presses Enter or edits it. */
+type Ask = (question: string, prefill?: string) => Promise<string>;
+
+async function choose<T extends string>(ask: Ask, title: string, options: { value: T; label: string }[], fallback: T): Promise<T> {
+  const start = Math.max(0, options.findIndex((option) => option.value === fallback));
+  process.stdout.write(`\n${title}\n`);
+  options.forEach((option, index) => process.stdout.write(`  ${index + 1}) ${option.label}${index === start ? '  [default]' : ''}\n`));
+  for (;;) {
+    const answer = (await ask(`Choose 1-${options.length}: `, String(start + 1))).trim();
+    if (!answer) return options[start]!.value;
+    const picked = options[Number(answer) - 1];
+    if (picked) return picked.value;
+  }
+}
+
+/** An empty answer means "none": the user cleared the detected value. */
+async function text(ask: Ask, question: string, prefill?: string): Promise<string | undefined> {
+  return (await ask(`${question}: `, prefill)).trim() || undefined;
+}
+
+/** Asks for each value, with the detected guess as the default. */
+export async function interview(ask: Ask, root: string, guess: AppGuess, detected: Detected, answers: InitAnswers): Promise<InitAnswers> {
+  if (guess.notes.length) {
+    process.stdout.write('\nBughunters looked at the repo:\n');
+    for (const note of guess.notes) process.stdout.write(`  ${note}\n`);
+  }
+  const platform = await choose(ask, 'Which kind of app is it?',
+    PLATFORMS.map((value) => ({ value, label: value === guess.platform ? `${value} (detected)` : value })), answers.platform);
+  const next: InitAnswers = { ...answers, platform, start: platform === guess.platform ? answers.start : undefined };
+  process.stdout.write('\nPress Enter to keep a value, or edit it.\n');
+  next.start = await text(ask, 'Start command (clear it if you start the app yourself)', next.start);
+  if (platform === 'web') next.url = await text(ask, 'App URL', next.url ?? 'http://localhost:3000') ?? 'http://localhost:3000';
+  if (platform === 'electron') next.cdpPort = Number(await text(ask, 'CDP port that the app opens', String(next.cdpPort ?? 9222))) || 9222;
+  if (platform === 'ios' || platform === 'android') {
+    const id = platform === guess.platform ? next.appId : detectAppId(root, platform)?.appId;
+    next.appId = await text(ask, platform === 'ios' ? 'Bundle ID' : 'Package name', id);
+  }
+
+  const options = providerOptions(detected);
+  process.stdout.write('\nEach agent runs on an LLM. A local agent CLI uses your existing login, so you need no API key.\n');
+  if (!detected.clis.length && !detected.keys.length) {
+    process.stdout.write('Bughunters found no agent CLI and no API key. Get an OpenRouter or a Vercel AI Gateway key, then set it in your shell.\n');
+  }
+  if (detected.piWithoutMcp) process.stdout.write('pi is installed, but it has no MCP. To use it, run: pi install npm:pi-mcp-adapter\n');
+  next.providers = { ...next.providers };
+  next.providers.explorer = await choose(ask, 'Explorer: it uses the app and reports what looks wrong.', options, next.providers.explorer);
+  next.providers.judge = await choose(ask, 'Judge: it decides which reports are real bugs.', options, next.providers.explorer);
+  next.providers.fixer = await choose(ask, 'Fixer: it writes the fixes (off until you turn it on).', options, next.providers.fixer);
+
+  process.stdout.write('\nJev triages each finding in one fast, low-cost call. The LLM judge then sees only the real findings.\n');
+  const jevOptions: { value: JevRoute; label: string }[] = [
+    ...(Object.keys(JEV_ROUTES) as Exclude<JevRoute, 'auto'>[]).map((route) => ({
+      value: route,
+      label: `${JEV_ROUTES[route].label} (${JEV_ROUTES[route].env}${detected.jev.includes(route) ? ' is set' : `, get a key at ${JEV_ROUTES[route].url}`})`,
+    })),
+    { value: 'auto', label: 'Try each key in order (with no key, the LLM does this work at a higher cost)' },
+  ];
+  next.jev = await choose(ask, 'How does Bughunters reach Jev?', jevOptions, next.jev === 'auto' ? detected.jev[0] ?? 'typesafe' : next.jev);
+  return next;
+}
+
+/** `bughunters init`: interactive in a terminal; `--yes` (or no terminal) takes the detected defaults. */
+export async function runInit(root: string, args: string[], log: (line: string) => void): Promise<void> {
+  const flags = parseInitFlags(args);
+  if (flags.gate) {
+    const result = writeGateConfig(root);
+    log(`Wrote ${result.configPath}`);
+    if (result.stack.framework) log(`Detected ${result.stack.framework}`);
+    for (const note of result.notes) log(`  note: ${note}`);
+    log('\nNext: review the TODO markers, then run `bughunters doctor`.');
+    return;
+  }
+  if (existsSync(paths.config(root))) {
+    throw new ConfigError('bughunters.yml already exists. Edit it, or delete it and run init again.');
+  }
+  const guess = detectApp(root);
+  const detected = detectProviders();
+  const interactive = !flags.yes && process.stdin.isTTY && process.stdout.isTTY;
+  let answers: InitAnswers;
+  if (interactive) {
+    const rl = createInterface({ input: process.stdin, output: process.stdout });
+    try {
+      const seed = safeDefaults(guess, detected, flags);
+      answers = await interview((question, prefill) => {
+        const answer = rl.question(question);
+        if (prefill) rl.write(prefill);
+        return answer;
+      }, root, guess, detected, seed);
+    } finally {
+      rl.close();
+    }
+  } else {
+    answers = defaultAnswers(guess, detected, flags);
+  }
+  const result = writeInitialConfig(root, answers);
+  for (const file of result.written) log(`Wrote ${file}`);
+  for (const file of result.skipped) log(`Kept ${file}: it already exists`);
+  if (!interactive) for (const note of guess.notes) log(`  ${note}`);
+  for (const warning of result.warnings) log(`  warning: ${warning}`);
+  log('\nNext steps:');
+  log('  1. Write instructions.md: what the app is, how to sign in, and what never to do.');
+  log('  2. Run `npx bughunters explore`, then `npx bughunters judge`.');
+  log('  3. Run `npx bughunters dashboard` to look at the results.');
+}
+
+/** Interactive mode may start with no provider: the user picks one from the list. */
+function safeDefaults(guess: AppGuess, detected: Detected, flags: InitFlags): InitAnswers {
+  try {
+    return defaultAnswers(guess, detected, flags);
+  } catch {
+    return defaultAnswers(guess, detected, { ...flags, agent: flags.agent ?? 'openrouter' });
+  }
+}
+
+/**
+ * `bughunters init --gate`: bughunters.yml for the deterministic web gate,
+ * with detected defaults and a TODO marker on anything it could not determine.
+ * Detection is a first guess, never a silent decision -- everything is written
+ * to the file with its provenance so a human can see WHY a value was chosen
+ * and correct it (spec, Phase 0).
+ */
+export function writeGateConfig(root: string): { configPath: string; stack: StackProfile; notes: string[] } {
   const stack = detectStack(root);
   const candidates = detectBringUp(root);
   const best = candidates[0];
@@ -22,7 +574,7 @@ export function writeInitialConfig(root: string): InitResult {
 
   const config = `version: 1
 
-# Written by \`bughunters init\` on ${new Date().toISOString().slice(0, 10)}.
+# Written by \`bughunters init --gate\` on ${new Date().toISOString().slice(0, 10)}.
 # Every value below is a DETECTED GUESS with its provenance in a comment.
 # Correct anything that is wrong; Bughunters will not overwrite your edits.
 
@@ -72,7 +624,7 @@ determinism:
   blockThirdPartyRequests: true
 
 decisions:
-  decider: jev                 # jev | model | local | heuristic
+  decider: jev                 # jev | model
   jev:
     via: auto                  # auto | typesafe | openrouter | vercel
   model:
@@ -99,39 +651,7 @@ production:
   const configPath = paths.config(root);
   if (!existsSync(configPath)) writeFileSync(configPath, config);
   else notes.push('bughunters.yml already exists and was left untouched.');
-
-  const workflowDir = join(root, '.github', 'workflows');
-  mkdirSync(workflowDir, { recursive: true });
-  const workflowPath = join(workflowDir, 'bughunters.yml');
-  if (!existsSync(workflowPath)) writeFileSync(workflowPath, WORKFLOW);
-
   mkdirSync(paths.dir(root), { recursive: true });
 
-  return { configPath, workflowPath, stack, notes };
+  return { configPath, stack, notes };
 }
-
-/** Note the explicit least-privilege permissions block (spec 10.4). */
-export const WORKFLOW = `name: Bughunters
-on:
-  pull_request:
-  push:
-    branches: [main]
-  schedule:
-    - cron: '0 6 * * *'   # nightly full sweep
-
-jobs:
-  bughunters:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      checks: write
-      issues: write
-      pull-requests: write
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0    # the compare API needs history
-      - uses: bughunters/run@v1
-        with:
-          mode: \${{ github.event_name == 'schedule' && 'all' || 'changed-only' }}
-`;

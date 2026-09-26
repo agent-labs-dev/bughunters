@@ -1,6 +1,5 @@
 import type { Answer, Decider, Question } from '@bughunters/core';
 import { InfrastructureError } from '@bughunters/core';
-import { HeuristicDecider } from './heuristic.js';
 import { normalizeAnswers } from './jev.js';
 
 export const MODEL_ROUTES = {
@@ -252,21 +251,5 @@ export class ModelDecider implements Decider {
     } finally {
       clearTimeout(timer);
     }
-  }
-}
-
-/**
- * A locally hosted classifier or small model, for air-gapped deployments where
- * "is this data sent to a model provider?" is a procurement blocker rather than
- * a preference (spec 11.2).
- */
-export class LocalDecider implements Decider {
-  readonly name = 'local' as const;
-
-  constructor(private readonly endpoint = 'http://127.0.0.1:11434') {}
-
-  async ask(state: string, questions: Record<string, Question>): Promise<Record<string, Answer>> {
-    void this.endpoint;
-    return new HeuristicDecider().ask(state, questions);
   }
 }

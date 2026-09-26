@@ -642,6 +642,8 @@ Implementations: `JevDecider` (default), `ModelDecider` (a small hosted model pr
 
 Because answers are typed, the caller never knows which implementation ran. Swapping deciders is a config change, and the `LocalDecider`/`HeuristicDecider` pair is what makes the fully-offline mode in section 1.2 real rather than aspirational.
 
+> **Amendment (2026-09):** Bughunters no longer ships `LocalDecider` or `HeuristicDecider`. The decider is Jev, or a general model when no Jev key is set. With no key at all, the judge decides each finding. `run --no-models` skips the decider and keeps the deterministic tier offline. See ADR 0003.
+
 **Access paths**, in the order Bughunters tries them: the official SDK against `api.typesafe.ai` with a TypeSafe key; the gateway routes `typesafe-ai/jev` (Vercel AI Gateway), `typesafe/jev` (Cloudflare Workers AI), and the Netlify AI Gateway, which lets an existing gateway credential work without a separate TypeSafe key; then fall back to `ModelDecider`.
 
 ### 4.7 Navigation: how Bughunters drives the app cheaply
@@ -941,7 +943,7 @@ type DecisionRecord = {
   id: DecisionId;
   screenId: ScreenId;
   stateHash: string;               // keys the cache; unchanged state = no call
-  decider: 'jev'|'model'|'local'|'heuristic';
+  decider: 'jev'|'model';
   modelVersion: string;
   answers: Record<string, Answer>;
   thresholds: { high: number; low: number };
@@ -1232,7 +1234,7 @@ tolerance:
     - { screen: /dashboard, selector: ".chart", mode: perceptual, threshold: 0.02 }
 
 decisions:
-  decider: jev              # jev | model | local | heuristic
+  decider: jev              # jev | model
   confidence: { high: 0.85, low: 0.55 }
   budget:
     perRunUsd: 0.50

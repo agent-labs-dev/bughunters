@@ -1,7 +1,8 @@
 export const USAGE = `bughunters - a continuously-running QA engineer for your repo
 
 Setup
-  bughunters init                          install the App, auth, detect the stack, write config
+  bughunters init [--yes] [--agent a]      detect the app and the LLMs, write bughunters.yml
+  bughunters init --gate                   write a starter config for the deterministic web gate
   bughunters doctor                        verify env: pinned image, fonts, browser, network, disk
 
 Recon

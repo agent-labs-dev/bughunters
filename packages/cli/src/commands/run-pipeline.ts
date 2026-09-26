@@ -25,6 +25,7 @@ import {
   SCREEN_QUESTIONS,
   buildState,
   resolveDecider,
+  type Resolution,
   estimateDecisionCost,
   route as routeDecision,
   severityFrom,
@@ -103,9 +104,9 @@ export async function executeRun(options: PipelineOptions): Promise<RunResult> {
 
   const ledger = IntentLedger.load(root);
   const disabled = ledger.disabledRuleIds();
-  const resolution = resolveDecider(config.decisions, process.env as Record<string, string>, {
-    noModels: options.noModels,
-  });
+  const resolution: Resolution = options.noModels
+    ? { via: 'none', reason: 'Decider: none because --no-models was set.' }
+    : resolveDecider(config.decisions, process.env as Record<string, string>);
   const { decider } = resolution;
   const budget = new Budget(config.decisions.budget.perRunUsd);
 
@@ -168,9 +169,18 @@ export async function executeRun(options: PipelineOptions): Promise<RunResult> {
       knownIntents: ledger.summaries(),
     });
 
-    const estimate = estimateDecisionCost(text.length, decider.name);
+    const estimate = decider ? estimateDecisionCost(text.length, decider.name) : 0;
     let answers = {};
-    if (!options.noModels && budget.canSpend(estimate)) {
+    if (!decider) {
+      trace.decision = {
+        decider: 'none',
+        skippedReason: options.noModels
+          ? 'Offline mode (--no-models): the deterministic tier decided this on its own.'
+          : 'No decider key is set: the deterministic tier decided this on its own.',
+        stateHash: hash,
+        stateChars: text.length,
+      };
+    } else if (budget.canSpend(estimate)) {
       answers = await decider.ask(text, SCREEN_QUESTIONS);
       budget.record(estimate);
       decisionUsd += estimate;
@@ -180,13 +190,6 @@ export async function executeRun(options: PipelineOptions): Promise<RunResult> {
         stateChars: text.length,
         answers,
         costUsd: estimate,
-      };
-    } else if (options.noModels) {
-      trace.decision = {
-        decider: 'none',
-        skippedReason: 'Offline mode (--no-models): the deterministic tier decided this on its own.',
-        stateHash: hash,
-        stateChars: text.length,
       };
     } else {
       // Budget exhausted. The run is INCOMPLETE, not green: a tool that

@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <defs>
+    <linearGradient id="bh-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1c2140"/>
+      <stop offset="1" stop-color="#0a0d1a"/>
+    </linearGradient>
+    <linearGradient id="bh-shell" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#bef264"/>
+      <stop offset="1" stop-color="#65a30d"/>
+    </linearGradient>
+  </defs>
+  <rect width="256" height="256" rx="56" fill="url(#bh-bg)"/>
+  <g stroke="#f8fafc" stroke-linecap="round" fill="none" opacity="0.9">
+    <circle cx="128" cy="132" r="86" stroke-width="8"/>
+    <line x1="128" y1="30" x2="128" y2="58" stroke-width="8"/>
+    <line x1="128" y1="206" x2="128" y2="234" stroke-width="8"/>
+    <line x1="26" y1="132" x2="54" y2="132" stroke-width="8"/>
+    <line x1="202" y1="132" x2="230" y2="132" stroke-width="8"/>
+  </g>
+  <g stroke="#bef264" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" fill="none">
+    <path d="M104 122 L86 110 L78 96"/>
+    <path d="M152 122 L170 110 L178 96"/>
+    <path d="M100 142 L76 144"/>
+    <path d="M156 142 L180 144"/>
+    <path d="M104 162 L88 176 L84 190"/>
+    <path d="M152 162 L168 176 L172 190"/>
+    <path d="M120 94 Q112 78 100 74"/>
+    <path d="M136 94 Q144 78 156 74"/>
+  </g>
+  <circle cx="128" cy="104" r="15" fill="#bef264"/>
+  <ellipse cx="128" cy="146" rx="31" ry="38" fill="url(#bh-shell)"/>
+  <line x1="128" y1="116" x2="128" y2="182" stroke="#0a0d1a" stroke-width="5" stroke-linecap="round"/>
+  <circle cx="115" cy="140" r="5" fill="#0a0d1a"/>
+  <circle cx="141" cy="140" r="5" fill="#0a0d1a"/>
+  <circle cx="117" cy="162" r="4" fill="#0a0d1a"/>
+  <circle cx="139" cy="162" r="4" fill="#0a0d1a"/>
+</svg>

@@ -11,7 +11,7 @@ import { evaluateScreen, groupViolations } from './evaluate.js';
 import { judgeTools } from './tools/judge.js';
 import { judgePrompt, judgeSystem } from './prompts.js';
 
-const config = parseConfig({ version: 1, app: { connect: { url: 'fake://home' } }, decisions: { decider: 'heuristic' } });
+const config = parseConfig({ version: 1, app: { connect: { url: 'fake://home' } } });
 
 // Three 12px buttons: each breaks the tap-target rule on its own.
 const tiny = (ref: string, x: number) => ({
