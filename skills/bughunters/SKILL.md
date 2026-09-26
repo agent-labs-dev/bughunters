@@ -431,6 +431,7 @@ To read the state of the PRs and issues back from GitHub, run `npx bughunters@la
 
 ```bash
 npx bughunters@latest patrol --once       # one full cycle: setup, explore, judge, teardown, fix, retest, publish
+npx bughunters@latest patrol --once --force  # the same, also when the commit did not change
 npx bughunters@latest patrol              # repeat every agents.patrol.intervalMinutes (default 30); a cycle runs only when origin/main has a new commit
 ```
 

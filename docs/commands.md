@@ -11,7 +11,7 @@ Run each command in your repo. Bughunters finds the `.bughunters/` folder in the
 | `bughunters fix [--issue <id>]` | Fix the worst open issues, then retest each fix |
 | `bughunters retest --issue <id>` | Retest one fix in the app, from its worktree |
 | `bughunters publish [--issue <id>] [--dry-run]` | Open PRs and issues on GitHub, or write them to local files. Refer to [GitHub](github.md) |
-| `bughunters patrol [--once]` | The full cycle, again and again |
+| `bughunters patrol [--once] [--force]` | The full cycle, again and again. A cycle runs only on a new commit. `--once` runs one cycle; `--force` tests the same commit again |
 | `bughunters replay <routine-id>` | Replay a learned routine, with no model |
 
 ## Issues, memory, and GitHub

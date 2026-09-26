@@ -59,6 +59,10 @@ export async function sourceCommit(root: string, config: BughuntersConfig): Prom
   } catch { return undefined; }
 }
 
+function alive(pid: number): boolean {
+  try { process.kill(pid, 0); return true; } catch { return false; }
+}
+
 function wait(minutes: number): Promise<void> {
   return new Promise<void>((done) => {
     const finish = () => {
@@ -77,6 +81,8 @@ export type PatrolOptions = {
   root: string;
   config: BughuntersConfig;
   once?: boolean;
+  /** Run the first cycle also when the commit did not change. */
+  force?: boolean;
   onLog?: (message: string) => void;
   createDriver?: typeof makeDriver;
   createRuntime?: typeof createRuntime;
@@ -86,6 +92,12 @@ export type PatrolOptions = {
 export async function runPatrol(options: PatrolOptions): Promise<void> {
   const { root, config } = options;
   const workspace = new Workspace(root);
+  const previous = (await workspace.readAgents()).patrol;
+  // A cron job can start a patrol while the last one still runs.
+  if (previous?.state === 'running' && previous.pid && previous.pid !== process.pid && alive(previous.pid)) {
+    options.onLog?.(`A patrol already runs (pid ${previous.pid}): did not start another.`);
+    return;
+  }
   const runtime = options.createRuntime ?? createRuntime;
   let interrupted = false;
   let activeSession: AgentSession | undefined;
@@ -97,9 +109,9 @@ export async function runPatrol(options: PatrolOptions): Promise<void> {
   };
   const idle = () => workspace.setPatrol({ state: 'stopped',
     nextAt: new Date(Date.now() + config.agents.patrol.intervalMinutes * 60_000).toISOString() });
-  // The commit of the last full cycle in this run. The first cycle always runs,
-  // so a restart after a config change tests again.
-  let tested: string | undefined;
+  // The commit of the last full cycle, also from an earlier run, so a cron job
+  // with --once tests only new commits. --force tests the first cycle anyway.
+  let tested = options.force ? undefined : previous?.commit;
   process.on('SIGINT', onSignal);
   process.on('SIGTERM', onSignal);
   try {
@@ -119,6 +131,7 @@ export async function runPatrol(options: PatrolOptions): Promise<void> {
       if (commit && commit === tested) {
         options.onLog?.(`No new commit since the last cycle (${commit.slice(0, 7)}): skipped the cycle.`);
         await idle();
+        if (options.once) break;
         continue;
       }
       for (const role of ['explorer', 'judge', 'fixer'] as const) {
@@ -186,7 +199,8 @@ export async function runPatrol(options: PatrolOptions): Promise<void> {
       }
     }
   } finally {
-    await workspace.setPatrol({ state: 'stopped' });
+    // No cycle follows, so the dashboard must not show a next patrol.
+    await workspace.setPatrol({ state: 'stopped', nextAt: undefined });
     process.off('SIGINT', onSignal);
     process.off('SIGTERM', onSignal);
   }

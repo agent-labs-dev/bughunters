@@ -5,7 +5,7 @@ import { chmod, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:f
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { parseConfig, type Candidate, type FixProposal, type Issue } from '@bughunters/core';
+import { parseConfig, paths, type Candidate, type FixProposal, type Issue } from '@bughunters/core';
 import { FakeDriver } from './testing/fake-driver.js';
 import { AgentSession } from './session.js';
 import { Vars } from './vars.js';
@@ -594,6 +594,50 @@ describe('patrol pull', () => {
       expect(logs.some((message) => message.startsWith('No new commit'))).toBe(true);
       const head = (await git(f.source, 'rev-parse', 'HEAD')).stdout.trim();
       expect((await new Workspace(f.root).readAgents()).patrol?.commit).toBe(head);
+    } finally { await rm(f.root, { recursive: true, force: true }); }
+  });
+
+  it('skips --once on a tested commit unless forced, and shows no next patrol', async () => {
+    const f = await repoFixture();
+    try {
+      const config = parseConfig({ version: 1, app: { source: 'source', connect: { url: 'fake://home' } },
+        agents: { judge: { enabled: false }, patrol: { pull: false } } });
+      let runs = 0;
+      const once = (force = false) => runPatrol({ root: f.root, config, once: true, force,
+        createDriver: () => new FakeDriver({ home: { elements: [] } }),
+        createRuntime: () => ({ label: 'scripted', async run() {
+          runs++;
+          return { stop: 'done', steps: 0, costUsd: 0, summary: 'Done' };
+        } }) });
+      await once();
+      await once();
+      expect(runs).toBe(1);
+      await once(true);
+      expect(runs).toBe(2);
+      const patrol = (await new Workspace(f.root).readAgents()).patrol;
+      expect(patrol?.state).toBe('stopped');
+      expect(patrol?.nextAt).toBeUndefined();
+    } finally { await rm(f.root, { recursive: true, force: true }); }
+  });
+
+  it('does not start while another patrol runs', async () => {
+    const f = await repoFixture();
+    try {
+      // The parent process is alive, and it is not this process.
+      await f.workspace.setPatrol({ state: 'running', cycle: 1 });
+      const file = await f.workspace.readAgents();
+      await writeFile(paths.agents(f.root),
+        JSON.stringify({ ...file, patrol: { ...file.patrol, pid: process.ppid } }));
+      const logs: string[] = [];
+      let runs = 0;
+      await runPatrol({ root: f.root, config: f.config, once: true, onLog: (message) => logs.push(message),
+        createDriver: () => new FakeDriver({ home: { elements: [] } }),
+        createRuntime: () => ({ label: 'scripted', async run() {
+          runs++;
+          return { stop: 'done', steps: 0, costUsd: 0, summary: 'Done' };
+        } }) });
+      expect(runs).toBe(0);
+      expect(logs[0]).toContain('A patrol already runs');
     } finally { await rm(f.root, { recursive: true, force: true }); }
   });
 

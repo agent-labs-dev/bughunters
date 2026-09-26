@@ -29,8 +29,9 @@ npx bughunters patrol
 
 - The patrol does not stop by itself. Every 30 minutes, it pulls the latest `origin/main`.
 - The patrol runs a full cycle only when `main` has new commits. If the commit did not change, the patrol only syncs the state of GitHub issues and PRs, and waits again. So a patrol that runs all day costs little when nobody merges code.
-- The first cycle of each `patrol` run always runs, also with no new commit.
+- Bughunters keeps the last tested commit in `.bughunters/runs/`, so a restart also skips a commit that it tested before. To test again with no new commit, for example after a config change, use `patrol --force`.
 - You can change the wait with `agents.patrol.intervalMinutes`. To stop after a number of cycles, set `agents.patrol.cycles`. To run one cycle only, use `patrol --once`.
+- You can also run `patrol --once` from cron, for example every 30 minutes. Each run tests only a new commit. If the last patrol still runs, the new run does not start.
 - To use a different branch, set `agents.patrol.pull`.
 - Let the patrol run all the time on a dedicated computer or a cloud VM. The patrol changes the checkout of the repo, so do not run it in the checkout where you work.
 
@@ -102,7 +103,7 @@ PLAYWRIGHT_SKIP_BROWSER_GC=1 npx -y playwright@1.48.2 install chromium
 To run one step at a time, use these commands:
 
 ```bash
-npx bughunters patrol --once  # one full cycle, then stop
+npx bughunters patrol --once  # one cycle, then stop (add --force to test the same commit again)
 npx bughunters explore        # the explorer maps the app and reports problems
 npx bughunters judge          # the judge files the real bugs as issues
 npx bughunters fix            # fix the worst issues, then retest each fix in the app
