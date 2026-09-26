@@ -16,6 +16,54 @@ This split lets Bughunters run all day on your app at a low cost. The automatic 
 | Fixer | LLM | Reads the issue and the code, and writes a fix in its own git worktree | Each `fix` |
 | Decider | Jev | Answers typed questions about each finding from the automatic checks: is it a problem, what kind, how bad, and does it need the judge | Each screen that has a finding |
 
+## Which model for each agent
+
+Each agent needs different skills. Give the judge your strongest model. Give the explorer a fast, low-cost model.
+
+- **Explorer.** It runs a long loop of tool calls, with a screenshot after each step. It needs good vision, computer use, and reliable tool calls. It uses the most tokens of the three agents, so cost and speed are important. The judge checks each report, so the explorer does not need your strongest model.
+- **Judge.** It makes fewer calls, but its decisions become GitHub issues and PRs. It needs precision, fine visual detail to compare the screenshots before and after a fix, product sense, and clear writing. Use your strongest model with vision.
+- **Fixer.** It reads the code and edits it in a worktree. Use a strong coding model in an agent CLI.
+
+The prices are the OpenRouter list prices in USD for each million input / output tokens, in September 2026.
+
+### Explorer
+
+| Lab | Model | `use:` | Price |
+| --- | --- | --- | --- |
+| Anthropic | Claude Sonnet 5 | `{ runtime: model, via: anthropic, model: claude-sonnet-5 }` | $2 / $10 |
+| OpenAI | GPT-6 Luna | `{ runtime: model, via: openai, model: gpt-6-luna }` | $0.10 / $0.50 |
+| Google | Gemini 3.8 Flash | `{ runtime: model, via: openrouter, model: google/gemini-3.8-flash }` | $0.75 / $3.75 |
+
+The OpenRouter default, `z-ai/glm-5.3-flash`, is also a good low-cost explorer.
+
+### Judge
+
+| Lab | Model | `use:` | Price |
+| --- | --- | --- | --- |
+| Anthropic | Claude Opus 5.5 | `{ runtime: model, via: anthropic, model: claude-opus-5-5 }` | $4 / $20 |
+| OpenAI | GPT-6 Sol | `{ runtime: model, via: openai, model: gpt-6-sol }` | $2 / $10 |
+| Moonshot AI | Kimi K3 | `{ runtime: model, via: openrouter, model: moonshotai/kimi-k3 }` | $3 / $15 |
+
+### Fixer
+
+| Lab | Agent CLI and model | `use:` |
+| --- | --- | --- |
+| Anthropic | Claude Code, with Claude Opus 5.5 | `claude`, and add `--model claude-opus-5-5` |
+| OpenAI | Codex, with GPT-6 Astra | `codex`, and add `-m gpt-6-astra` |
+| Moonshot AI | Kimi CLI, with Kimi K3 | `kimi`, with Kimi K3 as the model in the Kimi CLI config |
+
+To set the model of a CLI, write the full preset command, and add the model flag:
+
+```yaml
+agents:
+  fixer:
+    use:
+      runtime: cli
+      command: claude -p --output-format json --permission-mode acceptEdits --model claude-opus-5-5
+```
+
+The [presets](../packages/core/src/config/agents.ts) show the full command for each CLI and role.
+
 ## Jev
 
 Jev is a "System One" model from [TypeSafe](https://typesafe.ai). It does not write text. It takes the state of a screen and a set of typed questions, and it gives an answer with a confidence for each question, in one call.
@@ -115,7 +163,7 @@ agents:
   explorer:
     use: { runtime: model, via: openrouter, model: z-ai/glm-5.3-flash }
   judge:
-    use: { runtime: model, via: anthropic, model: claude-haiku-4-5 }
+    use: { runtime: model, via: anthropic, model: claude-opus-5-5 }
 ```
 
 `bughunters init` writes a default model for each provider. We recommend OpenRouter or Vercel AI Gateway: one key gives you many models, and the same key can also reach Jev.

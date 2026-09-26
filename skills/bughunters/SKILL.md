@@ -291,6 +291,14 @@ Each agent's provider is in `agents.<role>.use`:
 | `{ runtime: model, via: custom, model: <id>, endpoint: <url> }` | An OpenAI-compatible endpoint | `BUGHUNTERS_MODEL_API_KEY` |
 | `{ runtime: cli, command: '...' }` | A full command, for extra flags | The CLI on `PATH` |
 
+When the user asks which model to use, recommend a model from this table. Give the judge the strongest model, and give the explorer a fast, low-cost model. [Which model for each agent](https://github.com/agent-labs-dev/bughunters/blob/main/docs/models.md#which-model-for-each-agent) gives the `use:` config for each model.
+
+| Agent | What it needs | Anthropic | OpenAI | Other labs (OpenRouter) |
+| --- | --- | --- | --- | --- |
+| Explorer | Vision, computer use, reliable tool calls, low cost | `claude-sonnet-5` | `gpt-6-luna` | `google/gemini-3.8-flash` |
+| Judge | Precision, fine visual detail, clear writing | `claude-opus-5-5` | `gpt-6-sol` | `moonshotai/kimi-k3` |
+| Fixer | Strong coding, in an agent CLI | `claude` with `--model claude-opus-5-5` | `codex` with `-m gpt-6-astra` | `kimi` with Kimi K3 |
+
 A command gets the prompt on stdin and in `{prompt}` (a file), the role's tools over MCP in `{mcp}` (a config file) or `{mcpUrl}`, and the worktree in `{workdir}`.
 
 Before each agent command starts the app, Bughunters checks each agent's LLM. If a key or a CLI is missing, the command stops and names the fix.

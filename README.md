@@ -127,6 +127,16 @@ Each agent can use a different LLM:
 - A local agent CLI, with your existing login: [Claude Code](https://claude.com/claude-code), [Codex](https://github.com/openai/codex), [Kimi CLI](https://github.com/MoonshotAI/kimi-cli), or [pi](https://github.com/badlogic/pi-mono).
 - An API key: OpenRouter, Vercel AI Gateway, OpenAI, Anthropic, or a custom endpoint.
 
+Give the judge your strongest model, and give the explorer a fast, low-cost model. We recommend these models:
+
+| Agent | What it needs | Anthropic | OpenAI | Other labs (OpenRouter) |
+| --- | --- | --- | --- | --- |
+| Explorer | Vision, computer use, reliable tool calls, low cost | Claude Sonnet 5 | GPT-6 Luna | Gemini 3.8 Flash |
+| Judge | Precision, fine visual detail, clear writing | Claude Opus 5.5 | GPT-6 Sol | Kimi K3 |
+| Fixer | Strong coding, in an agent CLI | Claude Code with Claude Opus 5.5 | Codex with GPT-6 Astra | Kimi CLI with Kimi K3 |
+
+[Which model for each agent](docs/models.md#which-model-for-each-agent) gives the `use:` config for each model.
+
 Jev needs a TypeSafe, OpenRouter, or Vercel AI Gateway key. We recommend a Jev key: without it, a general model or the judge does the triage, at a higher cost. [LLMs and Jev](docs/models.md) tells more, and shows how to configure each agent.
 
 ## What is supported
