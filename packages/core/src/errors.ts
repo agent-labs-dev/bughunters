@@ -1,6 +1,6 @@
 import { ExitCode, type ExitCodeValue } from './exit-codes.js';
 
-export class AutoQAError extends Error {
+export class BughuntersError extends Error {
   readonly exitCode: ExitCodeValue;
   constructor(message: string, exitCode: ExitCodeValue, options?: ErrorOptions) {
     super(message, options);
@@ -9,23 +9,23 @@ export class AutoQAError extends Error {
   }
 }
 
-export class ConfigError extends AutoQAError {
+export class ConfigError extends BughuntersError {
   constructor(message: string, options?: ErrorOptions) {
     super(message, ExitCode.Usage, options);
   }
 }
 
 /**
- * Anything that means "AutoQA could not test". Deliberately a distinct class,
+ * Anything that means "Bughunters could not test". Deliberately a distinct class,
  * because it must never be reported as a product failure.
  */
-export class InfrastructureError extends AutoQAError {
+export class InfrastructureError extends BughuntersError {
   constructor(message: string, options?: ErrorOptions) {
     super(message, ExitCode.Infrastructure, options);
   }
 }
 
-export class ReconRequiredError extends AutoQAError {
+export class ReconRequiredError extends BughuntersError {
   constructor(message: string, options?: ErrorOptions) {
     super(message, ExitCode.ReconRequired, options);
   }

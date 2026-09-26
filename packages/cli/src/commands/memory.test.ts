@@ -2,12 +2,12 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { Workspace } from '@autoqa/agents';
+import { Workspace } from '@bughunters/agents';
 import { runMemoryCommand } from './memory.js';
 
-describe('autoqa memory', () => {
+describe('bughunters memory', () => {
   it('adds, lists, and removes a lesson', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'autoqa-memory-cli-'));
+    const root = await mkdtemp(join(tmpdir(), 'bughunters-memory-cli-'));
     try {
       const lines: string[] = [];
       const log = (line: string) => { lines.push(line); };

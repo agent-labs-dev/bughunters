@@ -1,4 +1,4 @@
-# AutoQA's own must-pass test.
+# Bughunters's own must-pass test.
 #
 # M3's acceptance criterion is the single most important one in the roadmap:
 # three consecutive runs against an UNCHANGED commit must produce zero diffs
@@ -33,7 +33,7 @@ jobs:
       - run: pnpm build
 
       - name: Install the pinned browser build
-        run: pnpm --filter @autoqa/capture exec playwright install --with-deps chromium
+        run: pnpm --filter @bughunters/capture exec playwright install --with-deps chromium
 
       - name: Capture baselines, then run three times against the same commit
         # Invoked through bash: file modes do not survive the signed publish
@@ -46,7 +46,7 @@ jobs:
         with:
           name: determinism-diffs
           path: |
-            examples/fixture-app/.autoqa/runs/
+            examples/fixture-app/.bughunters/runs/
             /tmp/determinism-run-*.log
           retention-days: 7
 
@@ -57,4 +57,4 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: docker build -t autoqa-runner:ci -f images/runner/Dockerfile .
+      - run: docker build -t bughunters-runner:ci -f images/runner/Dockerfile .

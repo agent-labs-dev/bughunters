@@ -5,7 +5,7 @@ import {
   fingerprint as makeFingerprint,
   id,
   paths,
-  type AutoQAConfig,
+  type BughuntersConfig,
   type ExitCodeValue,
   type Finding,
   type Run,
@@ -17,9 +17,9 @@ import {
   type ScreenTrace,
   type FindingTrace,
   type CheckOutcome,
-} from '@autoqa/core';
-import { RULES, evaluateAll, type InvariantViolation, type ScreenSnapshot } from '@autoqa/invariants';
-import { evaluate as evaluateTolerance, type CrossCheckResult } from '@autoqa/diff';
+} from '@bughunters/core';
+import { RULES, evaluateAll, type InvariantViolation, type ScreenSnapshot } from '@bughunters/invariants';
+import { evaluate as evaluateTolerance, type CrossCheckResult } from '@bughunters/diff';
 import {
   Budget,
   SCREEN_QUESTIONS,
@@ -29,9 +29,9 @@ import {
   route as routeDecision,
   severityFrom,
   violationsToAssertions,
-} from '@autoqa/decide';
-import { IntentLedger, applyNoiseControls, cluster } from '@autoqa/triage';
-import { renderHtml, toJUnit, toSarif } from '@autoqa/report';
+} from '@bughunters/decide';
+import { IntentLedger, applyNoiseControls, cluster } from '@bughunters/triage';
+import { renderHtml, toJUnit, toSarif } from '@bughunters/report';
 
 /** One screen, in one viewport, after capture and comparison. */
 export type CapturedScreen = {
@@ -53,7 +53,7 @@ export type CapturedScreen = {
 
 export type PipelineOptions = {
   root: string;
-  config: AutoQAConfig;
+  config: BughuntersConfig;
   mode: RunMode;
   trigger: RunTrigger;
   commit: string;
@@ -339,7 +339,7 @@ export async function executeRun(options: PipelineOptions): Promise<RunResult> {
  * the pass/fail call, so the hollow-test and masked-and-relaxed flags it raises
  * travel with the finding instead of being dropped on the floor.
  */
-function visualViolations(screen: CapturedScreen, config: AutoQAConfig): InvariantViolation[] {
+function visualViolations(screen: CapturedScreen, config: BughuntersConfig): InvariantViolation[] {
   if (screen.baselineCreated) return [];
   if (!screen.comparison) {
     return [

@@ -1,4 +1,4 @@
-import type { DeterminismConfig } from '@autoqa/core';
+import type { DeterminismConfig } from '@bughunters/core';
 
 /**
  * Chromium launch flags that pin rasterisation. GPU rendering varies between

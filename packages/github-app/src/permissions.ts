@@ -9,7 +9,7 @@ export type PermissionSpec = {
 };
 
 /**
- * Most tools in this category request a broad, fixed permission set. AutoQA
+ * Most tools in this category request a broad, fixed permission set. Bughunters
  * requests the minimum for the mode actually in use, and asks for more only
  * when the feature that needs it is enabled (spec 10.1).
  *
@@ -46,13 +46,13 @@ export const SUBSCRIBED_EVENTS = [
 ] as const;
 
 export const LABELS = {
-  root: 'autoqa',
-  bug: 'autoqa:bug',
-  question: 'autoqa:question',
-  regression: 'autoqa:regression',
-  a11y: 'autoqa:a11y',
-  content: 'autoqa:content',
-  flow: 'autoqa:flow',
-  fix: 'autoqa-fix',
+  root: 'bughunters',
+  bug: 'bughunters:bug',
+  question: 'bughunters:question',
+  regression: 'bughunters:regression',
+  a11y: 'bughunters:a11y',
+  content: 'bughunters:content',
+  flow: 'bughunters:flow',
+  fix: 'bughunters-fix',
   needsDecision: 'needs-decision',
 } as const;

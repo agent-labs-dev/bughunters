@@ -30,7 +30,7 @@ with its X button. Do not report it, unless it covers a control that you need.
 - The Channels list, a Channel's chatroom, and each of its tabs.
 - Tasks, agents, the workspace switcher, and settings.
 - Sheets, menus, and empty states.
-- In a Channel, you may send one short message, such as `AutoQA test message`.
+- In a Channel, you may send one short message, such as `Bughunters test message`.
 
 ## Never do these things
 

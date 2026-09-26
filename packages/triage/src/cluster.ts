@@ -1,6 +1,6 @@
-import type { Decider, Finding, GroupId } from '@autoqa/core';
-import { id, shortHash } from '@autoqa/core';
-import { SAME_ROOT_CAUSE } from '@autoqa/decide';
+import type { Decider, Finding, GroupId } from '@bughunters/core';
+import { id, shortHash } from '@bughunters/core';
+import { SAME_ROOT_CAUSE } from '@bughunters/decide';
 
 export type RootCauseGroup = {
   id: GroupId;

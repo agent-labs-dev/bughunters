@@ -1,6 +1,6 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
-import type { AutoQAConfig, Candidate, FixProposal, Issue } from '@autoqa/core';
+import type { BughuntersConfig, Candidate, FixProposal, Issue } from '@bughunters/core';
 import { createIssue, createPr, defaultGh, ensureAssetsBranch, ensureLabels, ghReady,
   resolveRepo, uploadImage, type Gh } from '../github.js';
 import { judgePublishSystem } from '../prompts.js';
@@ -39,7 +39,7 @@ async function image(root: string, path?: string) {
   catch { return []; }
 }
 
-export async function runPublisher(root: string, config: AutoQAConfig, deps: Deps = {}): Promise<PublishOutcome[]> {
+export async function runPublisher(root: string, config: BughuntersConfig, deps: Deps = {}): Promise<PublishOutcome[]> {
   if (!config.agents.github.enabled && !deps.dryRun) return [];
   const workspace = new Workspace(root);
   const gh = deps.gh ?? defaultGh;
@@ -177,7 +177,7 @@ export async function runPublisher(root: string, config: AutoQAConfig, deps: Dep
             closes: item.kind === 'pr' ? item.issue.github?.number : undefined });
           let url: string;
           if (deps.dryRun) {
-            const dir = join(root, '.autoqa', 'publish');
+            const dir = join(root, '.bughunters', 'publish');
             await mkdir(dir, { recursive: true });
             url = join(dir, `${item.issue.id}.md`);
             await writeFile(url, body);

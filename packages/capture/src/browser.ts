@@ -1,6 +1,6 @@
 import { chromium, type Browser, type BrowserContext, type Page } from 'playwright';
-import type { AutoQAConfig, ViewportConfig } from '@autoqa/core';
-import { InfrastructureError, requireRun } from '@autoqa/core';
+import type { BughuntersConfig, ViewportConfig } from '@bughunters/core';
+import { InfrastructureError, requireRun } from '@bughunters/core';
 import { DETERMINISTIC_CHROMIUM_ARGS, STABILITY_STYLESHEET, buildFreezeScript, FONT_AUDIT_SOURCE, type FontAudit } from './determinism.js';
 
 export type CaptureSession = {
@@ -17,7 +17,7 @@ export type CaptureSession = {
  * (spec 5.1). Everything here is about constraining it, not replacing it.
  */
 export async function openSession(
-  config: AutoQAConfig,
+  config: BughuntersConfig,
   viewport: ViewportConfig,
   options: { recordVideoDir?: string; storageState?: string } = {},
 ): Promise<CaptureSession> {

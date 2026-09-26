@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
-  AutoQAError,
+  BughuntersError,
   BaselineStore,
   ExitCode,
   InfrastructureError,
@@ -10,16 +10,16 @@ import {
   paths,
   shortHash,
   type AppModel,
-  type AutoQAConfig,
+  type BughuntersConfig,
   type ExitCodeValue,
   type LiveProgress,
   type RunMode,
   type ViewportConfig,
-} from '@autoqa/core';
-import { captureScreen, openSession, watchConsole } from '@autoqa/capture';
-import { startApp } from '@autoqa/capture';
-import { diff } from '@autoqa/diff';
-import type { ScreenSnapshot } from '@autoqa/invariants';
+} from '@bughunters/core';
+import { captureScreen, openSession, watchConsole } from '@bughunters/capture';
+import { startApp } from '@bughunters/capture';
+import { diff } from '@bughunters/diff';
+import type { ScreenSnapshot } from '@bughunters/invariants';
 import { executeRun, type CapturedScreen, type RunResult } from './run-pipeline.js';
 
 export { executeRun } from './run-pipeline.js';
@@ -29,7 +29,7 @@ export type ScreenTarget = { id: string; url: string };
 
 export type RunCommandOptions = {
   root: string;
-  config: AutoQAConfig;
+  config: BughuntersConfig;
   mode: RunMode;
   commit: string;
   noModels: boolean;
@@ -39,13 +39,13 @@ export type RunCommandOptions = {
 };
 
 /**
- * The full `autoqa run`: bring the app up, capture every selected screen at
+ * The full `bughunters run`: bring the app up, capture every selected screen at
  * every viewport, compare against the baseline, then hand the results to the
  * pipeline.
  *
  * Bring-up and capture failures surface as InfrastructureError and exit 4.
- * They are never reported as regressions -- "AutoQA could not test" is a
- * different statement from "AutoQA found a bug" (spec 5.1).
+ * They are never reported as regressions -- "Bughunters could not test" is a
+ * different statement from "Bughunters found a bug" (spec 5.1).
  */
 export async function runCommand(options: RunCommandOptions): Promise<RunResult> {
   const { config, root } = options;
@@ -134,7 +134,7 @@ export async function runCommand(options: RunCommandOptions): Promise<RunResult>
 }
 
 /**
- * Writes `.autoqa/runs/live.json` as the run proceeds.
+ * Writes `.bughunters/runs/live.json` as the run proceeds.
  *
  * Every write is best-effort: a dashboard that cannot be updated must never be
  * the reason a run fails. The file is rewritten whole rather than appended, so
@@ -206,7 +206,7 @@ async function captureOne(args: {
   target: ScreenTarget;
   viewport: ViewportConfig;
   session: Awaited<ReturnType<typeof openSession>>;
-  config: AutoQAConfig;
+  config: BughuntersConfig;
   store: BaselineStore;
   runDir: string;
   root: string;
@@ -286,7 +286,7 @@ async function captureOne(args: {
  * than implying it swept the app.
  */
 export function resolveTargets(
-  config: AutoQAConfig,
+  config: BughuntersConfig,
   model: AppModel | undefined,
   options: { only?: string[]; mode: RunMode },
 ): ScreenTarget[] {
@@ -311,7 +311,7 @@ function loadAppModel(root: string): AppModel | undefined {
   try {
     return JSON.parse(readFileSync(file, 'utf8')) as AppModel;
   } catch (cause) {
-    throw new AutoQAError(`${file} is not valid JSON`, ExitCode.Usage, { cause });
+    throw new BughuntersError(`${file} is not valid JSON`, ExitCode.Usage, { cause });
   }
 }
 
@@ -335,11 +335,11 @@ function snapshotFile(root: string, key: string): string {
   // The slug alone is not unique: `/::desktop` slugifies to `desktop`, which
   // collides with any other screen whose path is punctuation-only. The hash
   // suffix keys the file to the exact screen+viewport pair.
-  return join(root, '.autoqa', 'baselines', `${slugify(key)}-${shortHash(key, 8)}.snapshot.json`);
+  return join(root, '.bughunters', 'baselines', `${slugify(key)}-${shortHash(key, 8)}.snapshot.json`);
 }
 
 function saveBaselineSnapshot(root: string, key: string, snapshot: ScreenSnapshot): void {
-  mkdirSync(join(root, '.autoqa', 'baselines'), { recursive: true });
+  mkdirSync(join(root, '.bughunters', 'baselines'), { recursive: true });
   writeFileSync(snapshotFile(root, key), `${JSON.stringify(snapshot)}\n`);
 }
 
@@ -349,6 +349,6 @@ export function slugify(value: string): string {
 
 export function exitCodeForError(error: unknown): ExitCodeValue {
   if (error instanceof InfrastructureError) return ExitCode.Infrastructure;
-  if (error instanceof AutoQAError) return error.exitCode;
+  if (error instanceof BughuntersError) return error.exitCode;
   return ExitCode.Infrastructure;
 }

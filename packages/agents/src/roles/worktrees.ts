@@ -2,7 +2,7 @@ import { execFile } from 'node:child_process';
 import { lstat } from 'node:fs/promises';
 import { resolve, sep } from 'node:path';
 import { promisify } from 'node:util';
-import { paths, type AutoQAConfig, type FixProposal } from '@autoqa/core';
+import { paths, type BughuntersConfig, type FixProposal } from '@bughunters/core';
 import { Workspace } from '../workspace.js';
 
 const exec = promisify(execFile);
@@ -12,7 +12,7 @@ const message = (error: unknown) =>
   ((error as { stderr?: string }).stderr || String(error)).trim();
 
 /** Remove finished fix checkouts without discarding local work or unpublished commits. */
-export async function cleanWorktrees(root: string, _config: AutoQAConfig,
+export async function cleanWorktrees(root: string, _config: BughuntersConfig,
   deps: { onLog?: (message: string) => void } = {}): Promise<{
     removed: string[]; kept: { id: string; reason: string }[];
   }> {
@@ -30,7 +30,7 @@ export async function cleanWorktrees(root: string, _config: AutoQAConfig,
       continue;
     }
     if (!resolve(fix.worktree).startsWith(worktrees)) {
-      kept.push({ id: fix.id, reason: 'outside AutoQA worktrees' });
+      kept.push({ id: fix.id, reason: 'outside Bughunters worktrees' });
       continue;
     }
     try { await lstat(fix.worktree); }

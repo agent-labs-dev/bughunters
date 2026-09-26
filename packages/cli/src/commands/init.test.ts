@@ -3,11 +3,11 @@ import { mkdtempSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { writeInitialConfig } from './init.js';
-import { parseConfig } from '@autoqa/core';
+import { parseConfig } from '@bughunters/core';
 import { parse } from 'yaml';
 
 function fixtureRepo(pkg: Record<string, unknown> = {}): string {
-  const root = mkdtempSync(join(tmpdir(), 'autoqa-init-'));
+  const root = mkdtempSync(join(tmpdir(), 'bughunters-init-'));
   writeFileSync(join(root, 'package.json'), JSON.stringify({ scripts: { dev: 'vite' }, ...pkg }));
   writeFileSync(join(root, 'pnpm-lock.yaml'), '');
   writeFileSync(join(root, 'vite.config.ts'), '');
@@ -59,9 +59,9 @@ describe('writeInitialConfig', () => {
 
   it('never overwrites an existing config', () => {
     const root = fixtureRepo();
-    writeFileSync(join(root, 'autoqa.yml'), '# mine\n');
+    writeFileSync(join(root, 'bughunters.yml'), '# mine\n');
     const { notes } = writeInitialConfig(root);
-    expect(readFileSync(join(root, 'autoqa.yml'), 'utf8')).toBe('# mine\n');
+    expect(readFileSync(join(root, 'bughunters.yml'), 'utf8')).toBe('# mine\n');
     expect(notes.join(' ')).toContain('left untouched');
   });
 });

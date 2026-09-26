@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { IntentLedger } from './ledger.js';
-import { id } from '@autoqa/core';
-import type { Finding } from '@autoqa/core';
+import { id } from '@bughunters/core';
+import type { Finding } from '@bughunters/core';
 
 function finding(overrides: Partial<Finding> = {}): Finding {
   return {

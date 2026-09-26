@@ -1,12 +1,12 @@
 import { existsSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { paths, type StackProfile } from '@autoqa/core';
-import { detectStack, detectBringUp } from '@autoqa/recon';
+import { paths, type StackProfile } from '@bughunters/core';
+import { detectStack, detectBringUp } from '@bughunters/recon';
 
 export type InitResult = { configPath: string; workflowPath: string; stack: StackProfile; notes: string[] };
 
 /**
- * Writes autoqa.yml with detected defaults and a TODO marker on anything it
+ * Writes bughunters.yml with detected defaults and a TODO marker on anything it
  * could not determine. Detection is a first guess, never a silent decision --
  * everything is written to the file with its provenance so a human can see WHY
  * a value was chosen and correct it (spec, Phase 0).
@@ -22,9 +22,9 @@ export function writeInitialConfig(root: string): InitResult {
 
   const config = `version: 1
 
-# Written by \`autoqa init\` on ${new Date().toISOString().slice(0, 10)}.
+# Written by \`bughunters init\` on ${new Date().toISOString().slice(0, 10)}.
 # Every value below is a DETECTED GUESS with its provenance in a comment.
-# Correct anything that is wrong; AutoQA will not overwrite your edits.
+# Correct anything that is wrong; Bughunters will not overwrite your edits.
 
 run:
   ${best ? `command: ${best.command}   # detected from ${best.source} (rung: ${best.rung})` : 'command: TODO   # could not detect - set this'}
@@ -64,7 +64,7 @@ tolerance:
   regions: []
 
 determinism:
-  image: ""                    # TODO pin by digest, e.g. ghcr.io/autoqa/runner@sha256:...
+  image: ""                    # TODO pin by digest, e.g. ghcr.io/agent-labs-dev/bughunters-runner@sha256:...
   freezeClockAt: "2026-01-01T00:00:00.000Z"
   timezone: UTC
   locale: en-US
@@ -98,11 +98,11 @@ production:
 
   const configPath = paths.config(root);
   if (!existsSync(configPath)) writeFileSync(configPath, config);
-  else notes.push('autoqa.yml already exists and was left untouched.');
+  else notes.push('bughunters.yml already exists and was left untouched.');
 
   const workflowDir = join(root, '.github', 'workflows');
   mkdirSync(workflowDir, { recursive: true });
-  const workflowPath = join(workflowDir, 'autoqa.yml');
+  const workflowPath = join(workflowDir, 'bughunters.yml');
   if (!existsSync(workflowPath)) writeFileSync(workflowPath, WORKFLOW);
 
   mkdirSync(paths.dir(root), { recursive: true });
@@ -111,7 +111,7 @@ production:
 }
 
 /** Note the explicit least-privilege permissions block (spec 10.4). */
-export const WORKFLOW = `name: AutoQA
+export const WORKFLOW = `name: Bughunters
 on:
   pull_request:
   push:
@@ -120,7 +120,7 @@ on:
     - cron: '0 6 * * *'   # nightly full sweep
 
 jobs:
-  autoqa:
+  bughunters:
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -131,7 +131,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0    # the compare API needs history
-      - uses: autoqa/run@v1
+      - uses: bughunters/run@v1
         with:
           mode: \${{ github.event_name == 'schedule' && 'all' || 'changed-only' }}
 `;

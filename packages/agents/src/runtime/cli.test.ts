@@ -7,7 +7,7 @@ import { pathToFileURL } from 'node:url';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { describe, expect, it } from 'vitest';
-import type { AgentEvent } from '@autoqa/core';
+import type { AgentEvent } from '@bughunters/core';
 import { serveTools } from '../mcp-server.js';
 import type { RoleTask, Tool } from '../types.js';
 import { CliRuntime } from './cli.js';
@@ -71,7 +71,7 @@ describe('MCP and CLI runtime', () => {
   });
 
   it.skipIf(!canListen)('runs a CLI that calls echo and finish over MCP', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'autoqa-cli-test-'));
+    const root = await mkdtemp(join(tmpdir(), 'bughunters-cli-test-'));
     const script = join(root, 'client.mjs');
     const clientUrl = pathToFileURL(require.resolve('@modelcontextprotocol/sdk/client/index.js')).href;
     const transportUrl = pathToFileURL(require.resolve('@modelcontextprotocol/sdk/client/streamableHttp.js')).href;
@@ -80,7 +80,7 @@ import { Client } from ${JSON.stringify(clientUrl)};
 import { StreamableHTTPClientTransport } from ${JSON.stringify(transportUrl)};
 const config = JSON.parse(await readFile(process.argv[2], 'utf8'));
 const client = new Client({ name: 'fake-cli', version: '1' });
-await client.connect(new StreamableHTTPClientTransport(new URL(config.mcpServers.autoqa.url)));
+await client.connect(new StreamableHTTPClientTransport(new URL(config.mcpServers.bughunters.url)));
 await client.callTool({ name: 'echo', arguments: { value: 'hello' } });
 await client.callTool({ name: 'finish', arguments: {} });
 await client.close();
@@ -101,7 +101,7 @@ console.log('cli complete');
   });
 
   it.skipIf(!canListen)('times out a CLI process', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'autoqa-cli-timeout-'));
+    const root = await mkdtemp(join(tmpdir(), 'bughunters-cli-timeout-'));
     try {
       const runtime = new CliRuntime({ runtime: 'cli', command: 'sleep 10' });
       expect((await runtime.run({ ...task(root), timeoutMs: 100 }, () => {})).stop).toBe('timeout');

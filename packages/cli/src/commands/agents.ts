@@ -1,7 +1,7 @@
-import { ConfigError, InfrastructureError, type AutoQAConfig } from '@autoqa/core';
-import { createDriver } from '@autoqa/drivers';
+import { ConfigError, InfrastructureError, type BughuntersConfig } from '@bughunters/core';
+import { createDriver } from '@bughunters/drivers';
 import { AgentSession, Vars, Workspace, createRuntime, replayRoutine, runExplorer, runJudge,
-  applyRetest, runFixCycle, runPatrol, runPublisher, retestFix, startApp, syncGitHub } from '@autoqa/agents';
+  applyRetest, runFixCycle, runPatrol, runPublisher, retestFix, startApp, syncGitHub } from '@bughunters/agents';
 
 type AgentFlags = Record<string, string | string[] | boolean | number>;
 
@@ -65,7 +65,7 @@ export async function runAgentCommand(
   command: string,
   args: string[],
   root: string,
-  config: AutoQAConfig,
+  config: BughuntersConfig,
   log: (message: string) => void,
 ): Promise<void> {
   const flags = parseAgentFlags(command, args);

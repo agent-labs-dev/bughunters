@@ -2,7 +2,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import { createReadStream, existsSync, realpathSync, statSync, watch, type FSWatcher } from 'node:fs';
 import { extname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { paths } from '@autoqa/core';
+import { paths } from '@bughunters/core';
 import { ProjectReader } from './project.js';
 import { AgentReader } from './agents.js';
 import { buildGraph } from './graph.js';
@@ -136,7 +136,7 @@ async function handle(
 }
 
 /**
- * Serves a capture artifact, confined to the project's `.autoqa` directory.
+ * Serves a capture artifact, confined to the project's `.bughunters` directory.
  *
  * This endpoint takes a filesystem path from a query string, which is exactly
  * the shape of a path-traversal bug. The guard resolves the path first and then
@@ -149,7 +149,7 @@ export function resolveArtifactPath(root: string, requested: string): string | u
   if (!existsSync(candidate)) return undefined;
 
   // resolve() only normalises `..` lexically -- it does not follow symlinks, so
-  // a link planted inside .autoqa would otherwise pass containment and then
+  // a link planted inside .bughunters would otherwise pass containment and then
   // read whatever it points at. Both sides are realpath'd so the check is on
   // the actual file, not on the name used to reach it.
   let real: string;
@@ -223,7 +223,7 @@ function broadcast(clients: Set<ServerResponse>, event: string, data: unknown): 
 }
 
 /**
- * Watches `.autoqa/` for run output. Coalesced, because a single run writes
+ * Watches `.bughunters/` for run output. Coalesced, because a single run writes
  * several files in quick succession and a client that re-fetches per file
  * would hammer the server for one logical change.
  */

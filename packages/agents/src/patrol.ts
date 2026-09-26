@@ -1,5 +1,5 @@
-import { type AutoQAConfig } from '@autoqa/core';
-import { createDriver as makeDriver, type Driver } from '@autoqa/drivers';
+import { type BughuntersConfig } from '@bughunters/core';
+import { createDriver as makeDriver, type Driver } from '@bughunters/drivers';
 import { createRuntime } from './runtime/index.js';
 import { Workspace } from './workspace.js';
 import { Vars } from './vars.js';
@@ -14,7 +14,7 @@ import { cleanWorktrees } from './roles/worktrees.js';
 
 export type PatrolOptions = {
   root: string;
-  config: AutoQAConfig;
+  config: BughuntersConfig;
   once?: boolean;
   onLog?: (message: string) => void;
   createDriver?: typeof makeDriver;

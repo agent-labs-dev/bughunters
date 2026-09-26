@@ -1,0 +1,75 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: Version bump
+        type: choice
+        options: [patch, minor, major]
+        default: patch
+
+permissions:
+  contents: write
+  id-token: write
+
+concurrency:
+  group: bughunters-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    # Must match the environment on the npm trusted publisher; the environment
+    # itself only allows deployments from main.
+    environment: npm
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      # packageManager owns the pnpm version; a second pin makes setup fail.
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+          cache: pnpm
+      # Trusted publishing needs npm 11.5.1 or later; Node 22 ships npm 10.
+      - run: npm install -g npm@^11.5.1
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      # Capture tests need Chromium's real font and layout engine.
+      - run: pnpm --filter @bughunters/capture exec playwright install --with-deps chromium
+      - run: pnpm test
+      - name: Bump package version
+        id: version
+        working-directory: packages/bughunters
+        run: |
+          npm version ${{ inputs.bump }} --no-git-tag-version
+          version=$(node -p "require('./package.json').version")
+          echo "value=$version" >> "$GITHUB_OUTPUT"
+      - run: pnpm --filter bughunters build
+      - name: Smoke test package
+        run: |
+          test "$(node packages/bughunters/dist/bin.js --version)" = "${{ steps.version.outputs.value }}"
+          node packages/bughunters/dist/bin.js --help
+          cd packages/bughunters
+          npm pack --dry-run
+      # No token: npm trusts this workflow through OIDC (id-token: write) and
+      # attaches provenance on its own.
+      - name: Publish to npm
+        working-directory: packages/bughunters
+        run: npm publish
+      - name: Commit and tag
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add packages/bughunters/package.json
+          git commit -m "release: bughunters v${{ steps.version.outputs.value }}"
+          git tag "v${{ steps.version.outputs.value }}"
+          git push origin HEAD:main "v${{ steps.version.outputs.value }}"
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "v${{ steps.version.outputs.value }}" --generate-notes

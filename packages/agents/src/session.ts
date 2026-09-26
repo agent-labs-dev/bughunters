@@ -1,5 +1,5 @@
-import type { AgentRole, AgentStatus, AutoQAConfig, RoutineStep } from '@autoqa/core';
-import type { Driver, Observation } from '@autoqa/drivers';
+import type { AgentRole, AgentStatus, BughuntersConfig, RoutineStep } from '@bughunters/core';
+import type { Driver, Observation } from '@bughunters/drivers';
 import type { EventSink } from './types.js';
 import { Vars } from './vars.js';
 import { Workspace } from './workspace.js';
@@ -28,7 +28,7 @@ export class AgentSession {
 
   constructor(
     readonly root: string,
-    readonly config: AutoQAConfig,
+    readonly config: BughuntersConfig,
     readonly vars: Vars,
     readonly sessionId: string,
     readonly role: AgentRole,

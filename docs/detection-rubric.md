@@ -85,7 +85,7 @@ Closest to "not logical", and deliberately the tier that **never blocks a merge*
 | Unconfirmed destructive action | Delete/remove/revoke with no confirmation step |
 | Feedback-free success | A submit that succeeds with nothing the user can perceive |
 | Broken internal link | A link resolving to a 404 or a route absent from the table |
-| Flow regression | A recorded flow can no longer complete — **the highest-severity functional signal AutoQA produces** |
+| Flow regression | A recorded flow can no longer complete — **the highest-severity functional signal Bughunters produces** |
 
 ## 6. Visual semantics — tier 3, sampled
 

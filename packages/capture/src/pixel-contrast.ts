@@ -1,6 +1,6 @@
 import { PNG } from 'pngjs';
-import { contrastRatio, parseColor, requiredContrast } from '@autoqa/invariants';
-import type { ElementGeometry } from '@autoqa/core';
+import { contrastRatio, parseColor, requiredContrast } from '@bughunters/invariants';
+import type { ElementGeometry } from '@bughunters/core';
 
 type Box = { x: number; y: number; width: number; height: number };
 

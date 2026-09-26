@@ -1,4 +1,4 @@
-import type { Question } from '@autoqa/core';
+import type { Question } from '@bughunters/core';
 
 /**
  * The full per-screen question set. All of these are evaluated against the same

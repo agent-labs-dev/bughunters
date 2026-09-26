@@ -1,5 +1,5 @@
-import { sha256 } from '@autoqa/core';
-import type { InvariantViolation } from '@autoqa/invariants';
+import { sha256 } from '@bughunters/core';
+import type { InvariantViolation } from '@bughunters/invariants';
 
 export type ScreenState = {
   screen: { id: string; description: string; purpose?: string; primaryAction?: string };
@@ -25,7 +25,7 @@ const MAX_TEXT_CHANGES = 25;
  * Builds the compact textual state the decider reasons over.
  *
  * Pruning is not an optimisation, it is the design. The decision layer is
- * text-only, so AutoQA's default reasoning path carries no image tokens at all
+ * text-only, so Bughunters's default reasoning path carries no image tokens at all
  * -- and a 4,000-token text digest is a small fraction of the cost of a
  * screenshot at useful resolution, and faster to produce (spec 4.4).
  */

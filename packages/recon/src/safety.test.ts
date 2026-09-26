@@ -24,7 +24,7 @@ describe('classifyAction', () => {
 
   it('honours an explicit repo annotation', async () => {
     const r = await classifyAction(
-      { selector: '#x', text: 'Apply', dataAttributes: { autoqaSafe: 'true' } },
+      { selector: '#x', text: 'Apply', dataAttributes: { bughuntersSafe: 'true' } },
       { origin: 'http://localhost:3000' },
     );
     expect(r.class).toBe('safe-action');

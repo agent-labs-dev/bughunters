@@ -22,7 +22,11 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
+      # The npm package is a bundle of the workspace, so a break in the bundle
+      # must fail here, not in a release.
+      - run: pnpm --filter bughunters build
+      - run: node packages/bughunters/dist/bin.js --version
       # The capture tests drive a real browser, because font loading and layout
       # only mean anything against a real rendering engine.
-      - run: pnpm --filter @autoqa/capture exec playwright install --with-deps chromium
+      - run: pnpm --filter @bughunters/capture exec playwright install --with-deps chromium
       - run: pnpm test

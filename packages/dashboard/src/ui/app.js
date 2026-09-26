@@ -1,5 +1,5 @@
-// AutoQA dashboard. Vanilla ES modules on purpose: no build step means the UI
-// is served straight from source, so `autoqa dashboard` works from a clone with
+// Bughunters dashboard. Vanilla ES modules on purpose: no build step means the UI
+// is served straight from source, so `bughunters dashboard` works from a clone with
 // nothing compiled but the CLI itself.
 import { layoutGraph } from './graph-layout.js';
 
@@ -32,7 +32,7 @@ const state = {
 };
 
 let screenMode = 'graph';
-try { screenMode = localStorage.getItem('autoqa-screen-mode') === 'grid' ? 'grid' : 'graph'; } catch { /* storage may be disabled */ }
+try { screenMode = localStorage.getItem('bughunters-screen-mode') === 'grid' ? 'grid' : 'graph'; } catch { /* storage may be disabled */ }
 const graphCamera = { box: null, key: '' };
 let showBackLinks = false;
 
@@ -119,7 +119,7 @@ function connectLive() {
 // ---------------------------------------------------------------- render
 
 function render() {
-  // Checks shows `autoqa run` gate results. A project with no gate runs
+  // Checks shows `bughunters run` gate results. A project with no gate runs
   // (native apps have none) does not need the tab.
   const hasChecks = state.runs.length > 0 || state.live?.status === 'running';
   if (state.view === 'checks' && !hasChecks) state.view = 'overview';
@@ -180,7 +180,7 @@ function renderRuns() {
       class: 'empty',
       html: state.live?.status === 'running'
         ? 'First check in progress.'
-        : 'No runs yet. Run <code>autoqa run</code> in this project and results appear here automatically.',
+        : 'No runs yet. Run <code>bughunters run</code> in this project and results appear here automatically.',
     });
   }
 
@@ -409,7 +409,7 @@ function renderReasoning(screen) {
   }
 
   return el('details', { class: 'reasoning' }, [
-    el('summary', { text: 'How AutoQA reached this' }),
+    el('summary', { text: 'How Bughunters reached this' }),
     el('table', {}, rows.map(([k, v]) => el('tr', {}, [el('td', { text: k }), el('td', { text: String(v) })]))),
   ]);
 }
@@ -591,7 +591,7 @@ function renderIssueDetail() {
       issue.publishSkipped ? el('span', { class: 'muted', text: `Not published: ${issue.publishSkipped.reason}` }) : null,
     ]) : null,
     issue.fixRejected ? el('p', { class: 'muted',
-      text: `The team closed PR #${issue.fixRejected.pr} without a merge. AutoQA will not propose this change again.` }) : null,
+      text: `The team closed PR #${issue.fixRejected.pr} without a merge. Bughunters will not propose this change again.` }) : null,
     el('div', { class: 'kv' }, [el('span', { text: issueStatus(issue, fix) }),
       el('span', { text: screenName(issue.screenId) }), el('span', { text: `×${issue.occurrences}` }),
       el('span', { text: `First ${relativeTime(issue.firstSeenAt)}` }),
@@ -853,7 +853,7 @@ function renderScreens() {
   const toggle = el('div', { class: 'screen-mode', role: 'group', 'aria-label': 'Screen view' },
     ['graph', 'grid'].map((mode) => el('button', { class: screenMode === mode ? 'active' : '',
       text: mode === 'graph' ? 'Graph' : 'Grid', 'aria-pressed': screenMode === mode,
-      onclick: () => { screenMode = mode; try { localStorage.setItem('autoqa-screen-mode', mode); } catch { /* disabled */ } render(); },
+      onclick: () => { screenMode = mode; try { localStorage.setItem('bughunters-screen-mode', mode); } catch { /* disabled */ } render(); },
     })));
   return el('div', {}, [title('Screens', `${screens.length} found`),
     toggle,
@@ -995,7 +995,7 @@ function renderMemory() {
     el('span', { class: 'muted', text: `${lesson.source} · ×${lesson.hits} · ${relativeTime(lesson.lastSeenAt)}` }),
   ]);
   return el('section', { class: 'card panel' }, [title('Memory'),
-    el('p', { class: 'muted', text: 'Use autoqa memory to edit lessons.' }),
+    el('p', { class: 'muted', text: 'Use bughunters memory to edit lessons.' }),
     ...['explorer', 'judge', 'fixer'].map((role) => el('section', { class: 'memory-group' }, [
       el('h3', { text: capital(role) }),
       ...lessons.filter((lesson) => lesson.role === role && !lesson.retired).map(row),

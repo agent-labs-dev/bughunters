@@ -1,5 +1,5 @@
 import type { ProjectId, SecretRef, ArtifactRef } from './ids.js';
-import type { AutoQAConfig } from '../config/schema.js';
+import type { BughuntersConfig } from '../config/schema.js';
 
 export type Project = {
   id: ProjectId;
@@ -7,7 +7,7 @@ export type Project = {
   /** GitHub App installation id. */
   installationId: number;
   stack: StackProfile;
-  config: AutoQAConfig;
+  config: BughuntersConfig;
   createdAt: Date;
 };
 

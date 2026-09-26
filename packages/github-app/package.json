@@ -1,6 +1,7 @@
 {
-  "name": "@autoqa/github-app",
+  "name": "@bughunters/github-app",
   "version": "0.0.0",
+  "private": true,
   "license": "Apache-2.0",
   "type": "module",
   "main": "./dist/index.js",
@@ -8,5 +9,5 @@
   "exports": { ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" } },
   "files": ["dist"],
   "scripts": { "build": "tsc --build" },
-  "dependencies": { "@autoqa/core": "workspace:*", "@autoqa/report": "workspace:*" }
+  "dependencies": { "@bughunters/core": "workspace:*", "@bughunters/report": "workspace:*" }
 }

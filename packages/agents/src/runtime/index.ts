@@ -1,4 +1,4 @@
-import type { RoleRuntime } from '@autoqa/core';
+import type { RoleRuntime } from '@bughunters/core';
 import type { Runtime } from '../types.js';
 import { CliRuntime } from './cli.js';
 import { ModelRuntime } from './model.js';

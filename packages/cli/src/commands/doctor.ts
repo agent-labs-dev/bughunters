@@ -1,21 +1,21 @@
 import { existsSync } from 'node:fs';
-import { ExitCode, paths, type AutoQAConfig, type ExitCodeValue } from '@autoqa/core';
+import { ExitCode, paths, type BughuntersConfig, type ExitCodeValue } from '@bughunters/core';
 
 export type DoctorCheck = { name: string; ok: boolean; detail: string; fatal: boolean };
 
 /**
- * `autoqa doctor` verifies the determinism contract can actually be honoured
+ * `bughunters doctor` verifies the determinism contract can actually be honoured
  * here. It runs before anything else because a baseline captured outside the
  * pinned image is worse than no baseline: it will diff against CI forever and
  * nobody will know why.
  */
-export function runChecks(root: string, config: AutoQAConfig | undefined): DoctorCheck[] {
+export function runChecks(root: string, config: BughuntersConfig | undefined): DoctorCheck[] {
   const checks: DoctorCheck[] = [];
 
   checks.push({
     name: 'config',
     ok: existsSync(paths.config(root)),
-    detail: existsSync(paths.config(root)) ? 'autoqa.yml found' : 'No autoqa.yml. Run `autoqa init`.',
+    detail: existsSync(paths.config(root)) ? 'bughunters.yml found' : 'No bughunters.yml. Run `bughunters init`.',
     fatal: true,
   });
 
@@ -43,7 +43,7 @@ export function runChecks(root: string, config: AutoQAConfig | undefined): Docto
   checks.push({
     name: 'app-model',
     ok: existsSync(paths.appModel(root)),
-    detail: existsSync(paths.appModel(root)) ? 'AppModel present' : 'No AppModel. Run `autoqa recon`.',
+    detail: existsSync(paths.appModel(root)) ? 'AppModel present' : 'No AppModel. Run `bughunters recon`.',
     fatal: false,
   });
 

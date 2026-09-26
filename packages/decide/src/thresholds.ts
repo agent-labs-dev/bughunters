@@ -1,4 +1,4 @@
-import type { Answer, Route } from '@autoqa/core';
+import type { Answer, Route } from '@bughunters/core';
 
 export type Thresholds = { high: number; low: number };
 
@@ -18,7 +18,7 @@ export type RoutingOutcome = {
 
 /**
  * The asymmetry here is the load-bearing safety property of the whole system:
- * AutoQA may be wrong about RAISING something, but it must never be wrong
+ * Bughunters may be wrong about RAISING something, but it must never be wrong
  * about SILENCING something. A missed bug is recoverable; a suppressed real
  * bug is not.
  *

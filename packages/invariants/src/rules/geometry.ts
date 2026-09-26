@@ -1,4 +1,4 @@
-import type { ElementGeometry } from '@autoqa/core';
+import type { ElementGeometry } from '@bughunters/core';
 
 export type Box = { x: number; y: number; width: number; height: number };
 

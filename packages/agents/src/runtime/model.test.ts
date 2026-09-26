@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import type { AgentEvent } from '@autoqa/core';
+import type { AgentEvent } from '@bughunters/core';
 import type { RoleTask, Tool } from '../types.js';
 import { ModelRuntime } from './model.js';
 

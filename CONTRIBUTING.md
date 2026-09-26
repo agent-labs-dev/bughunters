@@ -16,11 +16,11 @@ These are not style preferences. They are the properties the product depends on,
 
 1. **Only tier 1 may block a merge.** If you add a detector that can fail a Check, it must be deterministic and have zero marginal cost. Everything else routes to an issue, a question, or a suggestion.
 
-2. **Never over-silence.** Auto-suppression and auto-fix require high confidence. Raising a question has no confidence floor. AutoQA may be wrong about raising something; it may never be wrong about hiding something. See `packages/decide/src/thresholds.ts` — the tests there encode this and should be treated as load-bearing.
+2. **Never over-silence.** Auto-suppression and auto-fix require high confidence. Raising a question has no confidence floor. Bughunters may be wrong about raising something; it may never be wrong about hiding something. See `packages/decide/src/thresholds.ts` — the tests there encode this and should be treated as load-bearing.
 
 3. **Every finding names a consequence.** "4.3% of pixels changed" is not a finding. "The Save button is unreachable" is. If your detector cannot produce that sentence, it reports at lower confidence and asks.
 
-4. **Infrastructure failure is not product failure.** Exit 4 means "AutoQA could not test". It must never be reported as a regression and must never block on its own.
+4. **Infrastructure failure is not product failure.** Exit 4 means "Bughunters could not test". It must never be reported as a regression and must never block on its own.
 
 5. **Nothing is hidden silently.** Suppressed counts, masked percentages, quarantined findings and incomplete runs are all surfaced in the report. A green result that is green because the test got weaker must say so.
 
@@ -41,4 +41,4 @@ Tests live next to the code as `*.test.ts`. Prefer tests that encode a design pr
 
 ## Commits
 
-Conventional commits. Keep the diff minimal; a sprawling diff cannot be reviewed, which is the same standard AutoQA holds its own fix PRs to.
+Conventional commits. Keep the diff minimal; a sprawling diff cannot be reviewed, which is the same standard Bughunters holds its own fix PRs to.

@@ -1,11 +1,11 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import { setTimeout as delay } from 'node:timers/promises';
-import type { AutoQAConfig } from '@autoqa/core';
-import { InfrastructureError, requireRun } from '@autoqa/core';
+import type { BughuntersConfig } from '@bughunters/core';
+import { InfrastructureError, requireRun } from '@bughunters/core';
 
 export type AppServer = {
   url: string;
-  /** Already running when AutoQA started, so it is not ours to stop. */
+  /** Already running when Bughunters started, so it is not ours to stop. */
   external: boolean;
   stop(): Promise<void>;
   stderrTail(): string;
@@ -18,12 +18,12 @@ const STDERR_TAIL_LINES = 20;
  * Brings the product up and proves it is actually serving.
  *
  * Everything that fails in here is an INFRASTRUCTURE error, never a product
- * failure: "AutoQA could not start your dev server" and "AutoQA found a bug"
+ * failure: "Bughunters could not start your dev server" and "Bughunters found a bug"
  * are different statements, and conflating them is how a CI check gets
  * switched off (spec 5.1).
  */
 export async function startApp(
-  config: AutoQAConfig,
+  config: BughuntersConfig,
   options: { cwd: string; env?: NodeJS.ProcessEnv; reuseExisting?: boolean } = { cwd: process.cwd() },
 ): Promise<AppServer> {
   const url = requireRun(config).url;
@@ -96,7 +96,7 @@ export async function startApp(
  * The selector check here is a cheap substring probe against server-rendered
  * markup; the authoritative DOM check happens once a browser is attached.
  */
-export async function isHealthy(config: AutoQAConfig): Promise<boolean> {
+export async function isHealthy(config: BughuntersConfig): Promise<boolean> {
   try {
     const response = await fetch(requireRun(config).url, { signal: AbortSignal.timeout(3000) });
     if (!response.ok) return false;

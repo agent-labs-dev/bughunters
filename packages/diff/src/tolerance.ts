@@ -1,4 +1,4 @@
-import type { ToleranceConfig } from '@autoqa/core';
+import type { ToleranceConfig } from '@bughunters/core';
 import type { DiffResult } from './types.js';
 
 export type ToleranceVerdict = {

@@ -1,5 +1,5 @@
-import { ConfigError, type RoleRuntime } from '@autoqa/core';
-import { MODEL_KEYS, MODEL_ROUTES } from '@autoqa/decide';
+import { ConfigError, type RoleRuntime } from '@bughunters/core';
+import { MODEL_KEYS, MODEL_ROUTES } from '@bughunters/decide';
 import type { EventSink, RoleOutcome, RoleTask, Runtime, ToolResult } from '../types.js';
 
 type ModelUse = Extract<RoleRuntime, { runtime: 'model' }>;

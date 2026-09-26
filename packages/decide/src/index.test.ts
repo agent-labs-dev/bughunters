@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { decisionsSchema } from '@autoqa/core';
+import { decisionsSchema } from '@bughunters/core';
 import { createDecider, resolveDecider, type DeciderEnv } from './index.js';
 
 const jev = decisionsSchema.parse({ decider: 'jev' });
@@ -28,14 +28,14 @@ describe('resolveDecider', () => {
   });
 
   it('uses a custom route only when both endpoint and key exist', () => {
-    expect(resolve(model, { AUTOQA_MODEL_ENDPOINT: 'https://example.test/chat/completions' }).via).toBe('heuristic');
-    expect(resolve(model, { AUTOQA_MODEL_ENDPOINT: 'https://example.test/chat/completions', AUTOQA_MODEL_API_KEY: 'secret' }).via).toBe('model:custom');
+    expect(resolve(model, { BUGHUNTERS_MODEL_ENDPOINT: 'https://example.test/chat/completions' }).via).toBe('heuristic');
+    expect(resolve(model, { BUGHUNTERS_MODEL_ENDPOINT: 'https://example.test/chat/completions', BUGHUNTERS_MODEL_API_KEY: 'secret' }).via).toBe('model:custom');
   });
 
   it('applies Jev and model auto precedence', () => {
     const all = {
       TYPESAFE_API_KEY: 'a', OPENROUTER_API_KEY: 'b', AI_GATEWAY_API_KEY: 'c',
-      OPENAI_API_KEY: 'd', ANTHROPIC_API_KEY: 'e', AUTOQA_MODEL_ENDPOINT: 'https://example.test', AUTOQA_MODEL_API_KEY: 'f',
+      OPENAI_API_KEY: 'd', ANTHROPIC_API_KEY: 'e', BUGHUNTERS_MODEL_ENDPOINT: 'https://example.test', BUGHUNTERS_MODEL_API_KEY: 'f',
     };
     expect(resolve(jev, all).via).toBe('jev:typesafe');
     expect(resolve(model, all).via).toBe('model:openrouter');
@@ -66,8 +66,8 @@ describe('resolveDecider', () => {
 
   it('prefers configured model name over environment override', () => {
     const config = decisionsSchema.parse({ decider: 'model', model: { via: 'openai', name: 'my-model' } });
-    expect(resolve(config, { OPENAI_API_KEY: 'secret', AUTOQA_MODEL_NAME: 'other' }).reason).toContain('(my-model)');
-    expect(resolve(model, { OPENAI_API_KEY: 'secret', AUTOQA_MODEL_NAME: 'other' }).reason).toContain('(other)');
+    expect(resolve(config, { OPENAI_API_KEY: 'secret', BUGHUNTERS_MODEL_NAME: 'other' }).reason).toContain('(my-model)');
+    expect(resolve(model, { OPENAI_API_KEY: 'secret', BUGHUNTERS_MODEL_NAME: 'other' }).reason).toContain('(other)');
     expect(resolve(model, { OPENAI_API_KEY: 'secret' }).reason).toContain('(gpt-5-mini)');
   });
 });

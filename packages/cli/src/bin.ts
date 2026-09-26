@@ -1,21 +1,39 @@
 #!/usr/bin/env node
-import { ExitCode, loadConfig, AutoQAError } from '@autoqa/core';
+import { readFileSync } from 'node:fs';
+import { ExitCode, loadConfig, BughuntersError } from '@bughunters/core';
 import { USAGE } from './usage.js';
 import { runChecks, doctorExitCode } from './commands/doctor.js';
 import { writeInitialConfig } from './commands/init.js';
 import { runCommand, exitCodeForError } from './commands/run.js';
 import { parseRunFlags, formatRunSummary } from './commands/run-cli.js';
-import { startDashboard } from '@autoqa/dashboard';
+import { startDashboard } from '@bughunters/dashboard';
 import { runAgentCommand } from './commands/agents.js';
 import { runIssueCommand } from './commands/issue.js';
 import { runMemoryCommand } from './commands/memory.js';
-import { cleanWorktrees, syncGitHub } from '@autoqa/agents';
+import { cleanWorktrees, syncGitHub } from '@bughunters/agents';
 
 const [command, ...args] = process.argv.slice(2);
 const root = process.cwd();
 
+declare const __BUGHUNTERS_VERSION__: string | undefined;
+
+function version(): string {
+  if (typeof __BUGHUNTERS_VERSION__ !== 'undefined') return __BUGHUNTERS_VERSION__;
+  try {
+    return (JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { version: string }).version;
+  } catch {
+    return '0.0.0-dev';
+  }
+}
+
 try {
   switch (command) {
+    case '--version':
+    case '-v':
+      process.stdout.write(`${version()}\n`);
+      process.exit(ExitCode.Clean);
+      break;
+
     case undefined:
     case '--help':
     case '-h':
@@ -29,7 +47,7 @@ try {
       process.stdout.write(`Wrote ${result.configPath}\nWrote ${result.workflowPath}\n`);
       if (result.stack.framework) process.stdout.write(`Detected ${result.stack.framework}\n`);
       for (const note of result.notes) process.stdout.write(`  note: ${note}\n`);
-      process.stdout.write('\nNext: review the TODO markers, then run `autoqa doctor`.\n');
+      process.stdout.write('\nNext: review the TODO markers, then run `bughunters doctor`.\n');
       process.exit(ExitCode.Clean);
       break;
     }
@@ -85,7 +103,7 @@ try {
     }
 
     case 'github': {
-      if (args.length !== 1 || args[0] !== 'sync') throw new Error('Use autoqa github sync');
+      if (args.length !== 1 || args[0] !== 'sync') throw new Error('Use bughunters github sync');
       const config = loadConfig(root);
       const result = await syncGitHub(root, config, { onLog: console.error });
       await cleanWorktrees(root, config, { onLog: console.error });
@@ -95,7 +113,7 @@ try {
     }
 
     case 'worktrees': {
-      if (args.length !== 1 || args[0] !== 'clean') throw new Error('Use autoqa worktrees clean');
+      if (args.length !== 1 || args[0] !== 'clean') throw new Error('Use bughunters worktrees clean');
       const result = await cleanWorktrees(root, loadConfig(root), { onLog: console.error });
       process.stdout.write(`Removed: ${result.removed.length} worktree(s)\n`);
       for (const id of result.removed) process.stdout.write(`${id}\n`);
@@ -124,8 +142,8 @@ try {
         root,
         port,
         onReady: (url) => {
-          process.stdout.write(`AutoQA dashboard on ${url}\n`);
-          process.stdout.write('Watching .autoqa/ — runs appear as they finish. Ctrl-C to stop.\n');
+          process.stdout.write(`Bughunters dashboard on ${url}\n`);
+          process.stdout.write('Watching .bughunters/ — runs appear as they finish. Ctrl-C to stop.\n');
         },
       });
       // Deliberately does not exit: this is a server, and the watcher is the
@@ -149,7 +167,7 @@ try {
     case 'report':
     case 'export':
     case 'watch':
-      process.stderr.write(`\`autoqa ${command}${args.length ? ` ${args.join(' ')}` : ''}\` is not implemented yet.\n`);
+      process.stderr.write(`\`bughunters ${command}${args.length ? ` ${args.join(' ')}` : ''}\` is not implemented yet.\n`);
       process.stderr.write('See ROADMAP.md for which milestone covers it.\n');
       process.exit(ExitCode.Usage);
       break;
@@ -159,11 +177,11 @@ try {
       process.exit(ExitCode.Usage);
   }
 } catch (error) {
-  if (error instanceof AutoQAError) {
+  if (error instanceof BughuntersError) {
     process.stderr.write(`${error.message}\n`);
     process.exit(error.exitCode);
   }
-  // Anything unrecognised is treated as "AutoQA could not test", never as a
+  // Anything unrecognised is treated as "Bughunters could not test", never as a
   // product regression.
   process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
   process.exit(exitCodeForError(error));

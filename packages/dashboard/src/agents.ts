@@ -1,7 +1,7 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { paths, type AgentEvent, type AgentRole, type AgentStatus, type AgentsFile, type AppMap,
-  type Candidate, type FixProposal, type Issue, type MemoryFile, type Routine, type SessionSummary } from '@autoqa/core';
+  type Candidate, type FixProposal, type Issue, type MemoryFile, type Routine, type SessionSummary } from '@bughunters/core';
 
 const roles: AgentRole[] = ['explorer', 'judge', 'fixer'];
 const severity = { critical: 0, major: 1, minor: 2, cosmetic: 3 };

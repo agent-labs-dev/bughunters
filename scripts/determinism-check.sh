@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# AutoQA's own must-pass test.
+# Bughunters's own must-pass test.
 #
 # M3's acceptance criterion: three consecutive runs against an UNCHANGED commit
 # must produce zero diffs across every screen and every viewport. It is the
@@ -15,8 +15,8 @@ CLI="$(cd "$(dirname "$0")/.." && pwd)/packages/cli/dist/bin.js"
 APP="$(cd "$(dirname "$0")/.." && pwd)/examples/fixture-app"
 
 cd "$APP"
-rm -rf .autoqa
-mkdir -p .autoqa
+rm -rf .bughunters
+mkdir -p .bughunters
 
 echo "== capturing baselines =="
 node "$CLI" run --no-models >/dev/null

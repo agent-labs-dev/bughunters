@@ -1,5 +1,5 @@
-import type { Answer, Decider, Question } from '@autoqa/core';
-import { InfrastructureError } from '@autoqa/core';
+import type { Answer, Decider, Question } from '@bughunters/core';
+import { InfrastructureError } from '@bughunters/core';
 
 export type JevOptions = {
   apiKey: string;

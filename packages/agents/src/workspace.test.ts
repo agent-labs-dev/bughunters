@@ -2,13 +2,13 @@ import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { paths, type Issue } from '@autoqa/core';
+import { paths, type Issue } from '@bughunters/core';
 import { Workspace } from './workspace.js';
 import { Vars } from './vars.js';
 
 describe('Workspace', () => {
   it('merges screens and persists sessions with relative screenshots and append-only events', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'autoqa-work-'));
+    const root = await mkdtemp(join(tmpdir(), 'bughunters-work-'));
     const workspace = new Workspace(root);
     try {
       await workspace.upsertScreen({ id: 'home', links: ['settings'], lastScreenshot: 'first.png' });
@@ -35,7 +35,7 @@ describe('Workspace', () => {
         summary: 'next',
       });
       const screenshot = await workspace.saveScreenshot(session.id, Buffer.from('png'), 'home');
-      expect(screenshot).toMatch(/^\.autoqa\/sessions\/.*\/001-home\.png$/);
+      expect(screenshot).toMatch(/^\.bughunters\/sessions\/.*\/001-home\.png$/);
       await new Promise((done) => setTimeout(done, 20));
       const events = await readFile(join(paths.session(root, session.id), 'events.jsonl'), 'utf8');
       expect(events).toContain('{{TOKEN}}');
@@ -48,7 +48,7 @@ describe('Workspace', () => {
   });
 
   it('finds an issue by fingerprint', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'autoqa-issue-'));
+    const root = await mkdtemp(join(tmpdir(), 'bughunters-issue-'));
     try {
       const workspace = new Workspace(root);
       const issue: Issue = {
@@ -79,12 +79,12 @@ describe('agent status under concurrency', () => {
     const { mkdtempSync, readFileSync } = await import('node:fs');
     const { tmpdir } = await import('node:os');
     const { join } = await import('node:path');
-    const root = mkdtempSync(join(tmpdir(), 'autoqa-status-'));
+    const root = mkdtempSync(join(tmpdir(), 'bughunters-status-'));
     const one = new Workspace(root);
     const two = new Workspace(root);
     await Promise.all(Array.from({ length: 40 }, (_, index) =>
       (index % 2 ? one : two).setAgentStatus(index % 3 ? 'explorer' : 'judge', { activity: `step ${index}` })));
-    const file = JSON.parse(readFileSync(join(root, '.autoqa', 'agents.json'), 'utf8'));
+    const file = JSON.parse(readFileSync(join(root, '.bughunters', 'agents.json'), 'utf8'));
     expect(file.agents.map((agent: { role: string }) => agent.role).sort()).toEqual(['explorer', 'judge']);
   });
 });

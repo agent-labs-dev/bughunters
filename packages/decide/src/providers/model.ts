@@ -1,5 +1,5 @@
-import type { Answer, Decider, Question } from '@autoqa/core';
-import { InfrastructureError } from '@autoqa/core';
+import type { Answer, Decider, Question } from '@bughunters/core';
+import { InfrastructureError } from '@bughunters/core';
 import { HeuristicDecider } from './heuristic.js';
 import { normalizeAnswers } from './jev.js';
 
@@ -108,7 +108,7 @@ function openAiBody(model: string, user: string, schema: ReturnType<typeof answe
     response_format: {
       type: 'json_schema',
       json_schema: {
-        name: 'autoqa_answers',
+        name: 'bughunters_answers',
         strict: true,
         schema,
       },

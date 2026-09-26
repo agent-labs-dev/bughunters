@@ -17,7 +17,7 @@ const STOP_REASONS: Record<RoleOutcome['stop'], string> = {
 
 /**
  * The finish tool's text when the explorer wrote one. Otherwise a sentence
- * AutoQA writes itself: the model's last thought at a step limit is a note to
+ * Bughunters writes itself: the model's last thought at a step limit is a note to
  * itself ("I'll open Settings next"), not a summary of the session.
  */
 function sessionSummary(outcome: RoleOutcome, screens: number, candidates: number): string {

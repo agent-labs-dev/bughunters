@@ -1,4 +1,4 @@
-import type { ElementGeometry, Severity } from '@autoqa/core';
+import type { ElementGeometry, Severity } from '@bughunters/core';
 
 /** A single captured screen state, in one viewport, ready for evaluation. */
 export type ScreenLink = {
