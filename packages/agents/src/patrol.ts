@@ -1,3 +1,6 @@
+import { execFile } from 'node:child_process';
+import { resolve } from 'node:path';
+import { promisify } from 'node:util';
 import { type BughuntersConfig } from '@bughunters/core';
 import { createDriver as makeDriver, type Driver } from '@bughunters/drivers';
 import { createRuntime } from './runtime/index.js';
@@ -11,6 +14,64 @@ import { recheckMerged, runFixCycle } from './roles/retest.js';
 import { runPublisher } from './roles/publish.js';
 import { syncGitHub } from './github.js';
 import { cleanWorktrees } from './roles/worktrees.js';
+
+const exec = promisify(execFile);
+
+async function git(cwd: string, ...args: string[]): Promise<string> {
+  return (await exec('git', args, { cwd })).stdout.trim();
+}
+
+/**
+ * Check out the latest `patrol.pull` commit in the source repository, so each
+ * cycle tests the latest code. A detached HEAD works in a linked worktree, where
+ * another worktree can hold the branch. A failure keeps the current checkout.
+ */
+export async function pullSource(root: string, config: BughuntersConfig,
+  onLog?: (message: string) => void): Promise<boolean> {
+  const target = config.agents.patrol.pull;
+  if (!target) return false;
+  const slash = target.indexOf('/');
+  const remote = target.slice(0, slash);
+  const branch = target.slice(slash + 1);
+  const source = resolve(root, config.app.source);
+  try {
+    if (await git(source, 'status', '--porcelain', '--untracked-files=no')) {
+      onLog?.(`Did not pull ${target}: the source repository has uncommitted changes.`);
+      return false;
+    }
+    await git(source, 'fetch', '-q', remote, `+refs/heads/${branch}:refs/remotes/${remote}/${branch}`);
+    await git(source, 'checkout', '-q', '--detach', `${remote}/${branch}`);
+    onLog?.(`Pulled ${target} at ${await git(source, 'rev-parse', '--short', 'HEAD')}.`);
+    return true;
+  } catch (error) {
+    const reason = (error as { stderr?: string }).stderr?.trim() || (error as Error).message;
+    onLog?.(`Did not pull ${target}: ${reason}. The cycle uses the current checkout.`);
+    return false;
+  }
+}
+
+/** The HEAD commit of the source repository, or undefined when it has uncommitted changes. */
+export async function sourceCommit(root: string, config: BughuntersConfig): Promise<string | undefined> {
+  const source = resolve(root, config.app.source);
+  try {
+    if (await git(source, 'status', '--porcelain', '--untracked-files=no')) return undefined;
+    return await git(source, 'rev-parse', 'HEAD');
+  } catch { return undefined; }
+}
+
+function wait(minutes: number): Promise<void> {
+  return new Promise<void>((done) => {
+    const finish = () => {
+      clearTimeout(timer);
+      process.off('SIGINT', finish);
+      process.off('SIGTERM', finish);
+      done();
+    };
+    const timer = setTimeout(finish, minutes * 60_000);
+    process.once('SIGINT', finish);
+    process.once('SIGTERM', finish);
+  });
+}
 
 export type PatrolOptions = {
   root: string;
@@ -34,6 +95,11 @@ export async function runPatrol(options: PatrolOptions): Promise<void> {
       activeSession.cancelled = true;
     }
   };
+  const idle = () => workspace.setPatrol({ state: 'stopped',
+    nextAt: new Date(Date.now() + config.agents.patrol.intervalMinutes * 60_000).toISOString() });
+  // The commit of the last full cycle in this run. The first cycle always runs,
+  // so a restart after a config change tests again.
+  let tested: string | undefined;
   process.on('SIGINT', onSignal);
   process.on('SIGTERM', onSignal);
   try {
@@ -41,9 +107,20 @@ export async function runPatrol(options: PatrolOptions): Promise<void> {
       if (config.agents.patrol.cycles && cycle > config.agents.patrol.cycles) {
         break;
       }
+      if (cycle > 1) {
+        await wait(config.agents.patrol.intervalMinutes);
+        if (interrupted) break;
+      }
       await workspace.setPatrol({ state: 'running', cycle, startedAt: new Date().toISOString() });
+      await pullSource(root, config, options.onLog);
       if (config.agents.github.enabled) await syncGitHub(root, config, { onLog: options.onLog });
       await cleanWorktrees(root, config, { onLog: options.onLog });
+      const commit = await sourceCommit(root, config);
+      if (commit && commit === tested) {
+        options.onLog?.(`No new commit since the last cycle (${commit.slice(0, 7)}): skipped the cycle.`);
+        await idle();
+        continue;
+      }
       for (const role of ['explorer', 'judge', 'fixer'] as const) {
         if (!config.agents[role].enabled) {
           await workspace.setAgentStatus(role, { state: 'off' });
@@ -99,23 +176,14 @@ export async function runPatrol(options: PatrolOptions): Promise<void> {
         onSession: (session) => { activeSession = session; },
       });
       if (!interrupted && config.agents.github.enabled) await syncGitHub(root, config, { onLog: options.onLog });
-      const nextAt = new Date(Date.now() + config.agents.patrol.intervalMinutes * 60_000).toISOString();
-      await workspace.setPatrol({ state: 'stopped', nextAt });
+      if (!interrupted && commit) {
+        tested = commit;
+        await workspace.setPatrol({ commit });
+      }
+      await idle();
       if (options.once || interrupted) {
         break;
       }
-      await new Promise<void>((done) => {
-        const finish = () => {
-          clearTimeout(timer);
-          process.off('SIGINT', stop);
-          process.off('SIGTERM', stop);
-          done();
-        };
-        const timer = setTimeout(finish, config.agents.patrol.intervalMinutes * 60_000);
-        const stop = () => finish();
-        process.once('SIGINT', stop);
-        process.once('SIGTERM', stop);
-      });
     }
   } finally {
     await workspace.setPatrol({ state: 'stopped' });

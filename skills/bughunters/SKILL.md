@@ -121,10 +121,12 @@ Do not use a person's own account without their permission. Do not make test use
 ### 2.2 Check the machine
 
 1. Run `node --version`. Bughunters needs Node 22 or later.
-2. For web: run `PLAYWRIGHT_SKIP_BROWSER_GC=1 npx -y playwright@1.48.2 install chromium`. Use this exact version, because the bundle pins Playwright 1.48.2. Keep `PLAYWRIGHT_SKIP_BROWSER_GC=1`: without it, Playwright deletes the browsers of the repo's own Playwright version.
-3. For iOS or Android: run `maestro --version`. If Maestro is missing, tell the user to install it from https://maestro.mobile.dev. Make sure that a simulator is booted (`xcrun simctl list devices booted`) or an emulator runs (`adb devices`).
-4. For Electron: make sure that the app starts with `--remote-debugging-port=<port>`, and that the start command prints the port.
-5. Run `npx bughunters@latest --version`. This confirms that the package runs.
+2. Run `git remote -v` in the app repo. Bughunters needs `git`, and an `origin` remote: each patrol cycle pulls `origin/main`. If the default branch is not `main`, set `agents.patrol.pull` (for example `origin/master`).
+3. If the user wants GitHub PRs and issues: run `gh auth status`. If `gh` is missing, tell the user to install it from https://cli.github.com. If `gh` is not logged in, tell the user to run `gh auth login`.
+4. For web: run `PLAYWRIGHT_SKIP_BROWSER_GC=1 npx -y playwright@1.48.2 install chromium`. Use this exact version, because the bundle pins Playwright 1.48.2. Keep `PLAYWRIGHT_SKIP_BROWSER_GC=1`: without it, Playwright deletes the browsers of the repo's own Playwright version.
+5. For iOS or Android: run `maestro --version`. If Maestro is missing, tell the user to install it from https://maestro.mobile.dev. Make sure that a simulator is booted (`xcrun simctl list devices booted`) or an emulator runs (`adb devices`).
+6. For Electron: make sure that the app starts with `--remote-debugging-port=<port>`, and that the start command prints the port.
+7. Run `npx bughunters@latest --version`. This confirms that the package runs.
 
 ### 2.3 Run `init` with yourself as the LLM
 
@@ -421,7 +423,7 @@ To read the state of the PRs and issues back from GitHub, run `npx bughunters@la
 
 ```bash
 npx bughunters@latest patrol --once       # one full cycle: setup, explore, judge, teardown, fix, retest, publish
-npx bughunters@latest patrol              # repeat every agents.patrol.intervalMinutes (default 30)
+npx bughunters@latest patrol              # repeat every agents.patrol.intervalMinutes (default 30); a cycle runs only when origin/main has a new commit
 ```
 
 `patrol` does not stop by itself. Run it in the background or in a separate terminal.

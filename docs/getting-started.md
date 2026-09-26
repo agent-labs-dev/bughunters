@@ -5,6 +5,7 @@ This guide adds Bughunters to your repo, step by step. For a faster setup, insta
 ## Requirements
 
 - Node 22 or later.
+- `git`, and your app in a git repo with an `origin` remote. Each patrol cycle pulls `origin/main`, and the fixer works in git worktrees.
 - An LLM for the agents: an agent CLI (Claude Code, Codex, Kimi CLI, or pi), or an API key.
 - For web apps: Chromium for Playwright. Install it one time:
 

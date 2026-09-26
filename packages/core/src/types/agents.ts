@@ -295,7 +295,9 @@ export type AgentStatus = {
 /** `agents.json`. */
 export type AgentsFile = {
   version: 1;
-  patrol?: { cycle: number; state: 'running' | 'stopped'; startedAt: string; nextAt?: string; pid?: number };
+  patrol?: { cycle: number; state: 'running' | 'stopped'; startedAt: string; nextAt?: string; pid?: number;
+    /** The source commit that the last full cycle tested. */
+    commit?: string };
   agents: AgentStatus[];
 };
 
