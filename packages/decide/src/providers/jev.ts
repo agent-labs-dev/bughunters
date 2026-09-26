@@ -1,5 +1,5 @@
-import type { Answer, Decider, Question } from '@bughunters/core';
-import { InfrastructureError } from '@bughunters/core';
+import type { Answer, Decider, Question, TokenUsage } from '@bughunters/core';
+import { InfrastructureError, usageFrom } from '@bughunters/core';
 
 export type JevOptions = {
   apiKey: string;
@@ -8,7 +8,7 @@ export type JevOptions = {
   timeoutMs?: number;
 };
 
-type JevResponse = { answers?: Record<string, unknown> };
+type JevResponse = { answers?: Record<string, unknown>; usage?: unknown };
 
 /**
  * The default decider. Jev is a "System One" model: it takes a state plus typed
@@ -27,7 +27,8 @@ type JevResponse = { answers?: Record<string, unknown> };
 export class JevDecider implements Decider {
   readonly name = 'jev' as const;
   private readonly endpoint: string;
-  private readonly model: string;
+  readonly model: string;
+  lastUsage?: TokenUsage;
   private readonly timeoutMs: number;
 
   constructor(private readonly options: JevOptions) {
@@ -66,6 +67,8 @@ export class JevDecider implements Decider {
       }
 
       const body = (await response.json()) as JevResponse;
+      // ~4 characters per token when the route reports no usage.
+      this.lastUsage = usageFrom(body.usage) ?? { input: Math.ceil(state.length / 4), output: 0, estimated: true };
       return normalizeAnswers(body.answers ?? {}, questions);
     } catch (cause) {
       if (cause instanceof InfrastructureError) throw cause;

@@ -55,7 +55,7 @@ agents:
     use:
       runtime: cli
       command: >-
-        claude -p --permission-mode acceptEdits
+        claude -p --output-format json --permission-mode acceptEdits
         --allowedTools "Bash(npm:*)" "Bash(git diff:*)" "Bash(git status:*)"
 
 decisions:

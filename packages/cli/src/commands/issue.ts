@@ -16,10 +16,15 @@ export async function runIssueCommand(args: string[], root: string, log: (line: 
 
   if (action === 'list' || action === undefined) {
     const issues = await workspace.listIssues();
+    const prs = new Map((await workspace.listFixes()).filter((fix) => fix.pr).map((fix) => [fix.issueId, fix.pr!]));
     for (const issue of issues.sort(bySeverity)) {
-      log(`${issue.id}  ${issue.severity.padEnd(8)} ${issue.status.padEnd(12)} x${issue.occurrences}  ${issue.title}`);
+      const pr = prs.get(issue.id);
+      const github = [issue.github && `#${issue.github.number}`, pr && `PR #${pr.number}`].filter(Boolean).join(' ');
+      log(`${issue.id}  ${issue.severity.padEnd(8)} ${issue.status.padEnd(12)} x${String(issue.occurrences).padEnd(3)} ${github.padEnd(15)} ${issue.title}`);
     }
-    if (issues.length === 0) log('No issues.');
+    if (issues.length === 0) log('No issues. Run `bughunters explore`, then `bughunters judge`.');
+    else log(`\n${issues.length} issue(s). Status: new = filed by the judge, not on GitHub; filed = on GitHub; `
+      + 'fix-proposed = a fix waits for review; fixed; dismissed.');
     return;
   }
 

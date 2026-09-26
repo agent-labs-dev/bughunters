@@ -5,8 +5,8 @@
 Bughunters is a QA team made of agents. It uses your web, Electron, iOS, or Android app the way a tester does. It finds bugs, fixes them, checks each fix in the running app, and opens the pull requests and issues for your team.
 
 ```sh
-npx bughunters explore      # explore the app and report problems
-npx bughunters judge        # file the real bugs as issues
+npx bughunters init         # find the app and the LLMs, and write .bughunters/
+npx bughunters patrol       # explore, judge, fix, retest, and publish, again and again
 npx bughunters dashboard    # look at the results on http://127.0.0.1:4311
 ```
 
@@ -31,4 +31,6 @@ Read https://raw.githubusercontent.com/agent-labs-dev/bughunters/main/skills/bug
 - [Configuration](https://github.com/agent-labs-dev/bughunters/blob/main/docs/configuration.md)
 - [Commands](https://github.com/agent-labs-dev/bughunters/blob/main/docs/commands.md)
 
-Apache-2.0.
+The [Nebula](https://nebula.gg) team uses Bughunters to test its own apps, and made it open source for all teams.
+
+Made with ❤️ by the [Nebula](https://nebula.gg) team. Apache-2.0.

@@ -25,11 +25,11 @@ const errorText = (error: unknown) => `${String(error)} ${(error as { stderr?: s
 const missing = (error: unknown) => /404|not found/i.test(errorText(error));
 
 export async function ghReady(gh: Gh = defaultGh): Promise<{ ok: true } | { ok: false; reason: string }> {
-  try {
-    await gh(['--version']);
-    await gh(['auth', 'status']);
-    return { ok: true };
-  } catch { return { ok: false, reason: 'GitHub publish skipped: gh is not logged in' }; }
+  try { await gh(['--version']); }
+  catch { return { ok: false, reason: 'GitHub publish skipped: the gh CLI is not installed. Install it from https://cli.github.com' }; }
+  try { await gh(['auth', 'status']); }
+  catch { return { ok: false, reason: 'GitHub publish skipped: gh is not logged in. Run `gh auth login`.' }; }
+  return { ok: true };
 }
 
 export async function resolveRepo(gh: Gh, config: BughuntersConfig, source: string): Promise<{ repo: string; defaultBranch: string }> {

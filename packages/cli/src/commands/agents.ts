@@ -1,10 +1,18 @@
-import { ConfigError, InfrastructureError, type AgentRole, type BughuntersConfig } from '@bughunters/core';
+import { ConfigError, InfrastructureError, formatUsage, type AgentRole, type BughuntersConfig } from '@bughunters/core';
 import { createDriver } from '@bughunters/drivers';
-import { AgentSession, Vars, Workspace, createRuntime, replayRoutine, runExplorer, runJudge, runtimeProblem,
+import { AgentSession, Vars, Workspace, createRuntime, pendingCandidates, replayRoutine, runExplorer, runJudge, runtimeProblem,
   applyRetest, runFixCycle, runPatrol, runPublisher, retestFix, startApp, syncGitHub } from '@bughunters/agents';
 import { resolveDecider } from '@bughunters/decide';
 
 type AgentFlags = Record<string, string | string[] | boolean | number>;
+
+/** One line for each model that the session used, with its tokens. */
+async function logUsage(workspace: Workspace, sessionId: string, log: (line: string) => void): Promise<void> {
+  const session = (await workspace.listSessions(Infinity)).find((item) => item.id === sessionId);
+  const byModel = Object.entries(session?.tokensByModel ?? {});
+  if (!byModel.length) { log('Tokens: the runtime reported no token usage.'); return; }
+  for (const [model, usage] of byModel) log(`Tokens: ${model}: ${formatUsage(usage)}`);
+}
 
 /** Rejects ambiguous agent flags before an app or agent runtime starts. */
 export function parseAgentFlags(command: string, args: string[]): AgentFlags {
@@ -101,31 +109,61 @@ export async function runAgentCommand(
     return;
   }
   if (command === 'publish') {
+    if (!flags.dryRun && !config.agents.github.enabled) {
+      throw new ConfigError('GitHub is off. Set agents.github.enabled: true in .bughunters/bughunters.yml, '
+        + 'or run `bughunters publish --dry-run` to write the reports to .bughunters/runs/publish/ only.');
+    }
     const outcomes = await runPublisher(root, config, { onLog: log,
       issueIds: flags.issue as string[] | undefined, dryRun: Boolean(flags.dryRun) });
     if (!flags.dryRun) await syncGitHub(root, config, { onLog: log });
-    log(`${outcomes.length} item(s) handled`);
+    if (!outcomes.length) {
+      log(`Nothing to publish. Bughunters opens a PR for each fix that has no PR yet, and a GitHub issue for each open `
+        + `issue at ${config.agents.github.issueMinSeverity} or worse that has no fix and no GitHub issue.`);
+      return;
+    }
+    for (const item of outcomes) {
+      const kind = item.kind === 'pr' ? (flags.dryRun ? 'PR draft' : 'PR') : item.kind === 'issue' ? (flags.dryRun ? 'issue draft' : 'issue') : 'skipped';
+      log(`  ${kind.padEnd(11)} ${item.issueId}  ${item.url ?? item.reason ?? ''}`);
+    }
+    const count = (kind: string) => outcomes.filter((item) => item.kind === kind).length;
+    log(`${flags.dryRun ? 'Wrote' : 'Opened'} ${count('pr')} PR(s) and ${count('issue')} issue(s); skipped ${count('skipped')}.`);
     return;
   }
   const vars = new Vars(config.app.secrets);
   if (command === 'judge') {
+    // Every recent explorer session with candidates, not only the newest one:
+    // the lesson pass after an explore is also an explorer session, with no
+    // candidates. The judge skips the candidates that it already decided.
     const recent = (await workspace.listSessions())
-      .filter((item) => item.role === 'explorer')
-      .slice(0, 1)
+      .filter((item) => item.role === 'explorer' && item.candidates > 0 && item.status !== 'running')
+      .slice(0, 5)
       .map((item) => item.id);
     const ids = flags.session as string[] | undefined ?? recent;
-    if (!ids.length) throw new ConfigError('No explorer session to judge');
+    if (!ids.length) throw new ConfigError('No explorer session has candidates to judge. Run `bughunters explore` first.');
     const record = await workspace.startSession('judge');
     const session = new AgentSession(root, config, vars, record.id, 'judge', undefined, log);
-    const outcome = await runJudge(session, createRuntime(config.agents.judge.use), { sessionIds: ids });
-    log(outcome.summary ?? outcome.stop);
+    const pending = await pendingCandidates(session, ids);
+    log(`Judging ${pending.length} new candidate(s) from ${ids.length} session(s): ${ids.join(', ')}`);
+    await runJudge(session, createRuntime(config.agents.judge.use), { sessionIds: ids });
+    // The session-end event already printed the summary.
+    await logUsage(workspace, record.id, log);
     return;
   }
   if (command === 'fix') {
+    if (!config.agents.fixer.enabled) {
+      throw new ConfigError('The fixer is off. Set agents.fixer.enabled: true in .bughunters/bughunters.yml. '
+        + 'The fixer writes code, but only in its own git worktree under .bughunters/runs/worktrees/.');
+    }
     const proposals = await runFixCycle(root, config, { onLog: log,
       issueIds: flags.issue as string[] | undefined,
     });
-    log(`${proposals.length} fix proposal(s)`);
+    if (!proposals.length) {
+      log(`No fix to write. The fixer takes open issues at ${config.agents.fixer.minSeverity} or worse that have no fix yet, `
+        + `at most ${config.agents.fixer.maxPerCycle} for each run.`);
+      return;
+    }
+    for (const fix of proposals) log(`  ${fix.status.padEnd(9)} ${fix.issueId}  ${fix.branch}`);
+    log(`${proposals.length} fix proposal(s). Run \`bughunters publish\` to open the PRs.`);
     return;
   }
   if (command === 'retest') {
@@ -171,11 +209,13 @@ export async function runAgentCommand(
     const record = await workspace.startSession('explorer');
     const session = new AgentSession(root, config, vars, record.id, 'explorer', driver, log);
     activeSession = session;
-    const outcome = await runExplorer(session, createRuntime(config.agents.explorer.use), {
+    await runExplorer(session, createRuntime(config.agents.explorer.use), {
       goal: flags.goal as string | undefined,
       maxSteps: flags.steps as number | undefined,
     });
-    log(outcome.summary ?? outcome.stop);
+    // The session-end event already printed the summary.
+    await logUsage(workspace, record.id, log);
+    log('Next: run `bughunters judge` to file the real bugs as issues, or open `bughunters dashboard`.');
   } finally {
     try {
       try {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { existsSync, mkdtempSync, readFileSync, writeFileSync, mkdirSync, chmodSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync, mkdirSync, chmodSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { instructionsPath, loadConfig, parseConfig } from '@bughunters/core';
@@ -43,6 +43,16 @@ describe('detectApp', () => {
   it('guesses a web app, its start command, and its port', () => {
     const guess = detectApp(fixtureRepo());
     expect(guess).toMatchObject({ platform: 'web', start: 'pnpm run dev', url: 'http://localhost:5173' });
+  });
+
+  it('waits for the line that the framework prints when it is ready', () => {
+    const root = fixtureRepo({ scripts: { dev: 'next dev' }, dependencies: { next: '15' } });
+    rmSync(join(root, 'vite.config.ts'));
+    writeFileSync(join(root, 'next.config.ts'), '');
+    const guess = detectApp(root);
+    expect(guess.ready).toBe('Ready in|✓ Ready');
+    const text = renderConfig({ ...answers(), ready: guess.ready });
+    expect(parseConfig(parse(text)).app.setup[0]?.readyWhen).toBe('Ready in|✓ Ready');
   });
 
   it('reads an explicit port from the scripts', () => {
@@ -156,7 +166,7 @@ describe('renderConfig', () => {
   it('expands CLI presets per role, and keeps the fixer off', () => {
     const config = parseConfig(parse(renderConfig(answers())));
     expect(config.agents.explorer.use).toMatchObject({ runtime: 'cli', command: expect.stringContaining('--mcp-config {mcp}') });
-    expect(config.agents.fixer.use).toMatchObject({ runtime: 'cli', command: 'claude -p --permission-mode acceptEdits' });
+    expect(config.agents.fixer.use).toMatchObject({ runtime: 'cli', command: 'claude -p --output-format json --permission-mode acceptEdits' });
     expect(config.agents.fixer.enabled).toBe(false);
     expect(config.agents.github.enabled).toBe(false);
     expect(config.decisions.decider).toBe('jev');

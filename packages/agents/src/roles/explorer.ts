@@ -21,9 +21,10 @@ const STOP_REASONS: Record<RoleOutcome['stop'], string> = {
  * itself ("I'll open Settings next"), not a summary of the session.
  */
 function sessionSummary(outcome: RoleOutcome, screens: number, candidates: number): string {
-  if (outcome.stop === 'done' && outcome.summary) return outcome.summary;
-  return `The explorer ${STOP_REASONS[outcome.stop]} after ${outcome.steps} steps. `
-    + `It knows ${screens} screen(s) and raised ${candidates} candidate(s).`;
+  // The counts come from the files, not from the model: its own count can be wrong.
+  const counts = `${screens} screen(s) known, ${candidates} candidate(s) raised in ${outcome.steps} steps.`;
+  if (outcome.stop === 'done' && outcome.summary) return `${outcome.summary.trim()}\n${counts}`;
+  return `The explorer ${STOP_REASONS[outcome.stop]}. ${counts}`;
 }
 
 export function stopOnCancellation(session: AgentSession, tool: Tool): Tool {
@@ -81,8 +82,9 @@ export async function runExplorer(
     });
     session.emit({ kind: 'session-end', summary: outcome.summary ?? `Explorer stopped: ${outcome.stop}` });
     await session.idle(outcome.costUsd + session.decisionSpentUsd);
-    await reflectOnSession(session.root, session.config, session.sessionId,
+    const learned = await reflectOnSession(session.root, session.config, session.sessionId,
       { vars: session.vars, onLog: (message) => session.emit({ kind: 'error', summary: message }) });
+    if (learned) session.emit({ kind: 'lesson', summary: `Saved ${learned} lesson(s) for the next sessions` });
     return outcome;
   } catch (error) {
     await session.workspace.endSession(session.sessionId, { status: 'failed', summary: String(error) });

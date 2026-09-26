@@ -252,6 +252,16 @@ export async function runFixer(
       await git(worktree, 'clean', '-fd');
     }
     await linkEnvFiles(source, worktree);
+    // A new worktree has no dependencies. Install them before the fixer
+    // starts, so that it can run the type check and the tests.
+    if (!existing && config.retest.prepare) {
+      session.emit({ kind: 'fix', summary: `Preparing the worktree: ${config.retest.prepare}` });
+      try {
+        await exec('/bin/sh', ['-c', config.retest.prepare], { cwd: worktree, timeout: 600_000, maxBuffer: 4 * 1024 * 1024 });
+      } catch (error) {
+        session.emit({ kind: 'error', summary: `The prepare command failed in the worktree: ${String(error).slice(0, 200)}` });
+      }
+    }
     const previous = retry.get(issue.id);
     const proposal: FixProposal = {
       ...previous,

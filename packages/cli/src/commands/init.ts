@@ -68,6 +68,8 @@ export type AppGuess = {
   url?: string;
   appId?: string;
   cdpPort?: number;
+  /** The regex for the start command's output when the app is ready. */
+  ready?: string;
   /** Where each guess came from, for the summary. */
   notes: string[];
 };
@@ -87,6 +89,17 @@ function readJson<T>(file: string): T | undefined {
 }
 
 const FRAMEWORK_PORTS: Record<string, number> = { vite: 5173, next: 3000, angular: 4200, django: 8000, rails: 3000 };
+/**
+ * The line that each dev server prints when it can serve a page. The URL line
+ * is too early for some: `next dev` prints it before it is ready.
+ */
+const FRAMEWORK_READY: Record<string, string> = {
+  next: 'Ready in|✓ Ready',
+  vite: 'ready in|Local:',
+  angular: 'Compiled successfully|Local:',
+  django: 'Quit the server with',
+  rails: 'Listening on',
+};
 
 function readText(file: string): string {
   try {
@@ -199,7 +212,8 @@ export function detectApp(root: string): AppGuess {
   if (best) notes.push(`Start command: detected from ${best.source}.`);
   const { port, source } = detectPort(root, pkg, stack.framework);
   notes.push(`Port ${port}: from ${source}.`);
-  return { platform: 'web', start: best?.command, url: `http://localhost:${port}`, notes };
+  const ready = stack.framework ? FRAMEWORK_READY[stack.framework] : undefined;
+  return { platform: 'web', start: best?.command, url: `http://localhost:${port}`, ready, notes };
 }
 
 export type InitAnswers = {
@@ -209,6 +223,7 @@ export type InitAnswers = {
   url?: string;
   appId?: string;
   cdpPort?: number;
+  ready?: string;
   providers: Record<AgentRole, Provider>;
   jev: JevRoute;
   /** Add --perm yolo to pi, for installs that have pi-permission-modes. */
@@ -257,7 +272,7 @@ export function renderConfig(answers: InitAnswers): string {
       '  setup:',
       `    - run: ${quoteYaml(answers.start)}`,
       '      background: true               # keep the app alive for the session',
-      `      readyWhen: ${quoteYaml(READY[platform])}   # start when the output matches`,
+      `      readyWhen: ${quoteYaml(answers.ready ?? READY[platform])}   # start when the output matches`,
       `      timeoutMs: ${platform === 'web' ? 120000 : 180000}`,
     );
   } else {
@@ -468,6 +483,7 @@ export function defaultAnswers(guess: AppGuess, detected: Detected, flags: InitF
     url: flags.url ?? guess.url,
     appId: flags.appId ?? guess.appId,
     cdpPort: guess.cdpPort,
+    ready: platform === guess.platform ? guess.ready : undefined,
     providers: providers as Record<AgentRole, Provider>,
     jev: flags.jev ?? detected.jev[0] ?? 'auto',
     piPermissionModes: detected.piPermissionModes,
@@ -573,12 +589,19 @@ export async function runInit(root: string, args: string[], log: (line: string) 
   const result = writeInitialConfig(root, answers);
   for (const file of result.written) log(`Wrote ${file}`);
   for (const file of result.skipped) log(`Kept ${file}: it already exists`);
-  if (!interactive) for (const note of guess.notes) log(`  ${note}`);
+  if (!interactive) {
+    // A value from a flag was not detected: do not say that it was.
+    const given: Array<[unknown, string]> = [[flags.platform, 'Platform'], [flags.start, 'Start command'],
+      [flags.url, 'Port'], [flags.appId, 'App ID']];
+    for (const note of guess.notes) {
+      if (!given.some(([value, prefix]) => value !== undefined && note.startsWith(prefix))) log(`  ${note}`);
+    }
+  }
   for (const warning of result.warnings) log(`  warning: ${warning}`);
   log('\nNext steps:');
-  log('  1. Write .bughunters/instructions.md: what the app is, how to sign in, and what never to do.');
-  log('  2. Run `npx bughunters explore`, then `npx bughunters judge`.');
-  log('  3. Run `npx bughunters dashboard` to look at the results.');
+  log('  1. Check .bughunters/bughunters.yml, and write .bughunters/instructions.md: what the app is, how to sign in, and what never to do.');
+  log('  2. Test the launch and the sign-in: `npx bughunters explore --steps 10 --goal "Sign in, then open the main screen"`');
+  log('  3. Start the patrol: `npx bughunters patrol`. Watch it on `npx bughunters dashboard` (http://127.0.0.1:4311).');
 }
 
 /** Interactive mode may start with no provider: the user picks one from the list. */

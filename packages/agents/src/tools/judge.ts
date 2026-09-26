@@ -148,6 +148,12 @@ export function judgeTools(session: AgentSession, sessionIds: string[], runtimeL
         if (!named && (!input.title || !input.body || !input.severity)) {
           return { ...response('A new issue needs a title, a body and a severity'), isError: true };
         }
+        // A cut title loses its end, which is often the point: ask for a
+        // shorter one instead. The length lets the model fix it in one retry.
+        const title = String(input.title ?? '').trim();
+        if (!named && title.length > 80) {
+          return { ...response(`The title has ${title.length} characters; the limit is 80. Write a shorter title.`), isError: true };
+        }
         const ids = input.candidate_ids as string[];
         const candidates = (await pendingCandidates(session, sessionIds)).filter((item) => ids.includes(item.id));
         if (candidates.length !== ids.length || !ids.length) {
@@ -176,7 +182,7 @@ export function judgeTools(session: AgentSession, sessionIds: string[], runtimeL
             version: 1,
             id: `iss_${shortHash(`${first.fingerprint}:${now}`)}`,
             fingerprint: first.fingerprint,
-            title: issueTitle(String(input.title)),
+            title: issueTitle(title),
             body: String(input.body),
             severity: input.severity as Issue['severity'],
             status: 'new',

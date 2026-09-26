@@ -232,7 +232,7 @@ export async function runPublisher(root: string, config: BughuntersConfig, deps:
     }];
     const outcome = await runtime.run({ role: 'judge', sessionId: record.id,
       system: judgePublishSystem(lessonsFor(await workspace.readMemory(), 'judge')),
-      prompt: vars.redact(`Review and publish these items:\n${items.map((item) => `${item.issue.id}: ${item.issue.title}`).join('\n')}`) as string,
+      prompt: vars.redact(`${deps.dryRun ? 'DRY RUN: publish writes a local draft file, and nothing goes to GitHub. Say "drafted", not "published".\n' : ''}Review and publish these items:\n${items.map((item) => `${item.issue.id}: ${item.issue.title}`).join('\n')}`) as string,
       tools: tools.map((tool) => ({ ...tool, async run(input) {
         if (session.cancelled) return result('Session cancelled.', true);
         return tool.run(input);
@@ -247,7 +247,7 @@ export async function runPublisher(root: string, config: BughuntersConfig, deps:
     const prs = outcomes.filter((item) => item.kind === 'pr').length;
     const issues = outcomes.filter((item) => item.kind === 'issue').length;
     const skipped = outcomes.filter((item) => item.kind === 'skipped').length;
-    const summary = `Published ${prs} PR(s) and ${issues} issue(s); skipped ${skipped}`;
+    const summary = `${deps.dryRun ? 'Drafted' : 'Published'} ${prs} PR(s) and ${issues} issue(s); skipped ${skipped}`;
     await workspace.endSession(record.id, { summary, status, steps, costUsd });
     session.emit({ kind: 'session-end', summary });
     await session.idle(costUsd);

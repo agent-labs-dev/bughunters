@@ -142,11 +142,16 @@ describe('explorer, replay, and judge', () => {
         candidate_ids: [first.id], title: first.summary, body: 'What happened: nothing', severity: 'major',
       })).isError).toBe(true);
       const longTitle = 'The save control does not work when someone tries to update their settings in the desktop app';
-      await run(judge, 'file_issue', { candidate_ids: [first.id], title: longTitle,
+      // A long title is refused, not cut: the end of a title is often the point.
+      const refused = await run(judge, 'file_issue', { candidate_ids: [first.id], title: longTitle,
+        body: 'What happened: nothing', severity: 'major', reason: 'The save control has no effect.' });
+      expect(refused.isError).toBe(true);
+      expect(refused.content[0]).toMatchObject({ text: expect.stringContaining(`${longTitle.length} characters`) });
+      expect(await f.workspace.listIssues()).toEqual([]);
+      await run(judge, 'file_issue', { candidate_ids: [first.id], title: 'Save in settings does nothing',
         body: 'What happened: nothing', severity: 'major', reason: 'The save control has no effect.' });
       const filed = (await f.workspace.listIssues())[0]!;
-      expect(filed.title.length).toBeLessThanOrEqual(80);
-      expect(filed.title.endsWith('…')).toBe(true);
+      expect(filed.title).toBe('Save in settings does nothing');
       expect(await pendingCandidates(f.session, [f.session.sessionId])).toEqual([]);
       const repeated = await run(tools, 'report_bug', { title: 'Save does nothing', what_is_wrong: 'No confirmation',
         expected: 'A confirmation', severity: 'major' });
