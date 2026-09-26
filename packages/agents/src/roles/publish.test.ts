@@ -102,8 +102,9 @@ describe('runPublisher', () => {
   });
   it('records unavailable gh without publishing', async () => {
     const f = await fixture();
-    expect(await runPublisher(f.root, f.config, { gh: async () => { throw new Error('not logged in'); }, createRuntime })).toEqual([]);
-    expect((await f.workspace.listSessions())[0]?.summary).toBe('GitHub publish skipped: gh is not logged in');
+    const gh: Gh = async (args) => { if (args[0] === 'auth') throw new Error('not logged in'); return 'gh version 2'; };
+    expect(await runPublisher(f.root, f.config, { gh, createRuntime })).toEqual([]);
+    expect((await f.workspace.listSessions())[0]?.summary).toContain('gh is not logged in');
     expect((await f.workspace.readIssue(f.issue.id))?.github).toBeUndefined();
   });
   it('writes a dry-run report without any gh calls', async () => {

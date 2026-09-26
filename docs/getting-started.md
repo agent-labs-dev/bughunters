@@ -9,7 +9,7 @@ This guide adds Bughunters to your repo, step by step. For a faster setup, insta
 - For web apps: Chromium for Playwright. Install it one time:
 
   ```bash
-  npx -y playwright@1.48.2 install chromium
+  PLAYWRIGHT_SKIP_BROWSER_GC=1 npx -y playwright@1.48.2 install chromium
   ```
 
 - For iOS: Xcode and a booted simulator. For Android: the Android SDK and a running emulator. For both: [Maestro](https://maestro.mobile.dev).
@@ -160,9 +160,12 @@ agents:
   fixer:
     enabled: true
     commitMessage: 'fix(app): {title}'     # match your commit hook
-    retest: { prepare: npm ci }
+    retest: { prepare: npm ci }            # installs the dependencies in each new worktree
+    verify: npm run typecheck && npm test  # Bughunters runs this after each fix
     use: claude                            # or codex, kimi, pi, or an API key
 ```
+
+Set `verify` to the checks that a fix must pass. Bughunters runs the command itself, because the `claude` fixer preset can edit files but cannot run commands. If `verify` fails, the fix fails, and the fixer gets a lesson with the error.
 
 ```bash
 npx bughunters fix            # fix the worst open issues, then retest each fix in the app
@@ -181,6 +184,8 @@ agents:
 npx bughunters publish --dry-run   # write the reports to .bughunters/runs/publish/ and look at them
 npx bughunters publish             # open the PRs and issues
 ```
+
+[GitHub](github.md) tells what Bughunters publishes, what it changes in the repo, and how it syncs the state back.
 
 ## 8. Run it all day
 

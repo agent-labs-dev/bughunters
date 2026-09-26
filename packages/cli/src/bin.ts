@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { readFileSync } from 'node:fs';
 import { ExitCode, loadConfig, BughuntersError, findProjectRoot } from '@bughunters/core';
-import { USAGE } from './usage.js';
+import { USAGE, commandHelp } from './usage.js';
 import { runChecks, doctorExitCode } from './commands/doctor.js';
 import { runInit } from './commands/init.js';
 import { runCommand, exitCodeForError } from './commands/run.js';
@@ -28,6 +28,10 @@ function version(): string {
 }
 
 try {
+  if (command && (args.includes('--help') || args.includes('-h'))) {
+    process.stdout.write(commandHelp(command) ?? USAGE);
+    process.exit(ExitCode.Clean);
+  }
   switch (command) {
     case '--version':
     case '-v':

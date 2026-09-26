@@ -330,6 +330,8 @@ async function decide(
       tool: 'decider',
       summary: `Decider routed ${screenId} to ${result.route}`,
       costUsd: estimate,
+      tokens: decider.lastUsage,
+      model: decider.model ?? decider.name,
     });
     const choice = answers['route'];
     const confidence = choice?.confidence;

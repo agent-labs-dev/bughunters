@@ -7,6 +7,28 @@ npx bughunters dashboard --port 5000
 
 The dashboard is the bird's-eye view of the agents. It reads the files under `.bughunters/runs/` and updates live. You can keep it open while a patrol runs.
 
+## Token usage
+
+The dashboard shows the tokens that each agent used, so that you can control the cost, make a flow shorter, and compare models:
+
+- Each agent card shows its tokens today.
+- The **Token usage** table on the Overview shows the last 7 days for each agent and model: the sessions, the input, cached, and output tokens, the tokens per session, and the list price when the CLI reports one.
+- Each session in **Activity** shows its tokens, for each model, and each model call in the timeline shows its own tokens.
+
+`explore` and `judge` also print the tokens in the terminal. These runtimes report tokens:
+
+| Runtime | Tokens |
+| --- | --- |
+| An API key (`runtime: model`) | From each API response |
+| `claude` | From `--output-format json`, with the model name and the list price |
+| `codex` | From `--json`, for each turn |
+| Jev and the model decider | From the response. If a route reports none, Bughunters estimates the input from the text length, and shows `~` |
+| `kimi`, `pi` | Not reported |
+
+To compare two models, run the same goal with each one, for example `explore --goal "Test the checkout flow"`, and compare the tokens per session.
+
+The cost on the dashboard counts only the API calls that Bughunters makes: Jev and the agents on an API key. A local agent CLI (`claude`, `codex`, `kimi`, `pi`) uses your own plan, and Bughunters does not see its cost.
+
 ## Pages
 
 - **Overview**: what each agent does now and what it spent, the issues that need a human, the live screen, and the screens found so far.

@@ -10,7 +10,7 @@ import { describe, expect, it } from 'vitest';
 import type { AgentEvent } from '@bughunters/core';
 import { serveTools } from '../mcp-server.js';
 import type { RoleTask, Tool } from '../types.js';
-import { CliRuntime } from './cli.js';
+import { CliRuntime, parseCliOutput } from './cli.js';
 
 const echo: Tool = {
   name: 'echo',
@@ -105,6 +105,48 @@ console.log('cli complete');
     try {
       const runtime = new CliRuntime({ runtime: 'cli', command: 'sleep 10' });
       expect((await runtime.run({ ...task(root), timeoutMs: 100 }, () => {})).stop).toBe('timeout');
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('CLI token usage', () => {
+  it('reads the result, the usage, the list price, and the model from claude --output-format json', () => {
+    const out = JSON.stringify({ type: 'result', result: 'Filed 2 issues.', total_cost_usd: 0.12,
+      usage: { input_tokens: 2, output_tokens: 40, cache_read_input_tokens: 1000, cache_creation_input_tokens: 500 },
+      modelUsage: { 'claude-haiku-4-5': { inputTokens: 10, outputTokens: 1 }, 'claude-sonnet-5': { inputTokens: 1492, outputTokens: 39 } } });
+    expect(parseCliOutput(out)).toEqual({ text: 'Filed 2 issues.', model: 'claude-sonnet-5',
+      tokens: { input: 1502, output: 40, cacheRead: 1000, cacheWrite: 500, listCostUsd: 0.12 } });
+  });
+
+  it('adds up each turn of codex exec --json, and keeps only the message text', () => {
+    const out = [
+      '{"type":"thread.started","thread_id":"t"}',
+      '{"type":"item.completed","item":{"id":"i0","type":"agent_message","text":"Looking at Settings."}}',
+      '{"type":"turn.completed","usage":{"input_tokens":1000,"cached_input_tokens":800,"output_tokens":20}}',
+      '{"type":"item.completed","item":{"id":"i1","type":"command_execution","command":"ls"}}',
+      '{"type":"item.completed","item":{"id":"i2","type":"agent_message","text":"Done."}}',
+      '{"type":"turn.completed","usage":{"input_tokens":500,"cached_input_tokens":0,"output_tokens":5}}',
+    ].join('\n');
+    expect(parseCliOutput(out)).toEqual({ text: 'Looking at Settings.\nDone.', tokens: { input: 1500, output: 25, cacheRead: 800 } });
+  });
+
+  it('keeps plain text, with no usage', () => {
+    expect(parseCliOutput('All done\n')).toEqual({ text: 'All done', tokens: undefined });
+  });
+
+  it.skipIf(!canListen)('emits one usage event with the tokens and the model', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'bughunters-cli-usage-'));
+    try {
+      const out = JSON.stringify({ result: 'ok', usage: { input_tokens: 7, output_tokens: 3 }, modelUsage: { m1: { inputTokens: 7, outputTokens: 3 } } });
+      await writeFile(join(root, 'out.json'), out);
+      const events: Omit<AgentEvent, 'at' | 'sessionId' | 'role'>[] = [];
+      const outcome = await new CliRuntime({ runtime: 'cli', command: `cat ${join(root, 'out.json')}` })
+        .run(task(root), (event) => { events.push(event); });
+      expect(outcome).toMatchObject({ stop: 'done', summary: 'ok' });
+      expect(events.find((event) => event.kind === 'usage')).toMatchObject({ model: 'm1', tokens: { input: 7, output: 3 } });
+      expect(events.some((event) => event.kind === 'thought' && event.summary.startsWith('{'))).toBe(false);
     } finally {
       await rm(root, { recursive: true, force: true });
     }

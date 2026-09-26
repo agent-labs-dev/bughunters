@@ -1,16 +1,16 @@
 # Commands
 
-Run each command in your repo. Bughunters finds the `.bughunters/` folder in the current folder or in a folder above it, the same way that git finds `.git/`. Run `npx bughunters --help` for the full list.
+Run each command in your repo. Bughunters finds the `.bughunters/` folder in the current folder or in a folder above it, the same way that git finds `.git/`. Run `npx bughunters --help` for the full list, and `npx bughunters <command> --help` for the flags of one command.
 
 ## Agents
 
 | Command | What it does |
 | --- | --- |
 | `bughunters explore [--goal "..."] [--steps N]` | One explorer session: start the app, explore, report, stop the app |
-| `bughunters judge [--session <id>]` | Judge the newest explorer session (or the ones you name) |
+| `bughunters judge [--session <id>]` | Judge the recent explorer sessions that have new candidates (or the sessions that you name) |
 | `bughunters fix [--issue <id>]` | Fix the worst open issues, then retest each fix |
 | `bughunters retest --issue <id>` | Retest one fix in the app, from its worktree |
-| `bughunters publish [--issue <id>] [--dry-run]` | Open PRs and issues on GitHub, or write them to local files |
+| `bughunters publish [--issue <id>] [--dry-run]` | Open PRs and issues on GitHub, or write them to local files. Refer to [GitHub](github.md) |
 | `bughunters patrol [--once]` | The full cycle, again and again |
 | `bughunters replay <routine-id>` | Replay a learned routine, with no model |
 

@@ -57,6 +57,8 @@ Launch the app yourself, and prove that it runs:
 - **iOS:** check that the app is on the booted simulator: `xcrun simctl listapps booted | grep <bundle id>`. Also start the dev server (for example Metro), if the app needs it.
 - **Android:** check that the app is on the emulator: `adb shell pm list packages | grep <package>`.
 
+Also check the backend. If `.env` or the config points to an API URL, check that it answers, for example `curl -s -o /dev/null -w '%{http_code}' <api url>`. A web app often starts, but it cannot sign in when its backend is down.
+
 If the app does not start, find the cause: a missing dependency, a missing `.env` value, a database or a backend that is not running, or an app build that is not installed. Fix only what is safe and local, for example `npm install`. For all other problems, stop and ask the user. Examples:
 
 - "The app needs `DATABASE_URL`. Which database can Bughunters use for tests?"
@@ -77,6 +79,37 @@ If the app has a sign-in, find one of these ways, best first:
 
 The explorer cannot get through a one-time code, a CAPTCHA, a hardware key, or a third-party SSO page. If the sign-in has one of these, the app needs a test bypass.
 
+Many apps sign in with a one-time code, and their E2E tests use a test-only endpoint that returns a session token. Look for it in the E2E setup files (for example `e2e/setup/`, `auth.setup.ts`, or `global-setup`). Then find a URL that installs a session from a token: an OAuth or magic-link callback route often does this. Use both in `app.setup` and in the app guide:
+
+```yaml
+app:
+  setup:
+    # One command can capture more than one value.
+    - run: >-
+        curl -sf -X POST "$API_URL/auth/test-login"
+        -H "X-Test-Secret: $TEST_LOGIN_SECRET" -d '{"email":"bughunters@example.test"}'
+      capture:
+        SESSION_TOKEN: '"token":\s*"([^"]+)"'
+        USER_ID: '"userId":\s*"([^"]+)"'
+```
+
+```markdown
+## Sign in
+Open http://localhost:3000/auth/callback#token={{SESSION_TOKEN}}&user_id={{USER_ID}}. Do not use the sign-in form.
+```
+
+The model sees only the `{{NAME}}` placeholder. Bughunters puts in the real value only when the explorer acts on the app, for example when it opens the URL. Bughunters hides the value in all logs and files.
+
+#### The state of the test account
+
+The test account decides what the explorer can test:
+
+- **Onboarding.** A new account usually goes to onboarding first. Onboarding can use most of the explorer's steps. If the account must be onboarded, write the onboarding answers in the app guide, or onboard the account one time before the patrol.
+- **Onboarding bugs.** To retest a fix in onboarding, the retest needs an account that is not onboarded. Make a new test user in each session: put a unique email in the setup command, for example `bughunters-$(date +%s)@example.test`.
+- **Data.** A new account has no data, so many pages show only an empty state. If the main flows need data, add a seed command to `app.setup`.
+
+Use a separate account for Bughunters, not an account that the E2E tests share, because the explorer changes the account's data.
+
 If you do not know a way to sign in, stop and ask the user. Give them options:
 
 - "Can you give me a test account? Set `TEST_EMAIL` and `TEST_PASSWORD` in your shell. Do not paste them here."
@@ -88,7 +121,7 @@ Do not use a person's own account without their permission. Do not make test use
 ### 2.2 Check the machine
 
 1. Run `node --version`. Bughunters needs Node 22 or later.
-2. For web: run `npx -y playwright@1.48.2 install chromium`. Use this exact version, because the bundle pins Playwright 1.48.2.
+2. For web: run `PLAYWRIGHT_SKIP_BROWSER_GC=1 npx -y playwright@1.48.2 install chromium`. Use this exact version, because the bundle pins Playwright 1.48.2. Keep `PLAYWRIGHT_SKIP_BROWSER_GC=1`: without it, Playwright deletes the browsers of the repo's own Playwright version.
 3. For iOS or Android: run `maestro --version`. If Maestro is missing, tell the user to install it from https://maestro.mobile.dev. Make sure that a simulator is booted (`xcrun simctl list devices booted`) or an emulator runs (`adb devices`).
 4. For Electron: make sure that the app starts with `--remote-debugging-port=<port>`, and that the start command prints the port.
 5. Run `npx bughunters@latest --version`. This confirms that the package runs.
@@ -272,6 +305,8 @@ Run each command in the project. Bughunters finds `.bughunters/` in the current 
 
    Read the output. If setup fails, or the explorer stays on the sign-in screen, correct `.bughunters/bughunters.yml` or `.bughunters/instructions.md`, and run it again. If you cannot make it work, stop and tell the user what failed.
 
+   Continue only when the explorer reaches the main screen of the app. If it stops in onboarding, read [The state of the test account](#the-state-of-the-test-account).
+
 2. Run a full explorer session:
 
    ```bash
@@ -286,6 +321,8 @@ Run each command in the project. Bughunters finds `.bughunters/` in the current 
    ```bash
    npx bughunters@latest judge
    ```
+
+   The judge reads the recent explorer sessions that have candidates, and it skips the candidates that it already decided. Its first line names the sessions and the number of new candidates. To judge one session only, add `--session <id>`.
 
 4. Show the issues:
 
@@ -311,6 +348,7 @@ Run each command in the project. Bughunters finds `.bughunters/` in the current 
    4. Open the URL in the user's browser: `open` on macOS, `xdg-open` on Linux, `start` on Windows.
    5. Tell the user which page to look at. Use the table in [The dashboard](#the-dashboard).
    6. Give a short text summary too: the number of issues at each severity, and the title of each `critical` or `major` issue.
+   7. Tell the user the next step: turn on the fixer, turn on GitHub, or start the patrol. Ask before you turn on the fixer or GitHub.
 
    The dashboard updates live when a session finishes. You can start it before `explore`, so that the user can watch the explorer work.
 
@@ -323,11 +361,14 @@ agents:
   fixer:
     enabled: true
     minSeverity: minor
-    commitMessage: 'fix: {title}'          # match the repo's commit hook
-    verify: npm test                       # optional: a failure marks the fix failed
-    retest: { prepare: npm ci }            # runs in the worktree before the app starts
+    commitMessage: 'fix(app): {title}'     # match the repo's commit style and hooks: read `git log --oneline`
+    retest: { prepare: npm ci }            # installs the dependencies in each new worktree
+    verify: npm run typecheck && npm test  # Bughunters runs this after each fix
     use: claude                            # or codex, kimi, pi
 ```
+
+- Set `prepare` to the install command of the repo's package manager, for example `pnpm install --frozen-lockfile`. Bughunters runs it in each new worktree before the fixer starts and before each retest.
+- Set `verify` to the checks that a fix must pass. The `claude` fixer preset can edit files, but it cannot run commands, so Bughunters runs `verify` itself. If `verify` fails, the fix fails, and the fixer gets a lesson with the error.
 
 ```bash
 npx bughunters@latest fix                     # fix the worst open issues, then retest each fix
@@ -335,11 +376,19 @@ npx bughunters@latest fix --issue <id>
 npx bughunters@latest retest --issue <id>
 ```
 
-The fixer works only in `.bughunters/runs/worktrees/`. It never changes the user's checkout.
+The command lists each fix with its status and its branch. The fixer works only in `.bughunters/runs/worktrees/`. It never changes the user's checkout.
+
+After the retest, each fix has a verdict: ✅ fixed, ❌ not fixed (the fixer tries again), or ❔ unclear. Unclear means that the explorer could not reach the screen in the retest, often because of [the state of the test account](#the-state-of-the-test-account). Tell the user the verdict of each fix.
 
 ### Optional: publish to GitHub
 
-Turn on GitHub only when the user agrees, because it opens PRs and issues. It needs a logged-in `gh` CLI (`gh auth status`).
+Turn on GitHub only when the user agrees, because it writes to the team's repo. Tell the user what it does before you turn it on:
+
+- It opens a PR for each fix, and a GitHub issue for each bug at `issueMinSeverity` or worse that has no fix.
+- It makes the `bughunters` label, and it pushes the orphan branch `bughunters-assets` with the report screenshots.
+- It pushes one branch for each fix: `bughunters/fix-<issue>`.
+
+It needs a logged-in `gh` CLI with push access to the repo. Check with `gh auth status`, or with `npx bughunters@latest doctor`.
 
 ```yaml
 agents:
@@ -349,13 +398,24 @@ agents:
     issueMinSeverity: major
 ```
 
-```bash
-npx bughunters@latest publish --dry-run   # write the reports to .bughunters/runs/publish/ for review
-npx bughunters@latest publish             # open the PRs and issues
-npx bughunters@latest github sync         # read the PR and issue states back
-```
+Do these steps in order:
 
-Always run `--dry-run` first, and show the user the result.
+1. Write the reports locally. Nothing goes to GitHub:
+
+   ```bash
+   npx bughunters@latest publish --dry-run
+   ```
+
+2. Show the user the list of drafts, and give them the path of each draft file in `.bughunters/runs/publish/`.
+3. Ask the user if you can publish. Publish only after a yes:
+
+   ```bash
+   npx bughunters@latest publish
+   ```
+
+4. Give the user the URL of each PR and issue. The command prints them.
+
+To read the state of the PRs and issues back from GitHub, run `npx bughunters@latest github sync`. A PR that the team closes without a merge becomes a lesson, and an issue that the team closes as not planned becomes a dismissal. Full reference: https://github.com/agent-labs-dev/bughunters/blob/main/docs/github.md
 
 ### Optional: run all day
 
@@ -409,7 +469,20 @@ To summarize the results for the user, read these files:
 | `.bughunters/runs/appmap.json` | The screens that the explorer found |
 | `.bughunters/runs/memory.json` | The lessons |
 
-Severity, worst first: `critical`, `major`, `minor`, `cosmetic`. Issue status: `new`, `filed`, `fixing`, `fix-proposed`, `fixed`, `dismissed`.
+Severity, worst first: `critical`, `major`, `minor`, `cosmetic`.
+
+| Issue status | Meaning |
+| --- | --- |
+| `new` | The judge filed it. It is not on GitHub |
+| `filed` | It is on GitHub |
+| `fixing` | The fixer works on it now |
+| `fix-proposed` | A fix waits for a review, or for its PR |
+| `fixed` | The fix is verified, or the issue was closed on GitHub as completed |
+| `dismissed` | A human or GitHub closed it as not a bug. It does not come back |
+
+The `costUsd` in each `session.json` counts only the API calls that Bughunters makes: Jev and the `runtime: model` agents. A local agent CLI (`claude`, `codex`, `kimi`, `pi`) uses the user's own plan, and Bughunters does not see its cost.
+
+Each `session.json` also has `tokens` and `tokensByModel`. The Overview page shows a **Token usage** table for the last 7 days, for each agent and model. When the user asks about cost, or wants to compare models, show this table, and give the tokens per session.
 
 ## Rules
 
@@ -427,12 +500,16 @@ Severity, worst first: `critical`, `major`, `minor`, `cosmetic`. Issue status: `
 | --- | --- |
 | `Web driver requires app.connect.url or run.url` | Set `app.connect.url` |
 | Setup times out | Correct the `readyWhen` regex, or increase `timeoutMs` |
-| Playwright cannot find Chromium | Run `npx -y playwright@1.48.2 install chromium` |
+| Playwright cannot find Chromium | Run `PLAYWRIGHT_SKIP_BROWSER_GC=1 npx -y playwright@1.48.2 install chromium` |
 | The explorer stays on the sign-in screen | Write clearer sign-in steps in `.bughunters/instructions.md`, and check that the secrets are set |
 | Electron does not connect | Make sure that the app opens a CDP port, and that `capture` reads the port from the output |
 | Mobile does not connect | Boot a simulator or start an emulator, check `maestro --version`, and check `connect.appId` |
 | `No .bughunters/bughunters.yml found` | Run `npx bughunters@latest init` at the project root |
 | `Bughunters now keeps its config in .bughunters/` | An old version wrote the config at the root. Run the commands in the message |
+| `Judging 0 new candidate(s)` | The judge already decided these candidates. Run `explore` again for new ones |
+| The explorer spends its steps in onboarding | Read [The state of the test account](#the-state-of-the-test-account) |
+| A retest verdict is ❔ unclear | The explorer did not reach the screen in the retest. Check the state of the test account |
+| `GitHub is off` or `The fixer is off` | Ask the user, then set `agents.github.enabled` or `agents.fixer.enabled` to `true` |
 | No issues after `explore` | Run `npx bughunters@latest judge`. The judge files the issues |
 | `... is not set` or `... is not on PATH` at the start | Set the key, install the CLI, or change `agents.<role>.use` |
 | `Decider: none` in the output | No Jev key is set. Ask the user to set `TYPESAFE_API_KEY`, `OPENROUTER_API_KEY`, or `AI_GATEWAY_API_KEY` |

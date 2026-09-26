@@ -2,7 +2,7 @@ import { spawn } from 'node:child_process';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { RoleRuntime } from '@bughunters/core';
+import { addUsage, formatUsage, usageFrom, type RoleRuntime, type TokenUsage } from '@bughunters/core';
 import { serveTools } from '../mcp-server.js';
 import { firstLine } from './model.js';
 import type { EventSink, RoleOutcome, RoleTask, Runtime } from '../types.js';
@@ -11,6 +11,62 @@ type CliUse = Extract<RoleRuntime, { runtime: 'cli' }>;
 
 function quote(value: string): string {
   return `'${value.replaceAll("'", "'\\''")}'`;
+}
+
+type Parsed = { text: string; tokens?: TokenUsage; model?: string };
+
+/**
+ * One line of CLI output, as text for the activity feed. A JSON event line
+ * (`codex exec --json`) becomes its message text, or nothing.
+ */
+function displayLine(line: string): string {
+  if (!line.trimStart().startsWith('{')) return line;
+  try {
+    const event = JSON.parse(line) as { type?: string; item?: { type?: string; text?: string } };
+    if (event.type === 'item.completed' && typeof event.item?.text === 'string'
+      && ['agent_message', 'reasoning'].includes(event.item.type ?? '')) return event.item.text;
+    return '';
+  } catch {
+    return line;
+  }
+}
+
+/**
+ * What a CLI printed: the text, and the token usage when the CLI reports it.
+ * `claude -p --output-format json` prints one JSON object with the result and
+ * its usage. `codex exec --json` prints one event on each line, with the usage
+ * on each `turn.completed`. Plain text has no usage.
+ */
+export function parseCliOutput(stdout: string): Parsed {
+  const trimmed = stdout.trim();
+  if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+    try {
+      const claude = JSON.parse(trimmed) as { result?: unknown; usage?: unknown; total_cost_usd?: unknown;
+        modelUsage?: Record<string, { inputTokens?: number; outputTokens?: number }> };
+      if (typeof claude.result === 'string' || claude.usage) {
+        const tokens = usageFrom(claude.usage);
+        if (tokens && typeof claude.total_cost_usd === 'number') tokens.listCostUsd = claude.total_cost_usd;
+        const model = Object.entries(claude.modelUsage ?? {})
+          .sort(([, a], [, b]) => ((b.inputTokens ?? 0) + (b.outputTokens ?? 0)) - ((a.inputTokens ?? 0) + (a.outputTokens ?? 0)))[0]?.[0];
+        return { text: typeof claude.result === 'string' ? claude.result : '', tokens, model };
+      }
+    } catch { /* not one JSON object: read it line by line */ }
+  }
+  let tokens: TokenUsage | undefined;
+  let events = 0;
+  const text: string[] = [];
+  for (const line of trimmed.split('\n')) {
+    if (line.trimStart().startsWith('{')) {
+      try {
+        const event = JSON.parse(line) as { type?: string; usage?: unknown };
+        events++;
+        if (event.type === 'turn.completed') tokens = addUsage(tokens, usageFrom(event.usage));
+      } catch { /* a text line that starts with a brace */ }
+    }
+    const shown = displayLine(line);
+    if (shown) text.push(shown);
+  }
+  return { text: events ? text.join('\n') : trimmed, tokens };
 }
 
 /** A CLI gets the same tools over local MCP and a prompt on stdin and disk. */
@@ -29,7 +85,13 @@ export class CliRuntime implements Runtime {
     let stdout = '';
     let lastThought = 0;
     let pending = '';
-    const onText = (text: string) => {
+    let partial = '';
+    const onText = (chunk: string) => {
+      // Whole lines only, so that a JSON event line is never cut in two.
+      const lines = (partial + chunk).split('\n');
+      partial = lines.pop() ?? '';
+      const text = lines.map(displayLine).filter(Boolean).map((line) => `${line}\n`).join('');
+      if (!text) return;
       pending += text;
       const now = Date.now();
       if (now - lastThought >= 500) {
@@ -116,15 +178,24 @@ export class CliRuntime implements Runtime {
       } finally {
         clearTimeout(timer);
       }
+      if (partial) pending += displayLine(partial);
       if (pending.trim()) {
         emit({ kind: 'thought', summary: pending.trim().slice(0, 300) });
       }
+      const parsed = parseCliOutput(stdout);
+      if (parsed.tokens) {
+        const model = parsed.model ?? this.label;
+        emit({ kind: 'usage', summary: `${model}: ${formatUsage(parsed.tokens)}`, tokens: parsed.tokens, model, costUsd: 0 });
+      }
+      const text = parsed.text.trim().split('\n').slice(-20).join('\n');
+      // claude prints its result only inside the final JSON, so the feed has not seen it yet.
+      if (parsed.model && text) emit({ kind: 'thought', summary: text.slice(0, 300) });
       if (timedOut) {
         return {
           stop: 'timeout',
           steps,
           costUsd: 0,
-          summary: summary || stdout.trim().split('\n').slice(-20).join('\n'),
+          summary: summary || text,
         };
       }
       if (code !== 0) {
@@ -132,14 +203,14 @@ export class CliRuntime implements Runtime {
           stop: 'error',
           steps,
           costUsd: 0,
-          error: stderr.trim().split('\n').slice(-20).join('\n') || `CLI exited ${code}`,
+          error: stderr.trim().split('\n').slice(-20).join('\n') || text || `CLI exited ${code}`,
         };
       }
       return {
         stop: 'done',
         steps,
         costUsd: 0,
-        summary: summary || stdout.trim().split('\n').slice(-20).join('\n'),
+        summary: summary || text,
       };
     } finally {
       await mcp.close();

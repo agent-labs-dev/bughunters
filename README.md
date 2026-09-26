@@ -17,9 +17,13 @@ Bughunters is a QA team made of agents. It uses your app the way a tester does, 
 
 It works on web apps, desktop apps (Electron), and mobile apps (iOS and Android, native or React Native). It runs on your machine, and it can run all day as a patrol.
 
+The [Nebula](https://nebula.gg) team uses Bughunters every day to test our own web, desktop, and mobile apps. We made it open source, so that all teams can use it.
+
 ```bash
-npx bughunters explore
+npx bughunters patrol
 ```
+
+`patrol` runs the full cycle again and again: explore, judge, fix, retest, and publish. The fixer and GitHub stay off until you turn them on.
 
 ## Set up with your agent
 
@@ -29,7 +33,7 @@ npx bughunters explore
    npx skills add agent-labs-dev/bughunters
    ```
 
-   The [skills CLI](https://github.com/vercel-labs/skills) installs the skill for Claude Code, Codex, Cursor, and many other agents.
+   The [skills CLI](https://github.com/vercel-labs/skills) installs the skill for Claude Code, Codex, Cursor, and many other agents. It also writes `skills-lock.json` at the repo root. Commit both, so your team gets the skill too.
 
 2. Give this prompt to your agent:
 
@@ -52,7 +56,7 @@ Bughunters needs two things from you: a command that launches your app on this m
 You need Node 22 or later. For a web app, install Chromium for Playwright one time:
 
 ```bash
-npx -y playwright@1.48.2 install chromium
+PLAYWRIGHT_SKIP_BROWSER_GC=1 npx -y playwright@1.48.2 install chromium
 ```
 
 1. Run `init` in your repo. It finds your app and the LLMs on your machine, and asks which LLM each agent uses:
@@ -75,20 +79,21 @@ npx -y playwright@1.48.2 install chromium
 3. Write `.bughunters/instructions.md`. It is a plain-English note for the explorer: what the app is, how to sign in, and what never to do.
    Refer to secrets as `{{NAME}}`, and list their names in `app.secrets`. Bughunters never sends the real values to a model.
 
-4. Explore, judge, and look at the results:
+4. Start the patrol, and look at the results:
 
    ```bash
-   npx bughunters explore       # the explorer maps the app and reports problems
-   npx bughunters judge         # the judge files the real bugs as issues
+   npx bughunters patrol        # explore, judge, fix, retest, publish; then repeat every 30 minutes
    npx bughunters dashboard     # http://127.0.0.1:4311
    ```
 
-When the first results look good, let Bughunters fix bugs, publish to GitHub, and run all day:
+To run one step at a time, use these commands:
 
 ```bash
-npx bughunters fix           # fix the worst issues, then retest each fix in the app
-npx bughunters publish       # open the PRs and issues
-npx bughunters patrol        # the full cycle, again and again
+npx bughunters patrol --once  # one full cycle, then stop
+npx bughunters explore        # the explorer maps the app and reports problems
+npx bughunters judge          # the judge files the real bugs as issues
+npx bughunters fix            # fix the worst issues, then retest each fix in the app
+npx bughunters publish        # open the PRs and issues
 ```
 
 The fixer and GitHub are off until you turn them on. [Getting started](docs/getting-started.md) shows each step in full, with Electron and mobile examples.
@@ -130,6 +135,7 @@ Jev needs a TypeSafe, OpenRouter, or Vercel AI Gateway key. We recommend a Jev k
 | [LLMs and Jev](docs/models.md) | What each model does, and the providers for each agent |
 | [Configuration](docs/configuration.md) | All the settings in `.bughunters/bughunters.yml` |
 | [Commands](docs/commands.md) | All the CLI commands |
+| [GitHub](docs/github.md) | Set up the PRs and issues, look at the reports first, and sync the state back |
 | [The dashboard](docs/dashboard.md) | What each page shows, and the files behind it |
 | [How it works](docs/how-it-works.md) | The cycle, noise control, memory, GitHub, and safety |
 | [The deterministic gate](docs/deterministic-gate.md) | `bughunters run`: a merge gate for web apps that uses no agent |
@@ -138,3 +144,7 @@ Jev needs a TypeSafe, OpenRouter, or Vercel AI Gateway key. We recommend a Jev k
 ## License
 
 [Apache-2.0](LICENSE)
+
+---
+
+<p align="center">Made with ❤️ by the <a href="https://nebula.gg">Nebula</a> team.</p>

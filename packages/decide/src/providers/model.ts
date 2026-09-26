@@ -1,5 +1,5 @@
-import type { Answer, Decider, Question } from '@bughunters/core';
-import { InfrastructureError } from '@bughunters/core';
+import type { Answer, Decider, Question, TokenUsage } from '@bughunters/core';
+import { InfrastructureError, usageFrom } from '@bughunters/core';
 import { normalizeAnswers } from './jev.js';
 
 export const MODEL_ROUTES = {
@@ -192,6 +192,8 @@ function enforceModelContract(
  */
 export class ModelDecider implements Decider {
   readonly name = 'model' as const;
+  lastUsage?: TokenUsage;
+  get model(): string { return this.options.model; }
 
   constructor(private readonly options: ModelDeciderOptions) {}
 
@@ -233,6 +235,7 @@ export class ModelDecider implements Decider {
         throw new InfrastructureError(`Model returned ${response.status}: ${detail}`);
       }
       const payload: unknown = await response.json();
+      this.lastUsage = usageFrom((payload as { usage?: unknown }).usage);
       const raw = anthropic
         ? (payload as { content?: { type?: string; name?: string; input?: unknown }[] }).content?.find(
             (block) => block.type === 'tool_use' && block.name === 'record_answers',

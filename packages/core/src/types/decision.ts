@@ -1,3 +1,4 @@
+import type { TokenUsage } from './usage.js';
 import type { DecisionId, ScreenId } from './ids.js';
 
 export type Question =
@@ -17,6 +18,10 @@ export type Answer =
  */
 export interface Decider {
   readonly name: 'jev' | 'model';
+  /** The model id, for the usage records. */
+  readonly model?: string;
+  /** The tokens of the last `ask`. */
+  readonly lastUsage?: TokenUsage;
   ask(state: string, questions: Record<string, Question>): Promise<Record<string, Answer>>;
 }
 

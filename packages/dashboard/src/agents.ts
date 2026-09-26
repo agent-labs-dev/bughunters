@@ -1,7 +1,8 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { basename, join } from 'node:path';
-import { paths, type AgentEvent, type AgentRole, type AgentStatus, type AgentsFile, type AppMap,
-  type Candidate, type FixProposal, type Issue, type MemoryFile, type Routine, type SessionSummary } from '@bughunters/core';
+import { addUsage, paths, usageOf, type AgentEvent, type AgentRole, type AgentStatus, type AgentsFile, type AppMap,
+  type Candidate, type FixProposal, type Issue, type MemoryFile, type Routine, type SessionSummary,
+  type TokenUsage } from '@bughunters/core';
 
 const roles: AgentRole[] = ['explorer', 'judge', 'fixer'];
 const severity = { critical: 0, major: 1, minor: 2, cosmetic: 3 };
@@ -134,9 +135,11 @@ export class AgentReader {
     const session = this.sessions(Infinity).find((entry) => entry.id === id);
     if (!session) return undefined;
     const dir = paths.session(this.root, id);
+    const events = jsonLines<AgentEvent>(join(dir, 'events.jsonl'));
     return {
-      session,
-      events: jsonLines<AgentEvent>(join(dir, 'events.jsonl')),
+      // A running session has no totals yet: add up its events so far.
+      session: session.status === 'running' ? { ...session, ...usageOf(events) } : session,
+      events,
       candidates: jsonLines<Candidate>(join(dir, 'candidates.jsonl')),
     };
   }
@@ -238,6 +241,7 @@ export class AgentReader {
         spentTodayUsd: sessions.filter((session) => new Date(session.startedAt).toLocaleDateString('en-CA') === today)
           .reduce((sum, session) => sum + session.costUsd, 0),
       },
+      usage: usageReport(sessions, now),
       attention,
       github,
       live: detail ? { summary: detail.session, events, screenshot } : null,
@@ -253,6 +257,40 @@ export class AgentReader {
  * a tool result with an empty summary is one that another event already
  * reports, such as a recorded screen.
  */
+type UsageRow = { role: AgentRole; model: string; sessions: number; tokens: TokenUsage };
+
+/**
+ * Tokens today for each agent, and the tokens of the last 7 days for each
+ * agent and model, with the number of sessions, so that two models on the same
+ * agent can be compared per session.
+ */
+export function usageReport(sessions: SessionSummary[], now = new Date()): {
+  todayByRole: Partial<Record<AgentRole, TokenUsage>>; week: UsageRow[]; weekTotal?: TokenUsage;
+} {
+  const today = now.toLocaleDateString('en-CA');
+  const weekStart = now.getTime() - 7 * 24 * 3_600_000;
+  const todayByRole: Partial<Record<AgentRole, TokenUsage>> = {};
+  const rows = new Map<string, UsageRow>();
+  let weekTotal: TokenUsage | undefined;
+  for (const session of sessions) {
+    if (!session.tokens) continue;
+    const started = new Date(session.startedAt);
+    if (started.toLocaleDateString('en-CA') === today) todayByRole[session.role] = addUsage(todayByRole[session.role], session.tokens);
+    if (started.getTime() < weekStart) continue;
+    weekTotal = addUsage(weekTotal, session.tokens);
+    for (const [model, tokens] of Object.entries(session.tokensByModel ?? { unknown: session.tokens })) {
+      const key = `${session.role}\u0000${model}`;
+      const row = rows.get(key) ?? { role: session.role, model, sessions: 0, tokens: { input: 0, output: 0 } };
+      row.sessions++;
+      row.tokens = addUsage(row.tokens, tokens)!;
+      rows.set(key, row);
+    }
+  }
+  const week = [...rows.values()].sort((a, b) =>
+    roles.indexOf(a.role) - roles.indexOf(b.role) || (b.tokens.input + b.tokens.output) - (a.tokens.input + a.tokens.output));
+  return { todayByRole, week, ...(weekTotal ? { weekTotal } : {}) };
+}
+
 export function isFeedEvent(event: AgentEvent): boolean {
   if (event.kind === 'thought' || event.kind === 'tool-call') return false;
   return event.summary.trim().length > 0;

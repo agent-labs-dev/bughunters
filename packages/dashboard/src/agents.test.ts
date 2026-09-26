@@ -210,3 +210,28 @@ describe('stale status', () => {
     }
   });
 });
+
+describe('usageReport', () => {
+  it('adds up the tokens today for each agent, and the week for each agent and model', async () => {
+    const { usageReport } = await import('./agents.js');
+    const now = new Date(2026, 8, 26, 12);
+    const at = (day: number, hour: number) => new Date(2026, 8, day, hour).toISOString();
+    const session = (id: string, role: 'explorer' | 'judge', startedAt: string, byModel: Record<string, { input: number; output: number }>) => ({
+      version: 1 as const, id, role, startedAt, status: 'finished' as const, steps: 1, costUsd: 0, screensFound: [], candidates: 0, issues: [],
+      tokens: Object.values(byModel).reduce((sum, u) => ({ input: sum.input + u.input, output: sum.output + u.output }), { input: 0, output: 0 }),
+      tokensByModel: byModel,
+    });
+    const report = usageReport([
+      session('a', 'explorer', at(26, 10), { glm: { input: 1000, output: 100 }, 'jev-latest': { input: 300, output: 0 } }),
+      session('b', 'explorer', at(24, 10), { glm: { input: 3000, output: 300 } }),
+      session('c', 'judge', at(26, 11), { 'claude-sonnet-5': { input: 500, output: 50 } }),
+      session('old', 'judge', at(1, 11), { 'claude-sonnet-5': { input: 9999, output: 9 } }),
+    ], now);
+    expect(report.todayByRole.explorer).toEqual({ input: 1300, output: 100 });
+    expect(report.todayByRole.judge).toEqual({ input: 500, output: 50 });
+    expect(report.week.map((row) => [row.role, row.model, row.sessions, row.tokens.input])).toEqual([
+      ['explorer', 'glm', 2, 4000], ['explorer', 'jev-latest', 1, 300], ['judge', 'claude-sonnet-5', 1, 500],
+    ]);
+    expect(report.weekTotal).toEqual({ input: 4800, output: 450 });
+  });
+});

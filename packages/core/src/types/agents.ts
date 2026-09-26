@@ -1,3 +1,4 @@
+import type { TokenUsage } from './usage.js';
 import type { Severity } from './finding.js';
 
 /**
@@ -252,6 +253,7 @@ export type AgentEventKind =
   | 'issue'
   | 'fix'
   | 'lesson'
+  | 'usage'
   | 'error';
 
 /** One line of `sessions/<id>/events.jsonl`. Every value is already redacted. */
@@ -268,6 +270,10 @@ export type AgentEvent = {
   screenshot?: string;
   screenId?: string;
   costUsd?: number;
+  /** The tokens of the model call behind this event. */
+  tokens?: TokenUsage;
+  /** The model that used them, when the runtime knows it. */
+  model?: string;
   durationMs?: number;
 };
 
@@ -305,6 +311,10 @@ export type SessionSummary = {
   summary?: string;
   steps: number;
   costUsd: number;
+  /** The sum of the tokens on the session's events. */
+  tokens?: TokenUsage;
+  /** The same tokens for each model, for example the explorer's LLM and Jev. */
+  tokensByModel?: Record<string, TokenUsage>;
   screensFound: string[];
   candidates: number;
   issues: string[];

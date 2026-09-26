@@ -3,6 +3,7 @@ import { appendFile, mkdir, readFile, readdir, rename, writeFile } from 'node:fs
 import { basename, relative, join } from 'node:path';
 import {
   paths,
+  usageOf,
   shortHash,
   type AgentEvent,
   type AgentRole,
@@ -276,8 +277,9 @@ export class Workspace {
     return next;
   }
 
-  endSession(id: string, patch: Partial<SessionSummary> = {}): Promise<SessionSummary> {
-    return this.updateSession(id, { status: 'finished', endedAt: new Date().toISOString(), ...patch });
+  async endSession(id: string, patch: Partial<SessionSummary> = {}): Promise<SessionSummary> {
+    return this.updateSession(id, { status: 'finished', endedAt: new Date().toISOString(),
+      ...usageOf(await this.readEvents(id)), ...patch });
   }
 
   async listSessions(limit = 20): Promise<SessionSummary[]> {

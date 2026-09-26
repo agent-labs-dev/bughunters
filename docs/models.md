@@ -93,8 +93,10 @@ agents:
   judge:
     use:
       runtime: cli
-      command: claude -p --model sonnet --mcp-config {mcp} --strict-mcp-config --allowedTools mcp__bughunters
+      command: claude -p --output-format json --model sonnet --mcp-config {mcp} --strict-mcp-config --allowedTools mcp__bughunters
 ```
+
+Keep `--output-format json` for `claude` and `--json` for `codex`. With these flags, the CLI reports its token usage, and the dashboard shows it. Without them, the dashboard shows no tokens for that agent.
 
 ### An API key
 

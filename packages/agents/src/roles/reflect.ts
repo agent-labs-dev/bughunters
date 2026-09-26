@@ -51,12 +51,12 @@ export function troubleLog(events: AgentEvent[], summary = ''): string[] {
 }
 
 export async function reflectOnSession(root: string, config: BughuntersConfig, sessionId: string,
-  deps: { createRuntime?: typeof makeRuntime; onLog?: (message: string) => void; vars?: Vars } = {}): Promise<void> {
-  if (!config.agents.memory.enabled) return;
+  deps: { createRuntime?: typeof makeRuntime; onLog?: (message: string) => void; vars?: Vars } = {}): Promise<number> {
+  if (!config.agents.memory.enabled) return 0;
   const workspace = new Workspace(root);
   const session = (await workspace.listSessions(Infinity)).find((item) => item.id === sessionId);
   const lines = troubleLog(await workspace.readEvents(sessionId), session?.summary);
-  if (!lines.length) return;
+  if (!lines.length) return 0;
   const memory = await workspace.readMemory();
   const existing = lessonsFor(memory, 'explorer');
   const ids = new Set(existing.map((item) => item.id));
@@ -117,4 +117,5 @@ export async function reflectOnSession(root: string, config: BughuntersConfig, s
       status: outcome?.stop === 'error' ? 'failed' : 'finished', steps: outcome?.steps ?? 0,
       costUsd: outcome?.costUsd ?? 0 });
   }
+  return added;
 }

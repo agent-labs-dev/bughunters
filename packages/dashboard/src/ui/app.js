@@ -451,6 +451,46 @@ function money(value) {
   return `$${Number(value ?? 0).toFixed(3)}`;
 }
 
+function count(value) {
+  const n = Number(value ?? 0);
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
+  return String(n);
+}
+
+/** "25.6k in · 4 out tokens", or a dash when the runtime reported no usage. */
+function tokens(usage, suffix = ' tokens') {
+  if (!usage) return `no tokens reported`;
+  return `${usage.estimated ? '~' : ''}${count(usage.input)} in · ${count(usage.output)} out${suffix}`;
+}
+
+function tokenDetail(usage) {
+  if (!usage) return 'The runtime reported no token usage.';
+  return [`${usage.input} input tokens`, usage.cacheRead ? `${usage.cacheRead} of them from the cache` : '',
+    usage.cacheWrite ? `${usage.cacheWrite} written to the cache` : '', `${usage.output} output tokens`,
+    usage.listCostUsd ? `list price ${money(usage.listCostUsd)}` : '',
+    usage.estimated ? 'estimated from the text length' : ''].filter(Boolean).join(', ');
+}
+
+function renderUsage(usage) {
+  const rows = usage?.week ?? [];
+  const head = ['Agent', 'Model', 'Sessions', 'Input', 'Cached', 'Output', 'Per session', 'List price'];
+  return el('section', { class: 'card panel usage' }, [
+    title('Token usage', usage?.weekTotal ? `Last 7 days · ${tokens(usage.weekTotal)}` : 'Last 7 days'),
+    rows.length ? el('table', { class: 'usage-table' }, [
+      el('tr', {}, head.map((text) => el('th', { text }))),
+      ...rows.map((row) => el('tr', { title: tokenDetail(row.tokens) }, [
+        el('td', { text: capital(row.role) }), el('td', { text: row.model }),
+        el('td', { text: String(row.sessions) }), el('td', { text: count(row.tokens.input) }),
+        el('td', { text: row.tokens.cacheRead ? count(row.tokens.cacheRead) : '—' }),
+        el('td', { text: count(row.tokens.output) }),
+        el('td', { text: count(Math.round((row.tokens.input + row.tokens.output) / Math.max(1, row.sessions))) }),
+        el('td', { text: row.tokens.listCostUsd ? money(row.tokens.listCostUsd) : '—' }),
+      ])),
+    ]) : el('p', { class: 'empty', text: 'No token usage yet. The API agents, Jev, claude (--output-format json), and codex (--json) report their tokens.' }),
+  ]);
+}
+
 function image(path, label, className = '') {
   if (!path) return el('div', { class: `image-empty ${className}`, text: 'No capture' });
   return el('img', { class: className, src: artifact(path), alt: label, loading: 'lazy',
@@ -490,7 +530,12 @@ function renderOverview() {
         el('span', { class: `state-dot ${agent.state}`, title: agent.state })]),
       el('div', { class: 'muted', text: agent.runtime || 'No runtime configured' }),
       el('p', { text: agent.activity || capital(agent.state) }),
-      el('div', { class: 'muted', text: `${money(agent.spentUsd)} today` }),
+      // Bughunters sees only the API calls that it makes. A local agent CLI
+      // bills the user's own plan, so its cost is not in this number.
+      el('div', { class: 'muted', title: tokenDetail(data.usage?.todayByRole?.[agent.role]),
+        text: `${tokens(data.usage?.todayByRole?.[agent.role])} today` }),
+      el('div', { class: 'muted', text: `API ${money(agent.spentUsd)} today`
+        + (String(agent.runtime).startsWith('cli') ? ' · the model runs on your CLI plan' : '') }),
     ])));
   const attention = el('section', { class: 'card panel' }, [title('Needs attention', `${data.counts.issuesOpen} open`),
     data.attention.length ? el('div', { class: 'stack' }, data.attention.map((issue) =>
@@ -529,7 +574,7 @@ function renderOverview() {
         image(screen.lastScreenshot, screen.name), el('span', { text: screen.name }),
       ]))),
   ]);
-  return el('div', {}, [agents, el('div', { class: 'overview-grid' }, [attention, livePanel]), coverage]);
+  return el('div', {}, [agents, el('div', { class: 'overview-grid' }, [attention, livePanel]), coverage, renderUsage(data.usage)]);
 }
 
 function screenName(id) {
@@ -768,8 +813,9 @@ function renderActivity() {
       roleIcon(session.role), el('span', { class: 'grow' }, [
         el('strong', { text: firstSentence(session.summary) || `${capital(session.role)} session` }),
         el('small', { class: 'muted',
-          text: `${relativeTime(session.startedAt)} · ${duration(session)} · ${session.steps} steps · ` +
-            `${money(session.costUsd)} · ${session.screensFound.length} screens · ${session.issues.length} issues`,
+          text: `${capital(session.role)} · ${relativeTime(session.startedAt)} · ${duration(session)} · ${session.steps} steps · ` +
+            `${session.tokens ? `${tokens(session.tokens)} · ` : ''}API ${money(session.costUsd)} · `
+            + `${session.screensFound.length} screens · ${session.issues.length} issues`,
         }),
       ]),
     ])),
@@ -778,6 +824,10 @@ function renderActivity() {
   const timeline = detail ? el('section', { class: 'card panel' }, [
     title('Timeline', `${capital(detail.session.role)} · ${relativeTime(detail.session.startedAt)}`),
     detail.session.summary ? el('div', { class: 'session-summary' }, [markdown(detail.session.summary)]) : null,
+    el('div', { class: 'muted session-usage' }, detail.session.tokensByModel
+      ? Object.entries(detail.session.tokensByModel).map(([model, usage]) =>
+        el('div', { title: tokenDetail(usage), text: `${model}: ${tokens(usage)}` }))
+      : [el('div', { text: 'No token usage reported for this session.' })]),
     el('label', { class: 'toggle' }, [el('input', {
       type: 'checkbox',
       ...(state.showThoughts ? { checked: '' } : {}),
@@ -785,7 +835,7 @@ function renderActivity() {
     }), el('span', { text: 'Show agent reasoning' })]),
     el('div', { class: 'event-list' }, detail.events.filter((event) => state.showThoughts || isFeedEvent(event))
       .map(renderEventRow)),
-    title('Candidates'),
+    detail.candidates.length ? title('Candidates') : null,
     ...detail.candidates.map((candidate) => el('div', { class: 'candidate' }, [
       el('strong', { text: candidate.summary }),
       el('span', { class: 'muted', text: `${candidate.route?.to || 'unrouted'} · ${candidate.route?.reason || ''}` }),
@@ -804,6 +854,9 @@ function renderEventRow(event) {
   return el('div', { class: 'event-row' }, [
     el('time', { text: new Date(event.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }),
     roleIcon(event.role), el('span', { class: 'grow truncate', text: event.summary }),
+    event.tokens && event.kind !== 'usage'
+      ? el('small', { class: 'muted token-chip', title: `${event.model ?? ''} ${tokenDetail(event.tokens)}`.trim(), text: tokens(event.tokens, '') })
+      : null,
     event.screenshot ? image(event.screenshot, event.summary, 'event-thumb') : null,
     event.input !== undefined || event.output !== undefined ? el('details', {}, [
       el('summary', { text: 'Tool data' }),

@@ -1,4 +1,4 @@
-import { ConfigError, type RoleRuntime } from '@bughunters/core';
+import { ConfigError, usageFrom, type AgentEvent, type RoleRuntime } from '@bughunters/core';
 import { MODEL_KEYS, MODEL_ROUTES } from '@bughunters/decide';
 import type { EventSink, RoleOutcome, RoleTask, Runtime, ToolResult } from '../types.js';
 
@@ -187,6 +187,7 @@ export class ModelRuntime implements Runtime {
         prompt_tokens?: number; completion_tokens?: number } | undefined;
       const stepCost = typeof usage?.cost === 'number' ? usage.cost : 0;
       costUsd += stepCost;
+      const step = { tokens: usageFrom(usage), model: this.use.model ?? MODEL_ROUTES[this.use.via].model };
       const parsed = parseResponse(payload, anthropic);
       if (parsed.text) {
         lastText = parsed.text;
@@ -194,7 +195,7 @@ export class ModelRuntime implements Runtime {
       }
       messages.push(parsed.assistantMessage);
       if (parsed.calls.length === 0) {
-        emit({ kind: 'tool-result', summary: 'Model replied without a tool call.', costUsd: stepCost });
+        emit({ kind: 'tool-result', summary: 'Model replied without a tool call.', costUsd: stepCost, ...step });
         textOnly++;
         if (textOnly >= 3) {
           return outcome('done', lastText);
@@ -202,7 +203,7 @@ export class ModelRuntime implements Runtime {
         messages.push({ role: 'user', content: 'Call one of the tools. Call finish when you are done.' });
       } else {
         textOnly = 0;
-        const calls = await this.runCalls(task, parsed.calls, emit, messages, anthropic, deadline, stepCost);
+        const calls = await this.runCalls(task, parsed.calls, emit, messages, anthropic, deadline, stepCost, step);
         if (calls.timeout) {
           return outcome('timeout', lastText);
         }
@@ -218,7 +219,7 @@ export class ModelRuntime implements Runtime {
   }
 
   private async runCalls(task: RoleTask, calls: Call[], emit: EventSink, messages: Message[],
-    anthropic: boolean, deadline: number, stepCost: number):
+    anthropic: boolean, deadline: number, stepCost: number, step: Pick<AgentEvent, 'tokens' | 'model'>):
     Promise<{ done?: boolean; timeout?: boolean; output?: string }> {
     const anthroResults: Record<string, unknown>[] = [];
     const images: Record<string, unknown>[] = [];
@@ -248,6 +249,7 @@ export class ModelRuntime implements Runtime {
             summary: `${call.name}: timed out`,
             tool: call.name,
             costUsd: index === 0 ? stepCost : undefined,
+            ...(index === 0 ? step : {}),
             durationMs: Date.now() - started,
           });
           return { timeout: true };
@@ -265,6 +267,7 @@ export class ModelRuntime implements Runtime {
         screenshot: result.meta?.screenshot,
         screenId: result.meta?.screenId,
         costUsd: index === 0 ? stepCost : undefined,
+        ...(index === 0 ? step : {}),
         durationMs: Date.now() - started,
       });
       if (anthropic) {
