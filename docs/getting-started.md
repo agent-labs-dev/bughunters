@@ -1,6 +1,6 @@
 # Getting started
 
-This guide adds Bughunters to your repo, step by step. For a faster setup, give your coding agent the [Bughunters skill](../skill/SKILL.md). The skill does these steps for you.
+This guide adds Bughunters to your repo, step by step. For a faster setup, install the [Bughunters skill](../skills/bughunters/SKILL.md) with `npx skills add agent-labs-dev/bughunters`, and ask your coding agent to set up Bughunters. The skill does these steps for you.
 
 ## Requirements
 
@@ -48,7 +48,14 @@ npx bughunters init
 2. The LLM for each agent: the explorer, the judge, and the fixer. An installed agent CLI (Claude Code, Codex, Kimi CLI, or pi) comes first, because it needs no API key. If you have no CLI, `init` recommends an OpenRouter or a Vercel AI Gateway key, and shows where to get one.
 3. The route to Jev, the low-cost model that screens each finding. Refer to [LLMs and Jev](models.md).
 
-`init` writes `bughunters.yml` and `instructions.md`, and it adds `.bughunters/` to `.gitignore`. It never overwrites a file.
+`init` puts all the Bughunters files in one `.bughunters/` folder, and it never overwrites a file:
+
+```text
+.bughunters/
+  bughunters.yml     # the config: commit it
+  instructions.md    # the app guide for the explorer: commit it
+  runs/              # the local data and screenshots: init adds it to .gitignore
+```
 
 To use the detected values with no questions, add `--yes`. To select the LLM, add `--agent`:
 
@@ -59,7 +66,7 @@ npx bughunters init --yes --explorer claude --judge claude --fixer codex --jev o
 
 ## 2. Check how Bughunters starts your app
 
-Open `bughunters.yml`, and correct the values that `init` could not know. Run Bughunters from the folder that holds `bughunters.yml`.
+Open `.bughunters/bughunters.yml`, and correct the values that `init` could not know. All paths in the file are relative to the project root, the folder that holds `.bughunters/`. You can run Bughunters from any folder in the project.
 
 This example is a web app with a dev server:
 
@@ -75,7 +82,7 @@ app:
       readyWhen: 'Local:|ready'      # wait until the output matches this regex
   connect:
     url: http://localhost:3000
-  instructions: instructions.md
+  instructions: .bughunters/instructions.md
 ```
 
 This example is an Electron app:
@@ -93,14 +100,14 @@ app:
     - run: ./scripts/stop-test-app.sh
   connect:
     cdp: http://127.0.0.1:${CDP_PORT}
-  instructions: instructions.md
+  instructions: .bughunters/instructions.md
 ```
 
 For iOS and Android, set `platform: ios` or `platform: android`, and set `connect.appId` to the bundle ID or the package name. Bughunters uses the booted simulator or the running emulator. To select a different device, set `connect.device`. The [examples](development.md#examples) show a full Electron setup and a full iOS setup.
 
 ## 3. Write the app guide
 
-`instructions.md` is plain English for the explorer. `init` writes a template. Write it like a note to a new tester:
+`.bughunters/instructions.md` is plain English for the explorer. `init` writes a template. Write it like a note to a new tester:
 
 ```markdown
 # My App
@@ -161,7 +168,7 @@ agents:
 npx bughunters fix            # fix the worst open issues, then retest each fix in the app
 ```
 
-Each fix gets a branch `bughunters/fix-<issue>` and a git worktree under `.bughunters/worktrees/`. Bughunters links your ignored `.env` files into each worktree. Then it starts the app from the worktree, and the explorer repeats the flow. The judge compares the before and after screenshots. If the bug is still there, the fixer tries again with the judge's feedback.
+Each fix gets a branch `bughunters/fix-<issue>` and a git worktree under `.bughunters/runs/worktrees/`. Bughunters links your ignored `.env` files into each worktree. Then it starts the app from the worktree, and the explorer repeats the flow. The judge compares the before and after screenshots. If the bug is still there, the fixer tries again with the judge's feedback.
 
 ## 7. Publish to GitHub
 
@@ -171,7 +178,7 @@ agents:
 ```
 
 ```bash
-npx bughunters publish --dry-run   # write the reports to .bughunters/publish/ and look at them
+npx bughunters publish --dry-run   # write the reports to .bughunters/runs/publish/ and look at them
 npx bughunters publish             # open the PRs and issues
 ```
 

@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises';
-import { resolve } from 'node:path';
+import { instructionsPath } from '@bughunters/core';
 import type { Runtime, RoleOutcome, Tool } from '../types.js';
 import type { AgentSession } from '../session.js';
 import { explorerTools } from '../tools/explorer.js';
@@ -45,8 +45,8 @@ export async function runExplorer(
   const config = session.config.agents.explorer;
   const map = await session.workspace.readAppMap();
   const routines = await session.workspace.listRoutines();
-  const guide = session.config.app.instructions;
-  const instructions = guide ? await readFile(resolve(session.root, guide), 'utf8') : '';
+  const guide = instructionsPath(session.root, session.config.app.instructions);
+  const instructions = guide ? await readFile(guide, 'utf8') : '';
   const task = {
     role: 'explorer' as const,
     sessionId: session.sessionId,

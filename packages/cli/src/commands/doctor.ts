@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs';
-import { ExitCode, paths, type BughuntersConfig, type ExitCodeValue } from '@bughunters/core';
+import { ExitCode, legacyLayout, paths, type BughuntersConfig, type ExitCodeValue } from '@bughunters/core';
 
 export type DoctorCheck = { name: string; ok: boolean; detail: string; fatal: boolean };
 
@@ -15,7 +15,9 @@ export function runChecks(root: string, config: BughuntersConfig | undefined): D
   checks.push({
     name: 'config',
     ok: existsSync(paths.config(root)),
-    detail: existsSync(paths.config(root)) ? 'bughunters.yml found' : 'No bughunters.yml. Run `bughunters init`.',
+    detail: existsSync(paths.config(root))
+      ? `${paths.config(root)} found`
+      : legacyLayout(root) ?? 'No .bughunters/bughunters.yml. Run `bughunters init`.',
     fatal: true,
   });
 

@@ -33,7 +33,7 @@ Bughunters keeps the list of issues short:
 
 ## Memory
 
-After each explorer session, Bughunters reads what went wrong: failed taps, retyped fields, broken routines. Then it writes short lessons to `.bughunters/memory.json`. Human dismissals, fixer declines, rejected PRs, and commit hook errors also become lessons. Each role gets its lessons in its prompt, so the next run does not repeat the same mistakes.
+After each explorer session, Bughunters reads what went wrong: failed taps, retyped fields, broken routines. Then it writes short lessons to `.bughunters/runs/memory.json`. Human dismissals, fixer declines, rejected PRs, and commit hook errors also become lessons. Each role gets its lessons in its prompt, so the next run does not repeat the same mistakes.
 
 ## GitHub
 

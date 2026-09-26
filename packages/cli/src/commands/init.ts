@@ -1,8 +1,11 @@
 import { spawnSync } from 'node:child_process';
 import { appendFileSync, existsSync, readFileSync, readdirSync, writeFileSync, mkdirSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, relative } from 'node:path';
 import { createInterface } from 'node:readline/promises';
-import { CLI_AGENTS, ConfigError, cliPreset, paths, type AgentRole, type CliAgent, type StackProfile } from '@bughunters/core';
+import {
+  BUGHUNTERS_DIR, CLI_AGENTS, CONFIG_FILENAME, ConfigError, DATA_DIR, cliPreset, legacyLayout, paths,
+  type AgentRole, type CliAgent, type StackProfile,
+} from '@bughunters/core';
 import { onPath } from '@bughunters/agents';
 import { detectStack, detectBringUp } from '@bughunters/recon';
 
@@ -246,6 +249,7 @@ export function renderConfig(answers: InitAnswers): string {
     '',
     'app:',
     `  platform: ${platform}`,
+    '# Paths are relative to the project root: the folder that holds .bughunters/.',
     '  source: .                          # the repo that the fixer edits',
   ];
   if (answers.start) {
@@ -267,7 +271,7 @@ export function renderConfig(answers: InitAnswers): string {
     lines.push('    # device: <simulator UDID or emulator serial>   # default: the booted one');
   }
   lines.push(
-    '  instructions: instructions.md      # plain English for the explorer: sign in, main flows, never-do list',
+    '  instructions: .bughunters/instructions.md   # plain English for the explorer: sign in, main flows, never-do list',
     '  secrets: []                        # env var names the explorer may use as {{NAME}}, e.g. [TEST_PASSWORD]',
     '',
     '# Each agent runs on an LLM: a local agent CLI (claude, codex, kimi, pi) or an API key.',
@@ -312,30 +316,58 @@ Example: Sign in with the email {{TEST_EMAIL}} and the password {{TEST_PASSWORD}
 - Do not make payments.
 `;
 
-export type InitResult = { written: string[]; skipped: string[]; warnings: string[] };
-
-/** Writes bughunters.yml, instructions.md, and the .gitignore line. Never overwrites a file. */
-export function writeInitialConfig(root: string, answers: InitAnswers): InitResult {
-  const result: InitResult = { written: [], skipped: [], warnings: [] };
-  const configPath = paths.config(root);
-  if (existsSync(configPath)) result.skipped.push('bughunters.yml');
-  else {
-    writeFileSync(configPath, renderConfig(answers));
-    result.written.push('bughunters.yml');
-  }
-  const instructionsPath = join(root, 'instructions.md');
-  if (existsSync(instructionsPath)) result.skipped.push('instructions.md');
-  else {
-    writeFileSync(instructionsPath, INSTRUCTIONS);
-    result.written.push('instructions.md');
-  }
+/**
+ * Git-ignores the local data, and only the local data: the config and the app
+ * guide in .bughunters/ are committed. A line from an older version that
+ * ignores all of .bughunters/ is changed to the data folder. True when the
+ * file changed.
+ */
+function ignoreData(root: string): boolean {
   const gitignore = join(root, '.gitignore');
   const ignored = existsSync(gitignore) ? readFileSync(gitignore, 'utf8') : '';
-  if (!/^\/?\.bughunters\/?$/m.test(ignored)) {
-    appendFileSync(gitignore, `${ignored && !ignored.endsWith('\n') ? '\n' : ''}# Bughunters: screenshots of the real app\n.bughunters/\n`);
-    result.written.push('.gitignore');
+  const lines = ignored.split('\n');
+  if (lines.some((line) => /^\/?\.bughunters\/runs\/?$/.test(line.trim()))) return false;
+  const whole = lines.findIndex((line) => /^\/?\.bughunters\/?$/.test(line.trim()));
+  if (whole >= 0) {
+    lines[whole] = IGNORE_LINE;
+    writeFileSync(gitignore, lines.join('\n'));
+    return true;
   }
+  appendFileSync(gitignore, `${ignored && !ignored.endsWith('\n') ? '\n' : ''}# Bughunters: local data and screenshots of the real app\n${IGNORE_LINE}\n`);
+  return true;
+}
+
+export type InitResult = { written: string[]; skipped: string[]; warnings: string[] };
+
+/** The config path to show: relative to the current folder when that is shorter. */
+function relativeConfig(root: string): string {
+  const shown = relative(process.cwd(), paths.config(root));
+  return shown && !shown.startsWith('..') ? shown : paths.config(root);
+}
+
+const IGNORE_LINE = `${BUGHUNTERS_DIR}/${DATA_DIR}/`;
+
+/**
+ * Writes .bughunters/bughunters.yml, .bughunters/instructions.md, and the
+ * .gitignore line for .bughunters/runs/. Never overwrites a file.
+ */
+export function writeInitialConfig(root: string, answers: InitAnswers): InitResult {
+  const result: InitResult = { written: [], skipped: [], warnings: [] };
   mkdirSync(paths.dir(root), { recursive: true });
+  const configPath = paths.config(root);
+  const configName = `${BUGHUNTERS_DIR}/${CONFIG_FILENAME}`;
+  if (existsSync(configPath)) result.skipped.push(configName);
+  else {
+    writeFileSync(configPath, renderConfig(answers));
+    result.written.push(configName);
+  }
+  const guidePath = join(paths.dir(root), 'instructions.md');
+  if (existsSync(guidePath)) result.skipped.push(`${BUGHUNTERS_DIR}/instructions.md`);
+  else {
+    writeFileSync(guidePath, INSTRUCTIONS);
+    result.written.push(`${BUGHUNTERS_DIR}/instructions.md`);
+  }
+  if (ignoreData(root)) result.written.push('.gitignore');
 
   for (const provider of new Set(Object.values(answers.providers))) {
     if (provider in KEY_PROVIDERS && !process.env[KEY_PROVIDERS[provider as KeyProvider].env]) {
@@ -515,8 +547,10 @@ export async function runInit(root: string, args: string[], log: (line: string) 
     return;
   }
   if (existsSync(paths.config(root))) {
-    throw new ConfigError('bughunters.yml already exists. Edit it, or delete it and run init again.');
+    throw new ConfigError(`${relativeConfig(root)} already exists. Edit it, or delete it and run init again.`);
   }
+  const legacy = legacyLayout(root);
+  if (legacy) throw new ConfigError(legacy);
   const guess = detectApp(root);
   const detected = detectProviders();
   const interactive = !flags.yes && process.stdin.isTTY && process.stdout.isTTY;
@@ -542,7 +576,7 @@ export async function runInit(root: string, args: string[], log: (line: string) 
   if (!interactive) for (const note of guess.notes) log(`  ${note}`);
   for (const warning of result.warnings) log(`  warning: ${warning}`);
   log('\nNext steps:');
-  log('  1. Write instructions.md: what the app is, how to sign in, and what never to do.');
+  log('  1. Write .bughunters/instructions.md: what the app is, how to sign in, and what never to do.');
   log('  2. Run `npx bughunters explore`, then `npx bughunters judge`.');
   log('  3. Run `npx bughunters dashboard` to look at the results.');
 }
@@ -649,9 +683,9 @@ production:
 `;
 
   const configPath = paths.config(root);
-  if (!existsSync(configPath)) writeFileSync(configPath, config);
-  else notes.push('bughunters.yml already exists and was left untouched.');
   mkdirSync(paths.dir(root), { recursive: true });
+  if (!existsSync(configPath)) writeFileSync(configPath, config);
+  else notes.push(`${relativeConfig(root)} already exists and was left untouched.`);
 
   return { configPath, stack, notes };
 }

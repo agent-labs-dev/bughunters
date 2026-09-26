@@ -1,6 +1,6 @@
 # Commands
 
-Run each command from the folder that holds `bughunters.yml`. Run `npx bughunters --help` for the full list.
+Run each command in your repo. Bughunters finds the `.bughunters/` folder in the current folder or in a folder above it, the same way that git finds `.git/`. Run `npx bughunters --help` for the full list.
 
 ## Agents
 
@@ -33,8 +33,8 @@ Run each command from the folder that holds `bughunters.yml`. Run `npx bughunter
 | --- | --- |
 | `bughunters dashboard [--port N]` | The local dashboard, on 127.0.0.1 |
 | `bughunters doctor` | Check that this machine can run the deterministic gate |
-| `bughunters init [--yes] [--agent a]` | Detect the app and the LLMs, ask for each agent's provider, and write `bughunters.yml` |
-| `bughunters init --gate` | Write a starter `bughunters.yml` for the deterministic web gate |
+| `bughunters init [--yes] [--agent a]` | Detect the app and the LLMs, ask for each agent's provider, and write `.bughunters/bughunters.yml` and `.bughunters/instructions.md` |
+| `bughunters init --gate` | Write a starter `.bughunters/bughunters.yml` for the deterministic web gate |
 | `bughunters --version` | Show the version |
 
 ## Deterministic gate (web)

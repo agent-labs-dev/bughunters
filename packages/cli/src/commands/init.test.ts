@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { mkdtempSync, readFileSync, writeFileSync, mkdirSync, chmodSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, writeFileSync, mkdirSync, chmodSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { parseConfig } from '@bughunters/core';
+import { instructionsPath, loadConfig, parseConfig } from '@bughunters/core';
 import { parse } from 'yaml';
 import {
   defaultAnswers, detectApp, detectAppId, interview, detectProviders, parseInitFlags, providerOptions, renderConfig,
@@ -174,24 +174,35 @@ describe('renderConfig', () => {
 });
 
 describe('writeInitialConfig', () => {
-  it('writes the config, the app guide, and the .gitignore line', () => {
+  it('writes the config and the app guide in .bughunters/, and ignores only the local data', () => {
     const root = fixtureRepo();
     writeFileSync(join(root, '.gitignore'), 'node_modules');
     const result = writeInitialConfig(root, answers());
-    expect(result.written).toEqual(['bughunters.yml', 'instructions.md', '.gitignore']);
-    expect(readFileSync(join(root, '.gitignore'), 'utf8')).toBe('node_modules\n# Bughunters: screenshots of the real app\n.bughunters/\n');
-    expect(readFileSync(join(root, 'instructions.md'), 'utf8')).toContain('Never do these things');
+    expect(result.written).toEqual(['.bughunters/bughunters.yml', '.bughunters/instructions.md', '.gitignore']);
+    expect(readFileSync(join(root, '.gitignore'), 'utf8')).toBe('node_modules\n# Bughunters: local data and screenshots of the real app\n.bughunters/runs/\n');
+    expect(readFileSync(join(root, '.bughunters', 'instructions.md'), 'utf8')).toContain('Never do these things');
+    expect(existsSync(join(root, 'bughunters.yml'))).toBe(false);
+    const config = loadConfig(root);
+    expect(instructionsPath(root, config.app.instructions)).toBe(join(root, '.bughunters', 'instructions.md'));
   });
 
   it('never overwrites a file, and adds the .gitignore line once', () => {
     const root = fixtureRepo();
-    writeFileSync(join(root, 'bughunters.yml'), '# mine\n');
-    writeFileSync(join(root, 'instructions.md'), '# mine\n');
-    writeFileSync(join(root, '.gitignore'), '.bughunters/\n');
+    mkdirSync(join(root, '.bughunters'));
+    writeFileSync(join(root, '.bughunters', 'bughunters.yml'), '# mine\n');
+    writeFileSync(join(root, '.bughunters', 'instructions.md'), '# mine\n');
+    writeFileSync(join(root, '.gitignore'), '.bughunters/runs/\n');
     const result = writeInitialConfig(root, answers());
     expect(result.written).toEqual([]);
-    expect(result.skipped).toEqual(['bughunters.yml', 'instructions.md']);
-    expect(readFileSync(join(root, 'bughunters.yml'), 'utf8')).toBe('# mine\n');
+    expect(result.skipped).toEqual(['.bughunters/bughunters.yml', '.bughunters/instructions.md']);
+    expect(readFileSync(join(root, '.bughunters', 'bughunters.yml'), 'utf8')).toBe('# mine\n');
+  });
+
+  it('changes an old line that ignores all of .bughunters/, so the config is committed', () => {
+    const root = fixtureRepo();
+    writeFileSync(join(root, '.gitignore'), 'dist\n.bughunters/\n.env\n');
+    writeInitialConfig(root, answers());
+    expect(readFileSync(join(root, '.gitignore'), 'utf8')).toBe('dist\n.bughunters/runs/\n.env\n');
   });
 
   it('warns about a key that the config needs and the shell does not have', () => {

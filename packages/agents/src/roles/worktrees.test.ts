@@ -22,7 +22,7 @@ async function fixture(status: FixProposal['status'] = 'declined') {
   roots.push(root);
   const repo = join(root, 'source');
   const remote = join(root, 'remote.git');
-  const worktree = join(root, '.bughunters', 'worktrees', 'iss_1');
+  const worktree = join(root, '.bughunters', 'runs', 'worktrees', 'iss_1');
   const branch = 'bughunters/fix-iss_1';
   await mkdir(repo);
   execFileSync('git', ['init', '--bare', '-q', remote], { stdio: 'pipe' });
@@ -36,7 +36,7 @@ async function fixture(status: FixProposal['status'] = 'declined') {
   git(repo, 'branch', '-M', 'main');
   git(repo, 'remote', 'add', 'origin', remote);
   git(repo, 'push', '-q', '-u', 'origin', 'main');
-  await mkdir(join(root, '.bughunters', 'worktrees'), { recursive: true });
+  await mkdir(join(root, '.bughunters', 'runs', 'worktrees'), { recursive: true });
   git(repo, 'worktree', 'add', '-q', '-b', branch, worktree, 'HEAD');
   const workspace = new Workspace(root);
   const issue: Issue = { version: 1, id: 'iss_1', fingerprint: 'fp', title: 'Broken screen', body: 'Broken',

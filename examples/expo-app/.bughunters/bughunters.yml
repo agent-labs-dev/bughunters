@@ -7,7 +7,9 @@
 # opens the real link.
 #
 # The development build must be on the simulator already (`npx expo run:ios`).
-# Put this folder next to the app, or in the app repo (then set source and cwd to ..).
+# This example is a separate folder next to the app. Paths are relative to the
+# folder that holds .bughunters/. To keep the config in the app repo instead, put
+# .bughunters/ at the repo root, set source to ., and remove each cwd line.
 version: 1
 
 app:
@@ -34,7 +36,7 @@ app:
   teardown: []
   connect:
     appId: com.example.myapp
-  instructions: instructions.md
+  instructions: .bughunters/instructions.md
 
 agents:
   # Needs a logged-in gh CLI with access to the app's repository.

@@ -6,7 +6,7 @@ For web apps, `bughunters run` is a merge gate that uses no agent. The agents ex
 
 ```bash
 npx -y playwright@1.48.2 install chromium
-npx bughunters init --gate           # write a starter bughunters.yml; correct each TODO value
+npx bughunters init --gate           # write a starter .bughunters/bughunters.yml; correct each TODO value
 npx bughunters run --no-models       # capture the baselines
 npx bughunters run --no-models       # compare: clean
 ```

@@ -1,6 +1,20 @@
 # Configuration
 
-All settings live in `bughunters.yml`. Every field has a default, so a small file is enough.
+All settings live in `.bughunters/bughunters.yml`. Every field has a default, so a small file is enough.
+
+## The `.bughunters/` folder
+
+Bughunters keeps all of its files in one folder at the root of your project:
+
+| Path | What it is | Git |
+| --- | --- | --- |
+| `.bughunters/bughunters.yml` | The config | Commit it |
+| `.bughunters/instructions.md` | The app guide for the explorer | Commit it |
+| `.bughunters/runs/` | The local data: sessions, issues, fixes, worktrees, memory, and screenshots | `init` adds it to `.gitignore` |
+
+The project root is the folder that holds `.bughunters/`. All paths in the config (`source`, `cwd`, `instructions`) are relative to the project root. You can run a command from any folder in the project: Bughunters finds `.bughunters/` in the current folder or in a folder above it.
+
+Older versions kept `bughunters.yml` and `instructions.md` at the project root. If Bughunters finds a file there, it stops and shows the commands that move the files.
 
 ## The full file
 
@@ -9,11 +23,11 @@ version: 1
 
 app:
   platform: web                 # web | electron | ios | android
-  source: .                     # the repo that the fixer edits, relative to this file
+  source: .                     # the repo that the fixer edits, relative to the project root
   setup: []                     # commands: { run, cwd, capture, background, readyWhen, timeoutMs }
   teardown: []
   connect: { url: http://localhost:3000 }   # or cdp, or appId + device
-  instructions: instructions.md
+  instructions: .bughunters/instructions.md
   secrets: [TEST_PASSWORD]      # environment variables the explorer may use as {{NAME}}
 
 agents:
@@ -60,7 +74,7 @@ Each item in `app.setup` and `app.teardown` is one shell command:
 | Field | What it does |
 | --- | --- |
 | `run` | The shell command |
-| `cwd` | The folder for the command, relative to `bughunters.yml` |
+| `cwd` | The folder for the command, relative to the project root |
 | `capture` | A map from a name to a regex. The first group of the match becomes a value, for example `{ CDP_PORT: 'CDP :(\d+)' }` |
 | `background` | `true` keeps the process alive for the session. Use it for a dev server |
 | `readyWhen` | For a background command: Bughunters waits until the output matches this regex |

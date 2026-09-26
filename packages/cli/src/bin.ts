@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { readFileSync } from 'node:fs';
-import { ExitCode, loadConfig, BughuntersError } from '@bughunters/core';
+import { ExitCode, loadConfig, BughuntersError, findProjectRoot } from '@bughunters/core';
 import { USAGE } from './usage.js';
 import { runChecks, doctorExitCode } from './commands/doctor.js';
 import { runInit } from './commands/init.js';
@@ -13,7 +13,8 @@ import { runMemoryCommand } from './commands/memory.js';
 import { cleanWorktrees, syncGitHub } from '@bughunters/agents';
 
 const [command, ...args] = process.argv.slice(2);
-const root = process.cwd();
+// The folder that holds .bughunters/, found from any subfolder the way git does.
+const root = findProjectRoot(process.cwd());
 
 declare const __BUGHUNTERS_VERSION__: string | undefined;
 
@@ -139,7 +140,7 @@ try {
         port,
         onReady: (url) => {
           process.stdout.write(`Bughunters dashboard on ${url}\n`);
-          process.stdout.write('Watching .bughunters/ — runs appear as they finish. Ctrl-C to stop.\n');
+          process.stdout.write('Watching .bughunters/runs/ — runs appear as they finish. Ctrl-C to stop.\n');
         },
       });
       // Deliberately does not exit: this is a server, and the watcher is the
