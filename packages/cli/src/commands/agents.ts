@@ -34,8 +34,8 @@ export function parseAgentFlags(command: string, args: string[]): AgentFlags {
   if (!values[command]) throw new ConfigError(`Unknown agent command ${command}`);
   for (let index = 0; index < args.length; index++) {
     const flag = args[index]!;
-    if (command === 'patrol' && flag === '--once') {
-      flags.once = true;
+    if (command === 'patrol' && (flag === '--once' || flag === '--force')) {
+      flags[flag.slice(2)] = true;
       continue;
     }
     if (command === 'publish' && flag === '--dry-run') {
@@ -105,7 +105,7 @@ export async function runAgentCommand(
   for (const line of preflight(command, config)) log(line);
   const workspace = new Workspace(root);
   if (command === 'patrol') {
-    await runPatrol({ root, config, once: Boolean(flags.once), onLog: log });
+    await runPatrol({ root, config, once: Boolean(flags.once), force: Boolean(flags.force), onLog: log });
     return;
   }
   if (command === 'publish') {

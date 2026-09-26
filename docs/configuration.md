@@ -59,8 +59,9 @@ agents:
   memory:
     enabled: true
   patrol:
-    intervalMinutes: 30
+    intervalMinutes: 30         # wait between cycles; a cycle runs only on a new commit
     cycles: 0                   # 0 = run until stopped
+    pull: origin/main           # remote/branch to pull before each cycle; false = no pull
 
 decisions:
   decider: jev                  # jev | model

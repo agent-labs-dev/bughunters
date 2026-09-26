@@ -13,13 +13,14 @@
 
 A patrol cycle has these steps:
 
-1. **Setup** runs your commands and connects the driver to the app.
-2. The **explorer** enters the app (with the `enter-app` routine when it can), records screens, and reports problems. Automatic checks (contrast, overlap, tap size, visual change) run on each screen that it records.
-3. The **decider** routes each finding: drop it, or send it to the judge.
-4. The **judge** looks at each finding with its screenshot. It files an issue, adds the finding to an issue that is already open, or dismisses it with a reason.
-5. **Teardown** stops the app.
-6. The **fixer** fixes the worst issues. Each fix gets a **retest**: Bughunters starts the app from the fix worktree, the explorer repeats the flow on each affected screen, and the judge compares before and after.
-7. The judge **publishes**. A fix becomes a PR. A major bug with no fix becomes an issue.
+1. **Pull** fetches `origin/main` and checks out its latest commit in the source repository, so each cycle tests the latest code. The checkout is a detached `HEAD`: your local `main` does not change, and the pull works in a linked worktree. Set `agents.patrol.pull` to use a different branch, or to `false` to keep the checkout as it is. If the checkout has uncommitted changes, the cycle uses the current checkout. If the commit is the same as in the last full cycle, the patrol skips the other steps, and only syncs GitHub.
+2. **Setup** runs your commands and connects the driver to the app.
+3. The **explorer** enters the app (with the `enter-app` routine when it can), records screens, and reports problems. Automatic checks (contrast, overlap, tap size, visual change) run on each screen that it records.
+4. The **decider** routes each finding: drop it, or send it to the judge.
+5. The **judge** looks at each finding with its screenshot. It files an issue, adds the finding to an issue that is already open, or dismisses it with a reason.
+6. **Teardown** stops the app.
+7. The **fixer** fixes the worst issues. Each fix gets a **retest**: Bughunters starts the app from the fix worktree, the explorer repeats the flow on each affected screen, and the judge compares before and after.
+8. The judge **publishes**. A fix becomes a PR. A major bug with no fix becomes an issue.
 
 ## Noise control
 

@@ -5,14 +5,14 @@ import { chmod, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:f
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { parseConfig, type Candidate, type FixProposal, type Issue } from '@bughunters/core';
+import { parseConfig, paths, type Candidate, type FixProposal, type Issue } from '@bughunters/core';
 import { FakeDriver } from './testing/fake-driver.js';
 import { AgentSession } from './session.js';
 import { Vars } from './vars.js';
 import { Workspace } from './workspace.js';
 import { runFixer } from './roles/fixer.js';
 import { recheckMerged, retestFix, retestTargets, runFixCycle } from './roles/retest.js';
-import { runPatrol } from './patrol.js';
+import { pullSource, runPatrol } from './patrol.js';
 import type { Runtime } from './types.js';
 
 const exec = promisify(execFile);
@@ -513,6 +513,140 @@ describe('patrol', () => {
       });
       expect(connections).toBe(2);
       expect((await f.workspace.readFix('fix_iss_1'))?.status).toBe('verified');
+    } finally { await rm(f.root, { recursive: true, force: true }); }
+  });
+});
+
+describe('patrol pull', () => {
+  async function remoteFixture() {
+    const f = await repoFixture();
+    const remote = join(f.root, 'remote.git');
+    await git(f.root, 'clone', '-q', '--bare', f.source, remote);
+    await git(f.source, 'remote', 'add', 'origin', remote);
+    const other = join(f.root, 'other');
+    await git(f.root, 'clone', '-q', remote, other);
+    await git(other, 'config', 'user.email', 'test@example.com');
+    await git(other, 'config', 'user.name', 'Bughunters Test');
+    await git(other, 'config', 'commit.gpgsign', 'false');
+    await writeFile(join(other, 'app.txt'), 'fixed\n');
+    await git(other, 'commit', '-qam', 'fix');
+    const branch = (await git(f.source, 'rev-parse', '--abbrev-ref', 'HEAD')).stdout.trim();
+    await git(other, 'push', '-q', 'origin', `HEAD:${branch}`);
+    const config = parseConfig({ version: 1, app: { source: 'source', connect: { url: 'fake://home' } },
+      agents: { patrol: { pull: `origin/${branch}` } } });
+    return { ...f, config, branch };
+  }
+
+  it('checks out the latest remote commit and leaves the local branch as it is', async () => {
+    const f = await remoteFixture();
+    try {
+      const before = (await git(f.source, 'rev-parse', f.branch)).stdout.trim();
+      await git(f.source, 'checkout', '-q', '-b', 'feature');
+      expect(await pullSource(f.root, f.config)).toBe(true);
+      expect((await git(f.source, 'rev-parse', 'HEAD')).stdout.trim())
+        .toBe((await git(f.source, 'rev-parse', `origin/${f.branch}`)).stdout.trim());
+      expect((await git(f.source, 'rev-parse', f.branch)).stdout.trim()).toBe(before);
+      expect(await readFile(join(f.source, 'app.txt'), 'utf8')).toBe('fixed\n');
+    } finally { await rm(f.root, { recursive: true, force: true }); }
+  });
+
+  it('pulls in a linked worktree while another worktree holds the branch', async () => {
+    const f = await remoteFixture();
+    try {
+      const linked = join(f.root, 'linked');
+      await git(f.source, 'worktree', 'add', '-q', '-b', 'feature', linked);
+      const config = parseConfig({ ...f.config, app: { ...f.config.app, source: 'linked' } });
+      expect(await pullSource(f.root, config)).toBe(true);
+      expect(await readFile(join(linked, 'app.txt'), 'utf8')).toBe('fixed\n');
+    } finally { await rm(f.root, { recursive: true, force: true }); }
+  });
+
+  it('keeps the checkout when it has uncommitted changes', async () => {
+    const f = await remoteFixture();
+    try {
+      await writeFile(join(f.source, 'app.txt'), 'work in progress\n');
+      const logs: string[] = [];
+      expect(await pullSource(f.root, f.config, (message) => logs.push(message))).toBe(false);
+      expect(logs[0]).toContain('uncommitted changes');
+      expect(await readFile(join(f.source, 'app.txt'), 'utf8')).toBe('work in progress\n');
+    } finally { await rm(f.root, { recursive: true, force: true }); }
+  });
+
+  it('skips a cycle when the commit did not change', async () => {
+    const f = await repoFixture();
+    try {
+      const config = parseConfig({ version: 1, app: { source: 'source', connect: { url: 'fake://home' } },
+        agents: { judge: { enabled: false }, patrol: { pull: false, cycles: 3, intervalMinutes: 0.0001 } } });
+      let runs = 0;
+      const logs: string[] = [];
+      await runPatrol({ root: f.root, config, onLog: (message) => logs.push(message),
+        createDriver: () => new FakeDriver({ home: { elements: [] } }),
+        createRuntime: () => ({ label: 'scripted', async run() {
+          runs++;
+          if (runs === 1) {
+            await writeFile(join(f.source, 'app.txt'), 'fixed\n');
+            await git(f.source, 'commit', '-qam', 'fix');
+          }
+          return { stop: 'done', steps: 0, costUsd: 0, summary: 'Done' };
+        } }) });
+      // Cycle 2 sees the new commit, and cycle 3 sees no change.
+      expect(runs).toBe(2);
+      expect(logs.some((message) => message.startsWith('No new commit'))).toBe(true);
+      const head = (await git(f.source, 'rev-parse', 'HEAD')).stdout.trim();
+      expect((await new Workspace(f.root).readAgents()).patrol?.commit).toBe(head);
+    } finally { await rm(f.root, { recursive: true, force: true }); }
+  });
+
+  it('skips --once on a tested commit unless forced, and shows no next patrol', async () => {
+    const f = await repoFixture();
+    try {
+      const config = parseConfig({ version: 1, app: { source: 'source', connect: { url: 'fake://home' } },
+        agents: { judge: { enabled: false }, patrol: { pull: false } } });
+      let runs = 0;
+      const once = (force = false) => runPatrol({ root: f.root, config, once: true, force,
+        createDriver: () => new FakeDriver({ home: { elements: [] } }),
+        createRuntime: () => ({ label: 'scripted', async run() {
+          runs++;
+          return { stop: 'done', steps: 0, costUsd: 0, summary: 'Done' };
+        } }) });
+      await once();
+      await once();
+      expect(runs).toBe(1);
+      await once(true);
+      expect(runs).toBe(2);
+      const patrol = (await new Workspace(f.root).readAgents()).patrol;
+      expect(patrol?.state).toBe('stopped');
+      expect(patrol?.nextAt).toBeUndefined();
+    } finally { await rm(f.root, { recursive: true, force: true }); }
+  });
+
+  it('does not start while another patrol runs', async () => {
+    const f = await repoFixture();
+    try {
+      // The parent process is alive, and it is not this process.
+      await f.workspace.setPatrol({ state: 'running', cycle: 1 });
+      const file = await f.workspace.readAgents();
+      await writeFile(paths.agents(f.root),
+        JSON.stringify({ ...file, patrol: { ...file.patrol, pid: process.ppid } }));
+      const logs: string[] = [];
+      let runs = 0;
+      await runPatrol({ root: f.root, config: f.config, once: true, onLog: (message) => logs.push(message),
+        createDriver: () => new FakeDriver({ home: { elements: [] } }),
+        createRuntime: () => ({ label: 'scripted', async run() {
+          runs++;
+          return { stop: 'done', steps: 0, costUsd: 0, summary: 'Done' };
+        } }) });
+      expect(runs).toBe(0);
+      expect(logs[0]).toContain('A patrol already runs');
+    } finally { await rm(f.root, { recursive: true, force: true }); }
+  });
+
+  it('does nothing when pull is false', async () => {
+    const f = await repoFixture();
+    try {
+      const config = parseConfig({ version: 1, app: { source: 'source', connect: { url: 'fake://home' } },
+        agents: { patrol: { pull: false } } });
+      expect(await pullSource(f.root, config)).toBe(false);
     } finally { await rm(f.root, { recursive: true, force: true }); }
   });
 });

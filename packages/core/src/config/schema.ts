@@ -305,6 +305,12 @@ export const agentsSchema = z
         intervalMinutes: z.number().positive().default(30),
         /** Stop after this many cycles; 0 means run until stopped. */
         cycles: z.number().int().nonnegative().default(0),
+        /**
+         * At the start of each cycle, fetch this `remote/branch` and check out its
+         * latest commit (detached) in the source repository. false keeps the checkout.
+         */
+        pull: z.union([z.string().regex(/^[^/]+\/.+$/, 'Use remote/branch, e.g. origin/main'), z.literal(false)])
+          .default('origin/main'),
       })
       .default({}),
   })

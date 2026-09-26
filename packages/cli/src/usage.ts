@@ -25,7 +25,7 @@ Agents
   bughunters publish [--issue <id>] [--dry-run]
   bughunters github sync
   bughunters worktrees clean
-  bughunters patrol [--once]
+  bughunters patrol [--once] [--force]
   bughunters replay <routine-id>
   bughunters issue list | dismiss <id> --reason "..." [--by name] | reopen <id>
   bughunters memory list [--role r] | add --role r "text" [--scope s]
@@ -103,10 +103,12 @@ export const COMMAND_HELP: Record<string, string> = {
   --dry-run       write the reports to .bughunters/runs/publish/, and open nothing
   --issue <id>    publish this issue only
 `,
-  patrol: `bughunters patrol [--once]
+  patrol: `bughunters patrol [--once] [--force]
   Run the full cycle again and again: setup, explore, judge, teardown, fix, retest, publish.
   The fixer and GitHub steps run only when you turn them on.
+  A cycle runs only when the commit changed since the last full cycle. Otherwise it only syncs GitHub.
   --once          run one cycle, then stop
+  --force         run the first cycle also when the commit did not change
 `,
   github: `bughunters github sync
   Read the state of each PR and issue from GitHub. A closed PR becomes a lesson. An issue closed as not planned becomes a dismissal.

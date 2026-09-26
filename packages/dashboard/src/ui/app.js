@@ -562,7 +562,7 @@ function renderOverview() {
       data.patrol?.nextAt ? el('p', { class: 'muted',
         text: `Next patrol at ${new Date(data.patrol.nextAt).toLocaleTimeString([], {
           hour: '2-digit', minute: '2-digit',
-        })}`,
+        })}${data.patrol.commit ? ` · last tested commit ${data.patrol.commit.slice(0, 7)}` : ''}`,
       }) : null,
     ]),
   ]);

@@ -25,6 +25,18 @@ npx bughunters patrol
 
 `patrol` runs the full cycle again and again: explore, judge, fix, retest, and publish. The fixer and GitHub stay off until you turn them on.
 
+### How the patrol runs
+
+- The patrol does not stop by itself. Every 30 minutes, it pulls the latest `origin/main`.
+- The patrol runs a full cycle only when `main` has new commits. If the commit did not change, the patrol only syncs the state of GitHub issues and PRs, and waits again. So a patrol that runs all day costs little when nobody merges code.
+- Bughunters keeps the last tested commit in `.bughunters/runs/`, so a restart also skips a commit that it tested before. To test again with no new commit, for example after a config change, use `patrol --force`.
+- You can change the wait with `agents.patrol.intervalMinutes`. To stop after a number of cycles, set `agents.patrol.cycles`. To run one cycle only, use `patrol --once`.
+- You can also run `patrol --once` from cron, for example every 30 minutes. Each run tests only a new commit. If the last patrol still runs, the new run does not start.
+- To use a different branch, set `agents.patrol.pull`.
+- Let the patrol run all the time on a dedicated computer or a cloud VM. The patrol changes the checkout of the repo, so do not run it in the checkout where you work.
+
+When you turn on GitHub, the patrol opens GitHub issues and PRs automatically, in each cycle, with no approval step. It opens a PR for each fix, and an issue for each major bug with no fix. The PRs are drafts by default (`agents.github.pullRequests`). You can close any issue or PR: the patrol learns from it, and it does not open it again. [GitHub](docs/github.md) tells more.
+
 ## Set up with your agent
 
 1. Install the Bughunters skill in your repo:
@@ -53,7 +65,9 @@ Read https://raw.githubusercontent.com/agent-labs-dev/bughunters/main/skills/bug
 
 Bughunters needs two things from you: a command that launches your app on this machine, and a way to sign in (a test account, a seed script, or a dev auth bypass). [Getting started](docs/getting-started.md#before-you-start-launch-and-sign-in) tells more.
 
-You need Node 22 or later. For a web app, install Chromium for Playwright one time:
+You need Node 22 or later, and `git`. Your app must be in a git repo with an `origin` remote, because each patrol cycle pulls `origin/main` and the fixer works in git worktrees. To open PRs and issues, you also need a logged-in [`gh`](https://cli.github.com) CLI.
+
+For a web app, install Chromium for Playwright one time:
 
 ```bash
 PLAYWRIGHT_SKIP_BROWSER_GC=1 npx -y playwright@1.48.2 install chromium
@@ -82,14 +96,14 @@ PLAYWRIGHT_SKIP_BROWSER_GC=1 npx -y playwright@1.48.2 install chromium
 4. Start the patrol, and look at the results:
 
    ```bash
-   npx bughunters patrol        # explore, judge, fix, retest, publish; then repeat every 30 minutes
+   npx bughunters patrol        # explore, judge, fix, retest, publish; then check for new commits every 30 minutes
    npx bughunters dashboard     # http://127.0.0.1:4311
    ```
 
 To run one step at a time, use these commands:
 
 ```bash
-npx bughunters patrol --once  # one full cycle, then stop
+npx bughunters patrol --once  # one cycle, then stop (add --force to test the same commit again)
 npx bughunters explore        # the explorer maps the app and reports problems
 npx bughunters judge          # the judge files the real bugs as issues
 npx bughunters fix            # fix the worst issues, then retest each fix in the app
@@ -113,6 +127,16 @@ Each agent can use a different LLM:
 
 - A local agent CLI, with your existing login: [Claude Code](https://claude.com/claude-code), [Codex](https://github.com/openai/codex), [Kimi CLI](https://github.com/MoonshotAI/kimi-cli), or [pi](https://github.com/badlogic/pi-mono).
 - An API key: OpenRouter, Vercel AI Gateway, OpenAI, Anthropic, or a custom endpoint.
+
+Give the judge your strongest model, and give the explorer a fast, low-cost model. We recommend these models:
+
+| Agent | What it needs | Anthropic | OpenAI | Other labs (OpenRouter) |
+| --- | --- | --- | --- | --- |
+| Explorer | Vision, computer use, reliable tool calls, low cost | Claude Sonnet 5 | GPT-6 Luna | Gemini 3.8 Flash |
+| Judge | Precision, fine visual detail, clear writing | Claude Opus 5.5 | GPT-6 Sol | Kimi K3 |
+| Fixer | Strong coding, in an agent CLI | Claude Code with Claude Opus 5.5 | Codex with GPT-6 Astra | Kimi CLI with Kimi K3 |
+
+[Which model for each agent](docs/models.md#which-model-for-each-agent) gives the `use:` config for each model.
 
 Jev needs a TypeSafe, OpenRouter, or Vercel AI Gateway key. We recommend a Jev key: without it, a general model or the judge does the triage, at a higher cost. [LLMs and Jev](docs/models.md) tells more, and shows how to configure each agent.
 
