@@ -88,7 +88,7 @@ flowchart TB
 
 | Component | Language | Responsibility |
 |---|---|---|
-| `bughunters` CLI | TypeScript / Node 22+ | Init, recon, run, baseline management, local dev loop |
+| `bughunters` CLI | TypeScript / Node 22.13+ | Init, recon, run, baseline management, local dev loop |
 | GitHub App | TypeScript | Webhooks, Checks API, Issues, PRs, PR slash-commands |
 | Control plane | TypeScript | Run orchestration, state, scheduling, hosted reports |
 | Agent service | TypeScript | Provider-agnostic LLM calls; owns all prompting and budgets |

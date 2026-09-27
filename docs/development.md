@@ -4,7 +4,7 @@ This page is for work on Bughunters itself. To use Bughunters in your app, run `
 
 ## Build and test
 
-Node 22+ and pnpm 9+.
+Node 22.13+ and pnpm 9+.
 
 ```bash
 pnpm install

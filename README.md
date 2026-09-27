@@ -102,7 +102,7 @@ You need Node 22 or later, and `git`. Your app must be in a git repo with an `or
 For a web app, install Chromium for Playwright one time:
 
 ```bash
-PLAYWRIGHT_SKIP_BROWSER_GC=1 npx -y playwright@1.48.2 install chromium
+PLAYWRIGHT_SKIP_BROWSER_GC=1 npx -y playwright@1.63.0 install chromium
 ```
 
 1. Run `init` in your repo. It finds your app and the LLMs on your machine, and asks which LLM each agent uses:

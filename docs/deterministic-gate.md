@@ -5,7 +5,7 @@ For web apps, `bughunters run` is a merge gate that uses no agent. The agents ex
 ## Try it
 
 ```bash
-PLAYWRIGHT_SKIP_BROWSER_GC=1 npx -y playwright@1.48.2 install chromium
+PLAYWRIGHT_SKIP_BROWSER_GC=1 npx -y playwright@1.63.0 install chromium
 npx bughunters init --gate           # write a starter .bughunters/bughunters.yml; correct each TODO value
 npx bughunters baseline update --no-models # explicitly approve baselines
 npx bughunters run --no-models       # compare: clean

@@ -10,7 +10,7 @@ This guide adds Bughunters to your repo, step by step. For a faster setup, insta
 - For web apps: Chromium for Playwright. Install it one time:
 
   ```bash
-  PLAYWRIGHT_SKIP_BROWSER_GC=1 npx -y playwright@1.48.2 install chromium
+  PLAYWRIGHT_SKIP_BROWSER_GC=1 npx -y playwright@1.63.0 install chromium
   ```
 
 - For iOS: Xcode and a booted simulator. For Android: the Android SDK and a running emulator. For both: [Maestro](https://maestro.mobile.dev).

@@ -21,7 +21,7 @@
   "dependencies": {
     "@bughunters/core": "workspace:*",
     "@bughunters/invariants": "workspace:*",
-    "playwright": "1.48.2",
+    "playwright": "1.63.0",
     "pngjs": "^7.0.0"
   },
   "devDependencies": {
