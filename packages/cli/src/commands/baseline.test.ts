@@ -16,7 +16,14 @@ it('requires explicit baseline approval and does not mutate approved state durin
     await expect(runCommand(options)).rejects.toThrow('Approved baseline unavailable');
     await runCommand({ ...options, updateBaselines: true });
     const manifest = await readFile(paths.baselineManifest(root), 'utf8');
-    expect((await runCommand(options)).exitCode).toBe(0);
+    const first = await runCommand(options);
+    const firstImage = first.trace.screens[0]!.artifacts.actual!;
+    const evidence = await readFile(firstImage);
+    const second = await runCommand(options);
+    expect(second.exitCode).toBe(0);
+    expect(second.run.id).not.toBe(first.run.id);
+    expect(second.trace.screens[0]!.artifacts.actual).not.toBe(firstImage);
+    expect(await readFile(firstImage)).toEqual(evidence);
     expect(await readFile(paths.baselineManifest(root), 'utf8')).toBe(manifest);
     const store = BaselineStore.load(root, 'unpinned');
     await unlink(store.verify(baselineKeyFor('/', 'desktop')));

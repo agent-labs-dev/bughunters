@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
@@ -53,6 +54,7 @@ export type CapturedScreen = {
 };
 
 export type PipelineOptions = {
+  runId?: Run['id'];
   root: string;
   config: BughuntersConfig;
   mode: RunMode;
@@ -99,7 +101,7 @@ export const BASELINE_MISSING_RULE = 'visual/baseline-missing';
  */
 export async function executeRun(options: PipelineOptions): Promise<RunResult> {
   const { config, root } = options;
-  const runId = id.run(`run_${Date.now().toString(36)}`);
+  const runId = options.runId ?? id.run(`run_${randomUUID()}`);
   const startedAt = new Date();
 
   const ledger = IntentLedger.load(root);
@@ -223,6 +225,7 @@ export async function executeRun(options: PipelineOptions): Promise<RunResult> {
         runId,
         fingerprint: fp,
         screenId: id.screen(screen.screenId),
+        viewport: screen.viewport,
         ruleId: violation.ruleId,
         tier: 'tier1',
         classification: classify(violation.ruleId),
@@ -312,7 +315,7 @@ export async function executeRun(options: PipelineOptions): Promise<RunResult> {
     changedFiles: [],
     plan: {
       items: options.screens.map((s) => ({
-        target: { screenId: id.screen(`${s.screenId} @${s.viewport}`) },
+        target: { screenId: id.screen(s.screenId), viewport: s.viewport },
         reason: s.planReason,
       })),
       mappingConfidence: 1,

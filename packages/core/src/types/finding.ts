@@ -55,6 +55,7 @@ export type Finding = {
   fingerprint: string;
   rootCauseGroupId?: GroupId;
   screenId?: ScreenId;
+  viewport?: string;
   flowId?: FlowId;
   /** Which detector fired. */
   ruleId: string;

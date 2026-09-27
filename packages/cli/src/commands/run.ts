@@ -1,7 +1,9 @@
+import { randomUUID } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   BughuntersError,
+  id,
   BaselineStore,
   ExitCode,
   InfrastructureError,
@@ -88,7 +90,8 @@ export async function runCommand(options: RunCommandOptions): Promise<RunResult>
   if (server.external) log(`Using the app already serving at ${requireRun(config).url}`);
 
   const captured: CapturedScreen[] = [];
-  const runDir = join(paths.runs(root), 'latest');
+  const runId = id.run(`run_${randomUUID()}`);
+  const runDir = paths.run(root, runId);
   mkdirSync(runDir, { recursive: true });
 
   // Progress is published per screen so the dashboard can show the app being
@@ -128,6 +131,7 @@ export async function runCommand(options: RunCommandOptions): Promise<RunResult>
 
   const result = await executeRun({
     root,
+    runId,
     config,
     mode: options.mode,
     trigger: 'manual',
@@ -223,7 +227,7 @@ async function captureOne(args: {
   updateBaselines?: boolean;
 }): Promise<CapturedScreen> {
   const { target, viewport, session, config, store, runDir } = args;
-  const slug = `${slugify(target.id)}--${viewport.name}`;
+  const slug = `${slugify(target.id)}--${slugify(viewport.name)}-${shortHash(baselineKeyFor(target.id, viewport.name))}`;
   const actualPath = join(runDir, `${slug}.actual.png`);
 
   const output = await captureScreen(session.page, config, {
