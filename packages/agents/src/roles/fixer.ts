@@ -1,9 +1,9 @@
-import { runProcess } from '../process.js';
+import { assertSafeGit, checkedWorker, requireTrustedCli, runWorker } from '../worker.js';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { lstat, mkdir, readFile, readdir, realpath, symlink, writeFile } from 'node:fs/promises';
-import { basename, dirname, join, relative, resolve, sep } from 'node:path';
-import { judgedRetests, paths, type FixProposal, type Issue, type RoutineStep } from '@bughunters/core';
+import { mkdir, readFile, readdir, realpath, writeFile } from 'node:fs/promises';
+import { join, relative, resolve, sep } from 'node:path';
+import { judgedRetests, paths, type BughuntersConfig, type FixProposal, type Issue, type RoutineStep } from '@bughunters/core';
 import type { AgentSession } from '../session.js';
 import type { RoleOutcome, Runtime, Tool } from '../types.js';
 import { fixerSystem } from '../prompts.js';
@@ -31,6 +31,7 @@ async function branchExists(repo: string, branch: string): Promise<boolean> {
 
 function confined(worktree: string, path: string): string {
   const file = resolve(worktree, path);
+  if (relative(worktree, file).split(sep).some((part) => part.toLowerCase() === '.git')) throw new Error('Git metadata is not an agent-editable file');
   if (file !== worktree && !file.startsWith(worktree + sep)) throw new Error('Path leaves worktree');
   return file;
 }
@@ -38,11 +39,12 @@ function confined(worktree: string, path: string): string {
 async function existingPath(worktree: string, path: string): Promise<string> {
   const file = confined(worktree, path);
   const real = await realpath(file);
+  confined(worktree, relative(worktree, real));
   if (real !== worktree && !real.startsWith(worktree + sep)) throw new Error('Path leaves worktree');
   return file;
 }
 
-export function modelTools(worktree: string): Tool[] {
+export function modelTools(worktree: string, execution: BughuntersConfig['agents']['fixer']['execution']): Tool[] {
   return [
     {
       name: 'read_file',
@@ -68,7 +70,7 @@ export function modelTools(worktree: string): Tool[] {
       inputSchema: { type: 'object', properties: { pattern: { type: 'string' } } },
       async run(input) {
         try {
-          return result((await git(worktree, 'grep', '-n', String(input.pattern))).slice(-4000));
+          return result((await git(worktree, 'grep', '-n', '-e', String(input.pattern), '--')).slice(-4000));
         } catch {
           return result('No matches');
         }
@@ -101,8 +103,7 @@ export function modelTools(worktree: string): Tool[] {
       inputSchema: { type: 'object', properties: { command: { type: 'string' } } },
       async run(input, signal) {
         try {
-          const output = await runProcess('/bin/sh', ['-c', String(input.command)],
-            { cwd: worktree, timeoutMs: 300_000, signal });
+          const output = await runWorker(worktree, execution, String(input.command), signal);
           if (output.code !== 0 || output.timedOut || output.cancelled || output.overflow) return { ...result('Command failed, cancelled, or exceeded its resource limit.'), isError: true };
           return result((output.stdout + output.stderr).slice(-4000));
         } catch (error) {
@@ -149,37 +150,6 @@ export async function commitFix(
 }
 
 /**
- * Links each .env file that git ignores in the source checkout into the
- * worktree, at the same path. Git does not copy ignored files, and an app or
- * its E2E harness often reads its keys from them. A link, not a copy, so a
- * key that changes in the checkout changes in every worktree. A file that the
- * worktree already has stays as it is.
- */
-export async function linkEnvFiles(source: string, worktree: string): Promise<string[]> {
-  let listed: string;
-  try {
-    listed = await git(source, 'ls-files', '--others', '--ignored', '--exclude-standard', '--', ':(glob)**/.env*');
-  } catch {
-    return [];
-  }
-  const linked: string[] = [];
-  for (const file of listed.split('\n').filter(Boolean)) {
-    if (!/^\.env(\.|$)/.test(basename(file)) || file.split('/').includes('node_modules')) continue;
-    const target = join(worktree, file);
-    try {
-      await lstat(target);
-      continue;
-    } catch {
-      // Not in the worktree yet.
-    }
-    await mkdir(dirname(target), { recursive: true });
-    await symlink(join(source, file), target);
-    linked.push(file);
-  }
-  return linked;
-}
-
-/**
  * Reads the issue again before the write. A fix takes minutes, and a human
  * may close the issue meanwhile; a human decision is never overwritten.
  */
@@ -194,7 +164,9 @@ export async function runFixer(
   session: AgentSession, runtime: Runtime, opts: { issueIds?: string[] } = {},
 ): Promise<FixProposal[]> {
   const config = session.config.agents.fixer;
+  requireTrustedCli(runtime.label, config.execution);
   const source = resolve(session.root, session.config.app.source);
+  await assertSafeGit(source, config.execution);
   const all = await session.workspace.listIssues();
   const fixes = await session.workspace.listFixes();
   // A 'running' proposal older than the time limit belongs to a fixer that
@@ -254,13 +226,13 @@ export async function runFixer(
       await git(worktree, 'reset', '--hard', base);
       await git(worktree, 'clean', '-fd');
     }
-    await linkEnvFiles(source, worktree);
+
     // A new worktree has no dependencies. Install them before the fixer
     // starts, so that it can run the type check and the tests.
     if (!existing && config.retest.prepare) {
       session.emit({ kind: 'fix', summary: `Preparing the worktree: ${config.retest.prepare}` });
       try {
-        await exec('/bin/sh', ['-c', config.retest.prepare], { cwd: worktree, timeout: 600_000, maxBuffer: 4 * 1024 * 1024 });
+        await checkedWorker(worktree, config.execution, config.retest.prepare, session.signal, 600_000);
       } catch (error) {
         session.emit({ kind: 'error', summary: `The prepare command failed in the worktree: ${String(error).slice(0, 200)}` });
       }
@@ -291,6 +263,7 @@ export async function runFixer(
       }
       proposal.costUsd = (previous?.costUsd ?? 0) + outcome.costUsd;
       proposal.summary = outcome.summary;
+      await assertSafeGit(worktree, config.execution);
       await git(worktree, 'add', '-A');
       const newDiff = await git(worktree, 'diff', '--cached');
       const sourceHead = await git(source, 'rev-parse', 'HEAD');
@@ -325,11 +298,7 @@ export async function runFixer(
       }
       if (config.verify) {
         try {
-          await exec('/bin/sh', ['-c', config.verify], {
-            cwd: worktree,
-            timeout: 300_000,
-            maxBuffer: 4 * 1024 * 1024,
-          });
+          await checkedWorker(worktree, config.execution, config.verify, session.signal);
         } catch (error) {
           const output = error as Error & { stdout?: string; stderr?: string };
           const last = (output.stderr || output.stdout || output.message).trim().split('\n').at(-1) ?? 'unknown error';
@@ -394,7 +363,7 @@ async function runOne(session: AgentSession, runtime: Runtime, issue: Issue, wor
         + 'First find why your last change had no effect in the running app, for example a different file that the app '
         + 'loads on this platform. Do not trust a guess from the QA lead: check the code. When you find the cause, call '
         + 'save_lesson with it, so that later fixes avoid it. Then fix the issue.' : ''),
-    tools: [...(runtime.label.startsWith('cli:') ? [] : modelTools(worktree)), ...lessonTools(session, 'fixer'), finishTool()],
+    tools: [...(runtime.label.startsWith('cli:') ? [] : modelTools(worktree, config.execution)), ...lessonTools(session, 'fixer'), finishTool()],
     maxSteps: config.maxSteps,
     budgetUsd: config.budgetUsd,
     timeoutMs: config.timeoutMs,

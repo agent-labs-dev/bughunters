@@ -1,3 +1,4 @@
+import { workerEnvironment } from '../worker.js';
 import { runProcess } from '../process.js';
 import { workspaceSignal } from '../lock.js';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
@@ -151,7 +152,7 @@ export class CliRuntime implements Runtime {
         return quote(replacements[name as keyof typeof replacements]);
       });
       const processResult = await runProcess('/bin/sh', ['-c', command], {
-        cwd: workdir, timeoutMs: task.timeoutMs, signal, input: prompt, onOutput: onText,
+        cwd: workdir, env: workerEnvironment(this.use.env), timeoutMs: task.timeoutMs, signal, input: prompt, onOutput: onText,
       });
       stdout = processResult.stdout; stderr = processResult.stderr;
       const { code } = processResult;

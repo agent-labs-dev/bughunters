@@ -201,3 +201,49 @@ billing cap**: the last request can exceed it. Set a provider-side spending cap
 for a hard financial limit. CLI runtimes cannot enforce USD budgets and reject
 that configuration; use time and step limits instead. Unknown cost is not proof
 of a free run. MCP step limits do not constrain a CLI's built-in tools.
+
+### Fixer execution
+
+Model fixer commands, dependency preparation and verification default to a Docker
+worker. Install Docker, and select a trusted image with the tools your project
+needs. For reproducible execution, use an image digest rather than a moving tag.
+The default `node:22-bookworm-slim` is a convenience development image.
+
+```yaml
+agents:
+  fixer:
+    enabled: true
+    use: { runtime: model, via: openrouter, model: your-model }
+    execution:
+      mode: docker
+      image: node:22-bookworm-slim
+      network: none
+      env: []
+    verify: npm test
+```
+
+Workers have no network by default, a read-only root filesystem, dropped Linux
+capabilities, no privilege escalation, and CPU/memory/process/output limits. Only
+the fix worktree is writable; its Git pointer is mounted read-only. No Docker
+socket, home directory, provider credentials or ignored `.env` files are mounted.
+Explicit `execution.env` names are forwarded; use disposable test credentials.
+Dependencies must already be available in the image/worktree, or explicitly opt
+into `network: bridge`, which permits unrestricted worker egress. Docker shares
+the host kernel: run hostile repositories on disposable dedicated machines.
+
+Native CLI fixers and native app retesting currently require
+`execution.mode: trusted-host`. This explicitly permits host execution; a Git
+worktree is not a sandbox. Docker fixes remain drafts until independently retested.
+Host Git hooks, filters and fsmonitor extensions are rejected in Docker mode
+rather than silently bypassed. Move checks into `verify` in a clean clone.
+
+CLI processes receive only PATH, LANG, TZ and explicitly named `use.env` values:
+
+```yaml
+use: { runtime: cli, agent: claude, env: [ANTHROPIC_API_KEY] }
+```
+
+If a trusted CLI needs a login stored in your home directory, explicitly include
+`HOME`; that grants it access to that user's stored configuration and credentials.
+App setup/teardown remain trusted operator shell commands. Review project
+configuration before running it; Docker fixer settings do not sandbox app setup.

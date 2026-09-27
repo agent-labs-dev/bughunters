@@ -41,7 +41,7 @@ async function repoFixture() {
     firstSeenAt: 'now', lastSeenAt: 'now' };
   await workspace.saveIssue(issue);
   const config = parseConfig({ version: 1, app: { source: 'source', connect: { url: 'fake://home' } },
-    agents: { fixer: { enabled: true, use: { runtime: 'cli', command: 'fake' }, verify: 'test -f app.txt' } } });
+    agents: { fixer: { enabled: true, execution: { mode: 'trusted-host' }, use: { runtime: 'cli', command: 'fake' }, verify: 'test -f app.txt' } } });
   const record = await workspace.startSession('fixer');
   return { root, source, workspace, config,
     session: new AgentSession(root, config, new Vars(), record.id, 'fixer') };
@@ -606,7 +606,7 @@ describe('patrol pull', () => {
       await f.workspace.saveIssue(second);
       const config = parseConfig({ version: 1, app: { source: 'source', connect: { url: 'fake://home' } },
         agents: { judge: { enabled: false }, patrol: { pull: false, cycles: 2, intervalMinutes: 0.0001 },
-          fixer: { enabled: true, maxPerCycle: 1, use: { runtime: 'cli', command: 'fake' }, verify: 'test -f app.txt' } } });
+          fixer: { enabled: true, execution: { mode: 'trusted-host' }, maxPerCycle: 1, use: { runtime: 'cli', command: 'fake' }, verify: 'test -f app.txt' } } });
       const runs: string[] = [];
       const logs: string[] = [];
       await runPatrol({ root: f.root, config, onLog: (message) => logs.push(message),

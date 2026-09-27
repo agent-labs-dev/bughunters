@@ -214,6 +214,7 @@ const modelRuntimeSchema = z.object({
 
 const cliRuntimeSchema = z.object({
   runtime: z.literal('cli'),
+  env: z.array(z.string().regex(/^[A-Za-z_][A-Za-z0-9_]*$/)).optional(),
   /** A local agent CLI. Bughunters fills in the command for the role. */
   agent: z.enum(CLI_AGENTS).optional(),
   /**
@@ -242,7 +243,7 @@ function runtimeFor(role: AgentRole, fallback: z.input<typeof modelRuntimeSchema
     })
     .transform((use) => use.runtime === 'model'
       ? use
-      : { runtime: 'cli' as const, ...(use.agent ? { agent: use.agent } : {}), command: use.command ?? cliPreset(use.agent!, role) });
+      : { runtime: 'cli' as const, ...(use.env ? { env: use.env } : {}), ...(use.agent ? { agent: use.agent } : {}), command: use.command ?? cliPreset(use.agent!, role) });
 }
 
 const roleBase = {
@@ -304,6 +305,12 @@ export const agentsSchema = z
         use: runtimeFor('fixer', { runtime: 'cli', agent: 'claude' }),
         /** Off until a team opts in: a fixer writes code. */
         enabled: z.boolean().default(false),
+        execution: z.object({
+          mode: z.enum(['docker', 'trusted-host']).default('docker'),
+          image: z.string().regex(/^[a-zA-Z0-9][a-zA-Z0-9./:@_-]*$/).default('node:22-bookworm-slim'),
+          network: z.enum(['none', 'bridge']).default('none'),
+          env: z.array(z.string().regex(/^[A-Za-z_][A-Za-z0-9_]*$/)).default([]),
+        }).default({}),
         /** Run after the change; a non-zero exit marks the fix failed. */
         verify: z.string().optional(),
         /** After a fix, start the app from the fix worktree and repeat the issue's flow. */

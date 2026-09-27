@@ -1,3 +1,4 @@
+import { assertSafeGit, checkedWorker, requireTrustedCli } from '../worker.js';
 import { execFile } from 'node:child_process';
 import { access } from 'node:fs/promises';
 import { resolve } from 'node:path';
@@ -176,10 +177,12 @@ async function fixCi(root: string, config: BughuntersConfig, fix: FixProposal, f
   const session = new AgentSession(root, config, new Vars(config.app.secrets), record.id, 'fixer', undefined, deps.onLog);
   const fixer = config.agents.fixer;
   const runtime = (deps.createRuntime ?? makeRuntime)(fixer.use);
+  requireTrustedCli(runtime.label, fixer.execution);
   session.emit({ kind: 'fix', summary: `Fixing CI on PR #${fix.pr!.number}: ${failed.map((check) => check.name).join(', ')}` });
   let summary = '';
   let status: 'finished' | 'failed' = 'failed';
   try {
+    await assertSafeGit(fix.worktree, fixer.execution);
     const outcome = await runtime.run({
       role: 'fixer',
       sessionId: session.sessionId,
@@ -187,7 +190,7 @@ async function fixCi(root: string, config: BughuntersConfig, fix: FixProposal, f
       workdir: fix.worktree,
       system: fixerSystem(lessonsFor(await workspace.readMemory(), 'fixer')),
       prompt: ciPrompt(fix.pr!.number, failed, log),
-      tools: [...(runtime.label.startsWith('cli:') ? [] : modelTools(fix.worktree)), ...lessonTools(session, 'fixer'), finishTool()],
+      tools: [...(runtime.label.startsWith('cli:') ? [] : modelTools(fix.worktree, fixer.execution)), ...lessonTools(session, 'fixer'), finishTool()],
       maxSteps: fixer.maxSteps,
       budgetUsd: fixer.budgetUsd,
       timeoutMs: fixer.timeoutMs,
@@ -201,8 +204,9 @@ async function fixCi(root: string, config: BughuntersConfig, fix: FixProposal, f
       return false;
     }
     if (fixer.verify) {
-      await promisify(execFile)('/bin/sh', ['-c', fixer.verify], { cwd: fix.worktree, timeout: 300_000, maxBuffer: 4 * 1024 * 1024 });
+      await checkedWorker(fix.worktree, fixer.execution, fixer.verify, session.signal);
     }
+    await assertSafeGit(fix.worktree, fixer.execution);
     await git(fix.worktree, 'add', '-A');
     const committed = await commitFix(fix.worktree, 'pass the CI checks', fixer.commitMessage);
     if (!committed.ok) throw new Error(`The commit hook rejected the commit: ${committed.reason}`);

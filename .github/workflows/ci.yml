@@ -30,3 +30,19 @@ jobs:
       # only mean anything against a real rendering engine.
       - run: pnpm --filter @bughunters/capture exec playwright install --with-deps chromium
       - run: pnpm test
+
+  worker-isolation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: docker pull node:22-bookworm-slim
+      - run: pnpm exec vitest run packages/agents/src/worker.test.ts
+        env:
+          BUGHUNTERS_DOCKER_TEST: '1'

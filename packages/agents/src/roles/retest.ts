@@ -1,3 +1,4 @@
+import { checkedWorker } from '../worker.js';
 import { createHash } from 'node:crypto';
 import { execFile } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
@@ -19,7 +20,7 @@ import { reflectOnSession } from './reflect.js';
 import { stopOnCancellation } from './explorer.js';
 import { overlayBughunters } from './overlay.js';
 import { lessonTools } from '../tools/memory.js';
-import { linkEnvFiles, runFixer, stepWords } from './fixer.js';
+import { runFixer, stepWords } from './fixer.js';
 import { closeOnGitHub } from '../github.js';
 
 const exec = promisify(execFile);
@@ -99,6 +100,9 @@ export async function retestFix(root: string, config: BughuntersConfig, issue: I
   if (!targets.some((target) => target.shot.routineId || target.steps.length)) {
     return { ...retest, outcome: 'skipped', reason: 'The issue has no replayable flow.' };
   }
+  if (!options.build && config.agents.fixer.execution.mode === 'docker') {
+    return { ...retest, outcome: 'skipped', reason: 'Automatic native app retesting requires trusted-host execution. Run isolated verification in the worker and review this draft.' };
+  }
   if (!options.build) {
     try {
       const head = (await exec('git', ['rev-parse', 'HEAD'], { cwd: fix.worktree })).stdout.trim();
@@ -114,12 +118,9 @@ export async function retestFix(root: string, config: BughuntersConfig, issue: I
   let driver: Driver | undefined;
   let restore = async () => {};
   try {
-    // A worktree made before this rule existed has no .env links yet.
-    if (!options.build) await linkEnvFiles(fix.repo, fix.worktree);
     if (!options.build) restore = await overlayBughunters(root, fix.repo, fix.worktree);
     if (!options.build && config.agents.fixer.retest.prepare) {
-      await exec('/bin/sh', ['-c', config.agents.fixer.retest.prepare],
-        { cwd: fix.worktree, timeout: 600_000, maxBuffer: 4 * 1024 * 1024 });
+      await checkedWorker(fix.worktree, config.agents.fixer.execution, config.agents.fixer.retest.prepare, undefined, 600_000);
     }
     app = await startApp(config.app, { root, vars, emit: deps.onLog,
       source: options.build === 'main' ? undefined : fix.worktree });

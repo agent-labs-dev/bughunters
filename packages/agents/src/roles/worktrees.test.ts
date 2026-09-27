@@ -48,7 +48,7 @@ async function fixture(status: FixProposal['status'] = 'declined') {
   await workspace.saveIssue(issue);
   await workspace.saveFix(fix);
   const config = parseConfig({ version: 1, app: { source: 'source', connect: { url: 'http://localhost' } },
-    agents: { fixer: { enabled: true, use: { runtime: 'cli', command: 'fake' } } } });
+    agents: { fixer: { execution: { mode: 'trusted-host' }, enabled: true, use: { runtime: 'cli', command: 'fake' } } } });
   return { root, repo, remote, worktree, branch, workspace, issue, fix, config };
 }
 

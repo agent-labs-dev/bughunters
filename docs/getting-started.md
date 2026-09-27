@@ -171,7 +171,7 @@ Set `verify` to the checks that a fix must pass. Bughunters runs the command its
 npx bughunters fix            # fix the worst open issues, then retest each fix in the app
 ```
 
-Each fix gets a branch `bughunters/fix-<issue>` and a git worktree under `.bughunters/runs/worktrees/`. Bughunters links your ignored `.env` files into each worktree. Then it starts the app from the worktree, and the explorer repeats the flow. The judge compares the before and after screenshots. If the bug is still there, the fixer tries again with the judge's feedback.
+Each fix gets a branch `bughunters/fix-<issue>` and a git worktree under `.bughunters/runs/worktrees/`. Environment files are never copied or linked automatically. Native CLI fixing and app retesting require explicit `execution.mode: trusted-host` (see [execution settings](configuration.md#fixer-execution)). In that mode it starts the app from the worktree, and the explorer repeats the flow. The judge compares the before and after screenshots. If the bug is still there, the fixer tries again with the judge's feedback.
 
 ## 7. Publish to GitHub
 

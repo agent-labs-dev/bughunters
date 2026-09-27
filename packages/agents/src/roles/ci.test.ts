@@ -30,7 +30,7 @@ async function fixture() {
     pr: { number: 7, url: 'https://github.com/o/r/pull/7', draft: true, state: 'open' } };
   await new Workspace(root).saveFix(fix);
   const config = parseConfig({ version: 1, app: { connect: { url: 'http://x' } },
-    agents: { fixer: { enabled: true }, github: { enabled: true, repo: 'o/r', ci: { attempts: 2 } } } });
+    agents: { fixer: { enabled: true, execution: { mode: 'trusted-host' } }, github: { enabled: true, repo: 'o/r', ci: { attempts: 2 } } } });
   return { root, worktree, config };
 }
 
