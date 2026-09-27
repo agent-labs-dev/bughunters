@@ -1,5 +1,6 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { basename, join } from 'node:path';
+import { confinedFile } from './files.js';
 import { addUsage, loadConfig, paths, usageOf, type AgentEvent, type AgentRole, type AgentStatus, type AgentsFile, type AppMap,
   type Candidate, type FixProposal, type Issue, type MemoryFile, type Routine, type SessionSummary,
   type TokenUsage } from '@bughunters/core';
@@ -13,9 +14,11 @@ type DashboardScreen = (AppMap['screens'][number] & { openIssues: number; virtua
   { id: '__start'; name: 'App start'; virtual: true; openIssues: 0 };
 
 /** Files are written by live agents; a torn or missing read is ordinary, not a server failure. */
-function readJson<T>(file: string): T | undefined {
+function readJson<T>(root: string, file: string): T | undefined {
+  const safe = confinedFile(paths.dir(root), file);
+  if (!safe) return undefined;
   try {
-    return JSON.parse(readFileSync(file, 'utf8')) as T;
+    return JSON.parse(readFileSync(safe, 'utf8')) as T;
   } catch {
     return undefined;
   }
@@ -29,10 +32,12 @@ function list(dir: string): string[] {
   }
 }
 
-function jsonLines<T>(file: string): T[] {
+function jsonLines<T>(root: string, file: string): T[] {
+  const safe = confinedFile(paths.dir(root), file);
+  if (!safe) return [];
   let raw: string;
   try {
-    raw = readFileSync(file, 'utf8');
+    raw = readFileSync(safe, 'utf8');
   } catch {
     return [];
   }
@@ -68,12 +73,12 @@ export class AgentReader {
   constructor(private readonly root: string) {}
 
   memory(): MemoryFile {
-    const value = readJson<MemoryFile>(paths.memory(this.root));
+    const value = readJson<MemoryFile>(this.root, paths.memory(this.root));
     return Array.isArray(value?.lessons) ? value : { version: 1, lessons: [] };
   }
 
   agents(): AgentsFile | undefined {
-    const value = readJson<AgentsFile>(paths.agents(this.root));
+    const value = readJson<AgentsFile>(this.root, paths.agents(this.root));
     if (!Array.isArray(value?.agents)) return undefined;
     const agents = value.agents
       .filter((agent) => agent && roles.includes(agent.role) && typeof agent.state === 'string')
@@ -88,7 +93,7 @@ export class AgentReader {
   }
 
   appmap(): AppMap {
-    const value = readJson<AppMap>(paths.appMap(this.root));
+    const value = readJson<AppMap>(this.root, paths.appMap(this.root));
     if (!Array.isArray(value?.screens)) return { version: 1, platform: 'web', screens: [], updatedAt: '' };
     return { ...value, screens: value.screens.filter((screen) =>
       screen && typeof screen.id === 'string' && typeof screen.lastSeenAt === 'string') };
@@ -97,7 +102,7 @@ export class AgentReader {
   issues(): (Issue & { pr?: FixProposal['pr'] & { ci?: string } })[] {
     const fixes = this.fixes();
     return list(paths.issues(this.root)).filter((name) => name.endsWith('.json'))
-      .map((name) => readJson<Issue>(join(paths.issues(this.root), name)))
+      .map((name) => readJson<Issue>(this.root, join(paths.issues(this.root), name)))
       .filter((issue): issue is Issue => Boolean(issue?.id && issue.title && issue.lastSeenAt
         && issue.evidence && issue.judgement && Array.isArray(issue.candidateIds)))
       .map((issue) => {
@@ -110,19 +115,19 @@ export class AgentReader {
 
   fixes(): FixProposal[] {
     return list(paths.fixes(this.root)).filter((name) => name.endsWith('.json'))
-      .map((name) => readJson<FixProposal>(join(paths.fixes(this.root), name)))
+      .map((name) => readJson<FixProposal>(this.root, join(paths.fixes(this.root), name)))
       .filter((fix): fix is FixProposal => Boolean(fix?.id && fix.issueId));
   }
 
   routines(): Routine[] {
     return list(paths.routines(this.root)).filter((name) => name.endsWith('.json'))
-      .map((name) => readJson<Routine>(join(paths.routines(this.root), name)))
+      .map((name) => readJson<Routine>(this.root, join(paths.routines(this.root), name)))
       .filter((routine): routine is Routine => Boolean(routine?.id && Array.isArray(routine.steps)));
   }
 
   sessions(limit = 50): SessionSummary[] {
     return list(paths.sessions(this.root)).filter((id) => /^[\w-]+$/.test(id))
-      .map((id) => ({ id, value: readJson<SessionSummary>(join(paths.session(this.root, id), 'session.json')) }))
+      .map((id) => ({ id, value: readJson<SessionSummary>(this.root, join(paths.session(this.root, id), 'session.json')) }))
       .filter(({ id, value }) => value?.id === id)
       .map(({ value }) => value)
       .filter((session): session is SessionSummary => Boolean(session?.id && session.startedAt
@@ -138,12 +143,12 @@ export class AgentReader {
     const session = this.sessions(Infinity).find((entry) => entry.id === id);
     if (!session) return undefined;
     const dir = paths.session(this.root, id);
-    const events = jsonLines<AgentEvent>(join(dir, 'events.jsonl'));
+    const events = jsonLines<AgentEvent>(this.root, join(dir, 'events.jsonl'));
     return {
       // A running session has no totals yet: add up its events so far.
       session: session.status === 'running' ? { ...session, ...usageOf(events) } : session,
       events,
-      candidates: jsonLines<Candidate>(join(dir, 'candidates.jsonl')),
+      candidates: jsonLines<Candidate>(this.root, join(dir, 'candidates.jsonl')),
     };
   }
 
@@ -154,7 +159,7 @@ export class AgentReader {
     const routine = this.routines().find((entry) => entry.id === issue.evidence?.routineId);
     const ids = new Set(issue.candidateIds);
     const candidates = this.sessions(Infinity).flatMap((session) =>
-      jsonLines<Candidate>(join(paths.session(this.root, session.id), 'candidates.jsonl')))
+      jsonLines<Candidate>(this.root, join(paths.session(this.root, session.id), 'candidates.jsonl')))
       .filter((candidate) => ids.has(candidate.id));
     return { issue, fix, candidates, routine };
   }
