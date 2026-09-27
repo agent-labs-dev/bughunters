@@ -33,10 +33,7 @@ Agents
   bughunters memory remove <id> | retire <id> --reason "..."
 
 Baselines
-  bughunters baseline capture              (re)capture baselines in the pinned image
-  bughunters baseline pull|push            sync with object storage
-  bughunters baseline accept <finding-id...>
-  bughunters baseline accept --clean       bulk-accept everything non-blocking
+  bughunters baseline update              explicitly approve captures as new baselines
 
 Triage
   bughunters findings list [--route issue|question]
@@ -66,6 +63,7 @@ const DOCS = 'https://github.com/agent-labs-dev/bughunters/blob/main/docs/comman
 
 /** `bughunters <command> --help`. One entry for each command that a user runs by hand. */
 export const COMMAND_HELP: Record<string, string> = {
+  baseline: 'bughunters baseline update [--screens /a,/b] [--no-models]\n  Explicitly approve reference captures. Normal runs never update baselines.\n',
   init: `bughunters init [flags]
   Find the app and the LLMs, and write .bughunters/bughunters.yml and .bughunters/instructions.md.
   --yes, -y              use the detected values, with no questions

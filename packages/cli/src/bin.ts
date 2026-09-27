@@ -63,10 +63,14 @@ try {
       break;
     }
 
+    case 'baseline':
     case 'run': {
+      const updateBaselines = command === 'baseline';
+      if (updateBaselines && args.shift() !== 'update') throw new Error('Use bughunters baseline update [--screens /a,/b] [--no-models]');
       const config = loadConfig(root);
       const flags = parseRunFlags(args);
-      const result = await runCommand({
+      const result = await withWorkspaceLock(root, () => runCommand({
+        updateBaselines,
         root,
         config,
         mode: flags.mode,
@@ -74,7 +78,7 @@ try {
         noModels: flags.noModels,
         only: flags.only,
         onProgress: (m) => process.stdout.write(`  ${m}\n`),
-      });
+      }));
       process.stdout.write(formatRunSummary(result));
       process.exit(result.exitCode);
       break;
@@ -163,7 +167,6 @@ try {
     // and the exit codes are honest about what is not built yet.
     case 'recon':
     case 'model':
-    case 'baseline':
     case 'findings':
     case 'intent':
     case 'report':

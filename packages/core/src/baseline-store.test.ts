@@ -59,3 +59,23 @@ describe('BaselineStore', () => {
     expect(a.sha256).toBe(b.sha256);
   });
 });
+
+describe('approved baseline integrity', () => {
+  it('does not recreate missing or corrupted objects during verification', async () => {
+    const { writeFileSync, unlinkSync } = await import('node:fs');
+    const store = BaselineStore.load(root, DIGEST);
+    store.put('screen', 'desktop', png);
+    const file = store.verify('screen');
+    writeFileSync(file, 'tampered');
+    expect(() => store.verify('screen')).toThrow('integrity');
+    unlinkSync(file);
+    expect(() => store.verify('screen')).toThrow('unavailable');
+    expect(existsSync(file)).toBe(false);
+  });
+  it('rejects path-shaped hashes in a manifest', async () => {
+    const { writeFileSync } = await import('node:fs');
+    writeFileSync(join(root, '.bughunters/baselines.manifest.json'), JSON.stringify({ version: 1, imageDigest: DIGEST,
+      entries: { screen: { sha256: '../../outside', viewport: 'desktop', bytes: 1, capturedAt: 'now' } } }));
+    expect(() => BaselineStore.load(root, DIGEST)).toThrow('Invalid baseline manifest');
+  });
+});

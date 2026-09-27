@@ -7,17 +7,17 @@ For web apps, `bughunters run` is a merge gate that uses no agent. The agents ex
 ```bash
 PLAYWRIGHT_SKIP_BROWSER_GC=1 npx -y playwright@1.48.2 install chromium
 npx bughunters init --gate           # write a starter .bughunters/bughunters.yml; correct each TODO value
-npx bughunters run --no-models       # capture the baselines
+npx bughunters baseline update --no-models # explicitly approve baselines
 npx bughunters run --no-models       # compare: clean
 ```
 
-`--no-models` makes a full run with no network traffic.
+`--no-models` disables model calls. The app and browser may still use the network.
 
 To see the gate find a defect, use the fixture app in this repo:
 
 ```bash
 git clone https://github.com/agent-labs-dev/bughunters && cd bughunters/examples/fixture-app
-npx bughunters run --no-models       # capture the baselines
+npx bughunters baseline update --no-models # explicitly approve baselines
 npx bughunters run --no-models       # compare: clean
 BREAK=color node server.js &         # add one known defect
 npx bughunters run --no-models       # exit 1, with a diff image
@@ -50,3 +50,12 @@ To check the determinism guarantee (three runs, one commit, zero diffs), run `ba
 - [Technical specification](spec/bughunters-technical-spec.md): the gate in full
 - [The determinism contract](determinism-contract.md): what the gate guarantees, and how
 - [The detection rubric](detection-rubric.md): each automatic check and what it finds
+
+## Approved baseline objects in CI
+
+`run` only verifies. It never creates missing baselines or accepts a changed runner
+image. Restore both the reviewed manifest and `.bughunters/runs/baselines/` (pixels
+and structural snapshots) from trusted storage before CI verification. Missing or
+corrupted objects return exit 4. This repository does not yet ship remote baseline
+storage commands. Run `baseline update` explicitly in a trusted environment,
+review the manifest changes and images, then distribute those approved objects.

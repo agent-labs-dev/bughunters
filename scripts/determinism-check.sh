@@ -19,7 +19,7 @@ cd "$APP"
 rm -rf .bughunters/runs .bughunters/appmodel.json .bughunters/baselines.manifest.json .bughunters/intents.json
 
 echo "== capturing baselines =="
-node "$CLI" run --no-models >/dev/null
+node "$CLI" baseline update --no-models >/dev/null
 
 echo "== $RUNS consecutive runs against the same commit =="
 for i in $(seq 1 "$RUNS"); do

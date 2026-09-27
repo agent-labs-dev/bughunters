@@ -36,6 +36,8 @@ export type RunCommandOptions = {
   /** Explicit `--screens /a,/b` selection. */
   only?: string[];
   onProgress?: (message: string) => void;
+  /** Explicit approval operation; verification never changes the manifest. */
+  updateBaselines?: boolean;
 };
 
 /**
@@ -64,14 +66,22 @@ export async function runCommand(options: RunCommandOptions): Promise<RunResult>
   }
 
   const store = BaselineStore.load(root, imageDigest);
-  if (store.isStaleFor(imageDigest)) {
+  if (!options.updateBaselines && store.isStaleFor(imageDigest)) {
+    throw new InfrastructureError('The runner image differs from the approved baselines. Review and run bughunters baseline update explicitly.');
+  }
+  if (options.updateBaselines && store.isStaleFor(imageDigest)) {
     // Comparing across images is what produces a diff storm nobody can explain.
+    const previousDigest = store.imageDigest;
     const dropped = store.invalidateAll(imageDigest);
     notes.push(
-      `The runner image changed (${store.imageDigest} -> ${imageDigest}), so ${dropped} baseline(s) were invalidated and re-captured rather than compared across images.`,
+      `The runner image changed (${previousDigest} -> ${imageDigest}), so ${dropped} baseline(s) were invalidated and re-captured rather than compared across images.`,
     );
   }
-  const isFirstRun = store.count === 0;
+  const isFirstRun = options.updateBaselines === true;
+  if (!targets.length) throw new InfrastructureError('No active screens were selected; nothing can be verified.');
+  if (!options.updateBaselines) for (const viewport of config.viewports) for (const target of targets) {
+    store.verify(baselineKeyFor(target.id, viewport.name));
+  }
 
   log(`Starting the app: ${requireRun(config).command}`);
   const server = await startApp(config, { cwd: root });
@@ -95,7 +105,7 @@ export async function runCommand(options: RunCommandOptions): Promise<RunResult>
         for (const target of targets) {
           log(`Capturing ${target.id} at ${viewport.name}`);
           live.step(`Capturing ${target.id} at ${viewport.name}`);
-          const screen = await captureOne({ target, viewport, session, config, store, runDir, root });
+          const screen = await captureOne({ target, viewport, session, config, store, runDir, root, updateBaselines: options.updateBaselines });
           captured.push(screen);
           live.captured(screen);
         }
@@ -113,7 +123,7 @@ export async function runCommand(options: RunCommandOptions): Promise<RunResult>
     if (!server.external) await server.stop();
   }
 
-  store.save();
+  if (options.updateBaselines) store.save();
   live.step('Evaluating findings');
 
   const result = await executeRun({
@@ -210,6 +220,7 @@ async function captureOne(args: {
   store: BaselineStore;
   runDir: string;
   root: string;
+  updateBaselines?: boolean;
 }): Promise<CapturedScreen> {
   const { target, viewport, session, config, store, runDir } = args;
   const slug = `${slugify(target.id)}--${viewport.name}`;
@@ -223,12 +234,12 @@ async function captureOne(args: {
   });
 
   const key = baselineKeyFor(target.id, viewport.name);
-  const baselinePath = store.pathFor(key);
+  const baselinePath = args.updateBaselines ? undefined : store.verify(key);
 
   // First sight of this screen: record the baseline and say so. Nothing can
   // regress against a baseline it just created, and reporting otherwise would
   // be the first-run avalanche.
-  if (!baselinePath || !existsSync(baselinePath)) {
+  if (args.updateBaselines) {
     store.put(key, viewport.name, readFileSync(actualPath));
     saveBaselineSnapshot(args.root, key, output.snapshot);
     return {
@@ -247,7 +258,7 @@ async function captureOne(args: {
 
   const diffPath = join(runDir, `${slug}.diff.png`);
   const comparison = await diff({
-    baselinePath,
+    baselinePath: baselinePath!,
     actualPath,
     diffOutPath: diffPath,
     masks: output.masks,

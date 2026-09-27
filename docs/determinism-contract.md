@@ -8,7 +8,7 @@ So determinism is not a configuration surface. It is a **contract**, and every c
 
 **Baselines are captured in exactly the same pinned image that later runs the comparison.**
 
-If the image digest changes, baselines are invalidated and re-captured rather than silently producing diffs. Where competing tools tell users to "generate baselines on a machine that matches CI", Bughunters makes the question structurally impossible to get wrong.
+If the configured image digest changes, verification stops until a person explicitly updates the approved baselines. Where competing tools tell users to "generate baselines on a machine that matches CI", Bughunters makes the question structurally impossible to get wrong.
 
 | Enforced | How | Where |
 | -------- | --- | ----- |
