@@ -105,3 +105,6 @@ export async function assertNoFontFallback(page: Page, failOnFallback: boolean):
   }
   return problems;
 }
+
+/** The executable required by this exact Playwright dependency. */
+export function browserExecutablePath(): string { return chromium.executablePath(); }

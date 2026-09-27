@@ -42,9 +42,10 @@ Run each command in your repo. Bughunters finds the `.bughunters/` folder in the
 
 | Command | What it does |
 | --- | --- |
+| `bughunters baseline update` | Explicitly approve pixel and structural baselines |
 | `bughunters run [--all \| --smoke \| --screens /a,/b] [--no-models]` | Capture, compare with the baselines, and run the checks |
 
-These commands are planned and not built yet: `recon`, `model`, `baseline`, `findings`, `intent`, `report`, `export`, and `watch`.
+These commands are planned and not built yet: `recon`, `model`, `findings`, `intent`, `report`, `export`, and `watch`.
 
 ### Artifact retention
 

@@ -236,9 +236,9 @@ function useLine(role: AgentRole, provider: Provider, piPermissionModes = false)
   }
   if (provider === 'pi' && piPermissionModes) {
     const command = cliPreset('pi', role).replace('pi -p --no-session', 'pi -p --no-session --perm yolo');
-    return `{ runtime: cli, command: ${quoteYaml(command)} }`;
+    return `{ runtime: cli, command: ${quoteYaml(command)}, env: [HOME] }`;
   }
-  return provider;
+  return `{ runtime: cli, agent: ${provider}, env: [HOME] }`;
 }
 
 /** The starter bughunters.yml. Every value that init could not know has a comment. */
@@ -277,6 +277,7 @@ export function renderConfig(answers: InitAnswers): string {
     '  instructions: .bughunters/instructions.md   # plain English for the explorer: sign in, main flows, never-do list',
     '  secrets: []                        # env var names the explorer may use as {{NAME}}, e.g. [TEST_PASSWORD]',
     '',
+    '# CLI env: [HOME] explicitly permits access to the local agent login and user config.',
     '# Each agent runs on an LLM: a local agent CLI (claude, codex, kimi, pi) or an API key.',
     'agents:',
     '  explorer:                          # uses the app and reports what looks wrong',

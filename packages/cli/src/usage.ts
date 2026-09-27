@@ -3,12 +3,7 @@ export const USAGE = `bughunters - a continuously-running QA engineer for your r
 Setup
   bughunters init [--yes] [--agent a]      detect the app and the LLMs, write .bughunters/
   bughunters init --gate                   write a starter config for the deterministic web gate
-  bughunters doctor                        verify env: pinned image, fonts, browser, network, disk
-
-Recon
-  bughunters recon [--review] [--max-screens N] [--budget-usd X]
-  bughunters recon resume                  continue an interrupted crawl
-  bughunters model show|diff|approve       inspect and approve the AppModel
+  bughunters doctor                        check runtime, browser and platform prerequisites
 
 Running
   bughunters run                           changed-only (default)
@@ -38,28 +33,12 @@ Artifacts
 Baselines
   bughunters baseline update              explicitly approve captures as new baselines
 
-Triage
-  bughunters findings list [--route issue|question]
-  bughunters findings explain <id>
-  bughunters findings accept <id> --reason "intentional"
-  bughunters intent list|export|prune
-
 Dashboard
   bughunters dashboard [--port N]          local UI: run history, app map, live watch
 
-Output
-  bughunters report --open
-  bughunters export --format junit|sarif|json
-
-Local loop
-  bughunters watch                         re-run affected screens on file change
-
-Exit codes
-  0  clean, or non-blocking findings only
-  1  tier-1 regression detected
-  2  configuration or usage error
-  3  recon required, or the AppModel is unapproved
-  4  infrastructure error - Bughunters could not test
+Not yet available
+  recon, model, findings, intent, report, export, watch
+  API testing and desktop platforms beyond Electron are planned.
 `;
 
 const DOCS = 'https://github.com/agent-labs-dev/bughunters/blob/main/docs/commands.md';

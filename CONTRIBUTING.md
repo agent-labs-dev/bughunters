@@ -5,10 +5,11 @@
 ```bash
 pnpm install
 pnpm build
+pnpm --filter @bughunters/capture exec playwright install chromium
 pnpm test
 ```
 
-Node 22+ and pnpm 9+.
+Node 22.13+ and pnpm 9+.
 
 ## The rules that matter most
 

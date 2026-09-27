@@ -225,3 +225,5 @@ Give the judge your strongest model, and give the explorer a fast, low-cost mode
 ---
 
 <p align="center">Made with ❤️ by the <a href="https://nebula.gg">Nebula</a> team.</p>
+
+Current scope and validation limits: [supported capabilities](docs/capabilities.md).
