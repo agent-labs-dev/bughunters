@@ -30,14 +30,14 @@ function sessionSummary(outcome: RoleOutcome, screens: number, candidates: numbe
 export function stopOnCancellation(session: AgentSession, tool: Tool): Tool {
   return {
     ...tool,
-    async run(input) {
-      if (session.cancelled)
+    async run(input, signal) {
+      if (session.cancelled || signal?.aborted)
         return {
           content: [{ type: 'text', text: 'Session cancelled' }],
           isError: true,
           done: true,
         };
-      const result = await tool.run(input, session.signal);
+      const result = await tool.run(input, signal ?? session.signal);
       return session.cancelled ? { ...result, done: true } : result;
     },
   };
@@ -58,6 +58,7 @@ export async function runExplorer(
     role: 'explorer' as const,
     sessionId: session.sessionId,
     signal: session.signal,
+    cancel: () => session.driver?.close() ?? Promise.resolve(),
     system: explorerSystem(
       session.config.app.platform,
       instructions,

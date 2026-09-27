@@ -1,3 +1,4 @@
+import { runProcess } from '../process.js';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AgentEvent } from '@bughunters/core';
 import type { RoleTask, Tool } from '../types.js';
@@ -243,4 +244,32 @@ it('validates model tool arguments and bounds calls within a single response', a
   };
   expect((await runtime.run(task([typed], 4), () => {})).stop).toBe('max-steps');
   expect(run).not.toHaveBeenCalled();
+});
+
+it('waits for cancellation cleanup before releasing an in-flight shell tool', async () => {
+  let settled = false;
+  const shell: Tool = {
+    name: 'shell',
+    description: 'test',
+    inputSchema: { type: 'object' },
+    async run(_input, signal) {
+      await runProcess(
+        process.execPath,
+        ['-e', "process.on('SIGTERM',()=>{});setInterval(()=>{},100)"],
+        { cwd: process.cwd(), timeoutMs: 5000, signal },
+      );
+      settled = true;
+      return { content: [] };
+    },
+  };
+  const runtime = new ModelRuntime(
+    { runtime: 'model', via: 'openai', model: 'test' },
+    {
+      fetch: (async () =>
+        response({ choices: [{ message: { tool_calls: [call('shell')] } }] })) as typeof fetch,
+    },
+  );
+  const result = await runtime.run({ ...task([shell]), timeoutMs: 300 }, () => {});
+  expect(result.stop).toBe('timeout');
+  expect(settled).toBe(true);
 });

@@ -367,6 +367,7 @@ export async function retestFix(
           role: 'explorer',
           sessionId: record.id,
           signal: session.signal,
+          cancel: () => driver?.close() ?? Promise.resolve(),
           system: explorerRetestSystem(
             config.app.platform,
             instructions,

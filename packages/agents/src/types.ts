@@ -42,6 +42,8 @@ export type RoleTask = {
   budgetUsd?: number;
   timeoutMs: number;
   signal?: AbortSignal;
+  /** Close owned resources to interrupt a tool that is in flight. */
+  cancel?: () => Promise<void>;
   /** The working directory for a CLI runtime. Default: the workspace root. */
   workdir?: string;
 };

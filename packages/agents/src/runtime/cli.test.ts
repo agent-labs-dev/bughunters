@@ -199,3 +199,12 @@ it('rejects a dollar budget before launching a CLI', async () => {
     'cannot enforce a dollar budget',
   );
 });
+
+it('does not treat a plain successful process exit as completed exploration', async () => {
+  const outcome = await new CliRuntime({ runtime: 'cli', command: 'printf done' }).run(
+    { ...task(process.cwd()), role: 'explorer' },
+    () => {},
+  );
+  expect(outcome.stop).toBe('error');
+  expect(outcome.error).toContain('without completing');
+});

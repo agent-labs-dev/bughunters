@@ -115,6 +115,7 @@ export class CliRuntime implements Runtime {
     signal.throwIfAborted();
     const temp = await mkdtemp(join(tmpdir(), 'bughunters-agent-'));
     let summary = '';
+    let completed = false;
     let steps = 0;
     let lastThought = 0;
     let pending = '';
@@ -161,7 +162,8 @@ export class CliRuntime implements Runtime {
           durationMs: ms,
           costUsd: 0,
         });
-        if (result.done) {
+        if (result.done && !result.isError) {
+          completed = true;
           summary = output;
         }
       },
@@ -245,6 +247,14 @@ export class CliRuntime implements Runtime {
           error: stderr.trim().split('\n').slice(-20).join('\n') || text || `CLI exited ${code}`,
         };
       }
+      if (task.role !== 'fixer' && !completed)
+        return {
+          stop: 'error',
+          steps,
+          costUsd: 0,
+          costKnown: false,
+          error: 'CLI exited without completing the requested tool workflow.',
+        };
       return {
         stop: 'done',
         steps,
@@ -252,8 +262,12 @@ export class CliRuntime implements Runtime {
         summary: summary || text,
       };
     } finally {
-      await mcp.close();
-      await rm(temp, { recursive: true, force: true });
+      try {
+        if (signal.aborted) await task.cancel?.();
+        await mcp.close();
+      } finally {
+        await rm(temp, { recursive: true, force: true });
+      }
     }
   }
 }

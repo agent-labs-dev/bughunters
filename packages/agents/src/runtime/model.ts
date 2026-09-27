@@ -344,6 +344,7 @@ export class ModelRuntime implements Runtime {
       let result: ToolResult;
       let timer: NodeJS.Timeout | undefined;
       let removeAbort: (() => void) | undefined;
+      let execution: Promise<ToolResult> | undefined;
       try {
         if (call.invalidJson) {
           result = {
@@ -356,8 +357,9 @@ export class ModelRuntime implements Runtime {
             isError: true,
           };
         } else {
+          execution = tool.run(call.input, task.signal);
           result = await Promise.race([
-            tool.run(call.input, task.signal),
+            execution,
             new Promise<ToolResult>((_, reject) => {
               timer = setTimeout(
                 () => reject(new Error('Tool timed out')),
@@ -372,6 +374,9 @@ export class ModelRuntime implements Runtime {
         }
       } catch (error) {
         if (task.signal?.aborted || Date.now() >= deadline) {
+          await task.cancel?.();
+          // Keep ownership until cooperative tools (including process groups) have stopped.
+          await execution?.catch(() => undefined);
           emit({
             kind: 'tool-result',
             summary: `${call.name}: timed out`,
