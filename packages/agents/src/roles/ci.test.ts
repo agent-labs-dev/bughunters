@@ -111,3 +111,13 @@ describe('watchCi', () => {
     }
   });
 });
+
+it('never invokes the fixer when automatic fixing is disabled', async () => {
+  const f = await fixture();
+  try {
+    f.config.agents.fixer.enabled = false;
+    const result = await watchCi(f.root, f.config, { gh: fakeGh([[failed]]), createRuntime: () => { throw new Error('must not run'); } });
+    expect(result.problems).toEqual([expect.stringContaining('automatic repair is disabled')]);
+    expect((await new Workspace(f.root).listFixes())[0]?.ci?.attempts).toBe(0);
+  } finally { await rm(f.root, { recursive: true, force: true }); }
+});

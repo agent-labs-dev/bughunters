@@ -145,3 +145,17 @@ Bughunters reads each PR and issue that has the first label, and it updates its 
 | `Nothing to publish` | No item matches the table in [What Bughunters publishes](#what-bughunters-publishes). Run `bughunters issue list`, and check the severities and the fixes |
 | The commit hook rejected a commit | The fixer gets a lesson with the hook error. Fix the hook error in the worktree, or run `bughunters fix --issue <id>` again |
 | The images do not show | The repo is private, and the reader is not signed in to GitHub, or has no access |
+
+### Verification and retries
+
+Publishing requires a clean worktree whose HEAD matches the recorded fix commit.
+It never commits additional changes. A ready PR also requires a successful retest
+of that exact commit under the current configuration. Unverified proposals remain
+drafts. A CI repair invalidates earlier verification and returns the PR to draft;
+`fixer.enabled: false` disables CI repair as well as initial fixing.
+
+Retests reject changed source files before and after execution. Put generated
+build output in ignored paths. Issue publication uses a stable fingerprint marker,
+and PR publication checks for an existing branch PR, so a retry after a crash can
+recover the existing item. A conflicting or closed PR requires reconciliation;
+it is not silently replaced.

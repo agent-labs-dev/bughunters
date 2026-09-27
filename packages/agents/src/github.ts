@@ -6,7 +6,6 @@ import { tmpdir } from 'node:os';
 import { basename, join, resolve } from 'node:path';
 import { promisify } from 'node:util';
 import { judgedRetests, type BughuntersConfig, type FixProposal, type Issue } from '@bughunters/core';
-import { commitFix } from './roles/fixer.js';
 import { dismissedFingerprints, Workspace } from './workspace.js';
 
 export type Gh = (args: string[], opts?: { cwd?: string; input?: string }) => Promise<string>;
@@ -181,35 +180,39 @@ async function withBody<T>(body: string, run: (file: string) => Promise<T>): Pro
 const fromUrl = (url: string) => ({ url: url.trim(), number: Number(url.trim().split('/').at(-1)) });
 
 export async function createPr(gh: Gh, input: { repo: string; defaultBranch: string; title: string; body: string;
-  labels: string[]; draft: boolean; fix: FixProposal; issue: Issue; commitMessage: string; memoryRoot?: string }): Promise<{ number: number; url: string }> {
+  labels: string[]; draft: boolean; fix: FixProposal; issue: Issue; commitMessage: string; memoryRoot?: string; configHash?: string }): Promise<{ number: number; url: string }> {
   const { fix } = input;
-  if (await git(fix.worktree, 'status', '--porcelain')) {
-    await git(fix.worktree, 'add', '-A');
-    const committed = await commitFix(fix.worktree, input.issue.title, input.commitMessage);
-    if (!committed.ok) {
-      if (input.memoryRoot) await new Workspace(input.memoryRoot).upsertLessons([{ role: 'fixer',
-        source: 'commit-hook', text: `The commit hook rejected a commit: ${committed.reason}. Make the change pass it.`.slice(0, 200) }]);
-      throw new Error(committed.reason);
-    }
-    fix.commit = await git(fix.worktree, 'rev-parse', 'HEAD');
-    if (fix.error?.startsWith('Left uncommitted')) fix.error = undefined;
+  if (await git(fix.worktree, 'status', '--porcelain')) throw new Error('The fix worktree has unverified changes. Commit and retest before publishing.');
+  const head = await git(fix.worktree, 'rev-parse', 'HEAD');
+  if (!fix.commit || head !== fix.commit) throw new Error('The fix commit differs from the worktree head. Retest before publishing.');
+  const verification = fix.retests?.at(-1);
+  if (!input.draft && (fix.status !== 'verified' || verification?.outcome !== 'fixed' || verification.commit !== head || (input.configHash !== undefined && verification.configHash !== input.configHash))) {
+    throw new Error('A ready PR requires a successful retest of this exact commit. Publish a draft or retest first.');
   }
-  if (!fix.commit) {
-    // A fix from before Bughunters recorded its commit: trust the branch head
-    // only when the branch has commits of its own past the default branch.
-    await git(fix.worktree, 'fetch', '-q', 'origin', input.defaultBranch);
-    const own = Number(await git(fix.worktree, 'rev-list', '--count', `origin/${input.defaultBranch}..HEAD`));
-    if (own > 0) fix.commit = await git(fix.worktree, 'rev-parse', 'HEAD');
+  const existing = JSON.parse(await gh(['pr', 'list', '--repo', input.repo, '--head', fix.branch,
+    '--base', input.defaultBranch, '--state', 'all', '--json', 'number,url,state,headRefOid'])) as { number: number; url: string; state: string; headRefOid: string }[];
+  if (existing.length) {
+    const pr = existing[0]!;
+    if (pr.state !== 'OPEN' || pr.headRefOid !== head) throw new Error('The existing PR is closed or has a different commit; reconcile it before publishing.');
+    return { number: pr.number, url: pr.url };
   }
-  if (!fix.commit) throw new Error('The fix branch has no fix commit.');
   await git(fix.worktree, 'push', '-u', 'origin', fix.branch);
+  const remote = await git(fix.worktree, 'ls-remote', '--heads', 'origin', `refs/heads/${fix.branch}`);
+  if (remote.split(/\s+/)[0] !== head) throw new Error('The published head differs from the verified commit. Retest before creating a PR.');
   return withBody(input.body, async (file) => fromUrl(await gh(['pr', 'create', '--repo', input.repo,
     '--base', input.defaultBranch, '--head', fix.branch, '--title', input.title, '--body-file', file,
     ...(input.draft ? ['--draft'] : []), ...input.labels.flatMap((label) => ['--label', label])], { cwd: fix.worktree })));
 }
 
-export async function createIssue(gh: Gh, input: { repo: string; title: string; body: string; labels: string[] }): Promise<{ number: number; url: string }> {
-  return withBody(input.body, async (file) => fromUrl(await gh(['issue', 'create', '--repo', input.repo,
+export async function createIssue(gh: Gh, input: { repo: string; title: string; body: string; labels: string[]; key?: string }): Promise<{ number: number; url: string }> {
+  const marker = input.key ? `<!-- bughunters:${createHash('sha256').update(input.key).digest('hex')} -->` : undefined;
+  if (marker) {
+    const items = JSON.parse(await gh(['issue', 'list', '--repo', input.repo, '--state', 'all', '--limit', '100',
+      '--search', marker, '--json', 'number,url,body'])) as { number: number; url: string; body: string }[];
+    const found = items.find((item) => item.body.includes(marker));
+    if (found) return { number: found.number, url: found.url };
+  }
+  return withBody(marker ? `${input.body}\n\n${marker}` : input.body, async (file) => fromUrl(await gh(['issue', 'create', '--repo', input.repo,
     '--title', input.title, '--body-file', file, ...input.labels.flatMap((label) => ['--label', label])])));
 }
 

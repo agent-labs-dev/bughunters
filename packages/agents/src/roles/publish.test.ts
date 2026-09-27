@@ -33,6 +33,7 @@ const createRuntime = () => runtime;
 function fakeGh(calls: string[][]): Gh {
   return async (args) => {
     calls.push(args);
+    if (args[1] === 'list') return '[]';
     if (args[0] === 'repo') return 'main';
     if (args[0] === 'issue' && args[1] === 'create') return 'https://github.com/o/r/issues/8';
     if (args[0] === 'pr' && args[1] === 'create') return 'https://github.com/o/r/pull/4';

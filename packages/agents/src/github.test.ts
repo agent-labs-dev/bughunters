@@ -48,7 +48,7 @@ describe('GitHub client', () => {
       .toEqual({ number: 8, url: 'https://github.com/o/r/issues/8' });
     expect(body).toBe('Full report');
   });
-  it('commits an uncommitted worktree, pushes it, and creates a PR', async () => {
+  it('refuses dirty worktrees and publishes only the recorded clean commit', async () => {
     const dir = await temp();
     const remote = join(dir, 'remote.git'); const source = join(dir, 'source'); const worktree = join(dir, 'fix');
     execFileSync('git', ['init', '--bare', remote]);
@@ -64,12 +64,24 @@ describe('GitHub client', () => {
     const fix: FixProposal = { version: 1, id: 'fix_1', issueId: 'iss_1', status: 'proposed', runtime: 'fake',
       repo: source, branch: 'fix-branch', worktree, startedAt: 'now', error: 'Left uncommitted in the worktree: hook' };
     const issue = { id: 'iss_1', title: 'Broken screen' } as Issue;
-    const gh: Gh = async (args) => { expect(args).toContain('--body-file'); return 'https://github.com/o/r/pull/4'; };
+    const gh: Gh = async (args) => { if (args[1] === 'list') return '[]'; expect(args).toContain('--body-file'); return 'https://github.com/o/r/pull/4'; };
+    await expect(createPr(gh, { repo: 'o/r', defaultBranch: 'master', title: 'Fix', body: '', labels: [], draft: true, fix, issue, commitMessage: '' })).rejects.toThrow('unverified changes');
+    git(worktree, 'add', '-A'); git(worktree, 'commit', '-m', 'fix: repair screen');
+    fix.commit = git(worktree, 'rev-parse', 'HEAD');
     const opened = await createPr(gh, { repo: 'o/r', defaultBranch: 'master', title: 'Fix screen', body: 'Report',
       labels: [], draft: true, fix, issue, commitMessage: 'fix: {title}' });
     expect(opened.number).toBe(4);
+    const input = { repo: 'o/r', defaultBranch: 'master', title: 'Fix', body: '', labels: [], draft: false, fix, issue, commitMessage: '' };
+    await expect(createPr(gh, input)).rejects.toThrow('successful retest');
+    fix.status = 'verified';
+    fix.retests = [{ attempt: 1, outcome: 'fixed', commit: fix.commit, reason: 'passed', at: 'now' }];
+    const recovered = await createPr(async () => JSON.stringify([{ number: 4, url: opened.url, state: 'OPEN', headRefOid: fix.commit }]), input);
+    expect(recovered).toEqual(opened);
+    fix.commit = 'stale';
+    await expect(createPr(gh, input)).rejects.toThrow('differs');
+    fix.commit = git(worktree, 'rev-parse', 'HEAD');
     expect(fix.commit).toBe(git(worktree, 'rev-parse', 'HEAD'));
-    expect(fix.error).toBeUndefined();
+
     expect(git(worktree, 'status', '--porcelain')).toBe('');
     expect(git(source, 'ls-remote', 'origin', 'refs/heads/fix-branch')).toContain(fix.commit);
   });
@@ -167,4 +179,18 @@ describe('GitHub state sync', () => {
         expect((await f.workspace.readMemory()).lessons[0]).toMatchObject({ role: 'judge', source: 'human' });
       }
     });
+});
+
+it('recovers an issue created before the local state was saved', async () => {
+  let body = '';
+  let creates = 0;
+  const gh: Gh = async (args) => {
+    if (args[1] === 'list') return JSON.stringify(body ? [{ number: 9, url: 'https://github.com/o/r/issues/9', body }] : []);
+    creates++;
+    body = await readFile(args[args.indexOf('--body-file') + 1]!, 'utf8');
+    return 'https://github.com/o/r/issues/9';
+  };
+  const input = { repo: 'o/r', title: 'Problem', body: 'Evidence', labels: [], key: 'stable-fingerprint' };
+  expect(await createIssue(gh, input)).toEqual(await createIssue(gh, input));
+  expect(creates).toBe(1);
 });

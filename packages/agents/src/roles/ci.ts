@@ -119,7 +119,7 @@ export async function watchCi(root: string, config: BughuntersConfig, deps: CiDe
         break;
       }
       if (!failed.length) {
-        await save('passed');
+        await save(checks.some((check) => check.bucket === 'pass') ? 'passed' : 'none');
         deps.onLog?.(`CI: all ${checks.length} check(s) passed on PR #${pr}.`);
         break;
       }
@@ -131,6 +131,10 @@ export async function watchCi(root: string, config: BughuntersConfig, deps: CiDe
         break;
       }
       await save('failed');
+      if (!config.agents.fixer.enabled) {
+        problems.push(`CI: PR #${pr} has failed checks; automatic repair is disabled.`);
+        break;
+      }
       deps.onLog?.(`CI: PR #${pr} failed ${failed.map((check) => check.name).join(', ')}. The fixer tries to fix it.`);
       const pushed = await fixCi(root, config, fix, failed, await failureLog(gh, repo, failed), deps);
       fix.ci = { ...fix.ci!, attempts: (fix.ci?.attempts ?? 0) + 1 };
@@ -203,6 +207,11 @@ async function fixCi(root: string, config: BughuntersConfig, fix: FixProposal, f
     const committed = await commitFix(fix.worktree, 'pass the CI checks', fixer.commitMessage);
     if (!committed.ok) throw new Error(`The commit hook rejected the commit: ${committed.reason}`);
     fix.commit = await git(fix.worktree, 'rev-parse', 'HEAD');
+    fix.status = 'retesting';
+    if (fix.pr && !fix.pr.draft) {
+      await (deps.gh ?? defaultGh)(['pr', 'ready', fix.pr.url, '--undo'], { cwd: fix.worktree });
+      fix.pr.draft = true;
+    }
     await git(fix.worktree, 'push', 'origin', fix.branch);
     session.emit({ kind: 'fix', summary: `Pushed a CI fix to PR #${fix.pr!.number} (${fix.commit.slice(0, 7)})` });
     status = 'finished';

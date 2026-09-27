@@ -30,6 +30,7 @@ async function repoFixture() {
   await git(source, 'config', 'commit.gpgsign', 'false');
   await git(source, 'config', 'core.hooksPath', '/dev/null');
   await writeFile(join(source, 'app.txt'), 'broken\n');
+  await writeFile(join(source, '.gitignore'), 'retest-cwd\nretest-source\n');
   await git(source, 'add', '-A');
   await git(source, 'commit', '-m', 'initial');
   const workspace = new Workspace(root);
@@ -331,7 +332,7 @@ describe('multi-screen retest', () => {
       await f.workspace.appendCandidate(record.id, candidate);
     }
     const fix: FixProposal = { version: 1, id: 'fix_iss_1', issueId: issue.id, status: 'retesting',
-      runtime: 'scripted', repo: f.source, worktree: f.source, branch: 'test', startedAt: 'now' };
+      runtime: 'scripted', repo: f.source, worktree: f.source, branch: 'test', startedAt: 'now', commit: (await git(f.source, 'rev-parse', 'HEAD')).stdout.trim() };
     return { ...f, driver, issue, fix };
   }
 

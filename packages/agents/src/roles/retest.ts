@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { execFile } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
@@ -97,6 +98,15 @@ export async function retestFix(root: string, config: BughuntersConfig, issue: I
   }
   if (!targets.some((target) => target.shot.routineId || target.steps.length)) {
     return { ...retest, outcome: 'skipped', reason: 'The issue has no replayable flow.' };
+  }
+  if (!options.build) {
+    try {
+      const head = (await exec('git', ['rev-parse', 'HEAD'], { cwd: fix.worktree })).stdout.trim();
+      const dirty = (await exec('git', ['status', '--porcelain'], { cwd: fix.worktree })).stdout.trim();
+      if (dirty || head !== fix.commit) throw new Error('Commit clean changes before retesting.');
+      retest.commit = head;
+      retest.configHash = createHash('sha256').update(JSON.stringify(config)).digest('hex');
+    } catch (error) { return { ...retest, outcome: 'error', reason: String(error) }; }
   }
   const runtime = deps.createRuntime ?? makeRuntime;
   const vars = new Vars(config.app.secrets);
@@ -312,6 +322,11 @@ export async function retestFix(root: string, config: BughuntersConfig, issue: I
     await session.idle(cost);
     deps.onSession?.();
   }
+  if (!options.build && retest.outcome === 'fixed') {
+    const head = (await exec('git', ['rev-parse', 'HEAD'], { cwd: fix.worktree })).stdout.trim();
+    const dirty = (await exec('git', ['status', '--porcelain'], { cwd: fix.worktree })).stdout.trim();
+    if (dirty || head !== retest.commit) { retest.outcome = 'error'; retest.reason = 'The source changed during verification. Commit and retest.'; }
+  }
   return retest;
 }
 
@@ -329,7 +344,7 @@ function needsRetest(fix: FixProposal): boolean {
 export function applyRetest(config: BughuntersConfig, fix: FixProposal, result: Retest): void {
   fix.retests = [...(fix.retests ?? []), result];
   const attemptsLeft = judgedRetests(fix.retests).length < config.agents.fixer.retest.attempts;
-  if (result.outcome === 'fixed') fix.status = 'verified';
+  if (result.outcome === 'fixed') fix.status = result.commit && result.commit === fix.commit ? 'verified' : 'proposed';
   else if (result.outcome === 'error') fix.status = 'retesting';
   else if (result.outcome === 'not-fixed' && attemptsLeft) fix.status = 'retesting';
   else fix.status = 'proposed';

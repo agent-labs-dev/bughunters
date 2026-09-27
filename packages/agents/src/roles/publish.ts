@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+import { withWorkspaceLock } from '../lock.js';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { paths, type BughuntersConfig, type Candidate, type FixProposal, type Issue } from '@bughunters/core';
@@ -39,7 +41,7 @@ async function image(root: string, path?: string) {
   catch { return []; }
 }
 
-export async function runPublisher(root: string, config: BughuntersConfig, deps: Deps = {}): Promise<PublishOutcome[]> {
+async function publishOwned(root: string, config: BughuntersConfig, deps: Deps = {}): Promise<PublishOutcome[]> {
   if (!config.agents.github.enabled && !deps.dryRun) return [];
   const workspace = new Workspace(root);
   const gh = deps.gh ?? defaultGh;
@@ -184,14 +186,14 @@ export async function runPublisher(root: string, config: BughuntersConfig, deps:
           } else if (item.kind === 'pr' && item.fix) {
             const opened = await createPr(gh, { repo: resolved!.repo, defaultBranch: resolved!.defaultBranch,
               title, body, labels: config.agents.github.labels,
-              draft: config.agents.github.pullRequests === 'draft', fix: item.fix, issue: item.issue,
-              commitMessage: title, memoryRoot: root });
+              draft: item.fix.status !== 'verified' || config.agents.github.pullRequests === 'draft', fix: item.fix, issue: item.issue,
+              commitMessage: title, memoryRoot: root, configHash: createHash('sha256').update(JSON.stringify(config)).digest('hex') });
             url = opened.url;
-            item.fix.pr = { ...opened, draft: config.agents.github.pullRequests === 'draft', at: new Date().toISOString() };
+            item.fix.pr = { ...opened, draft: item.fix.status !== 'verified' || config.agents.github.pullRequests === 'draft', at: new Date().toISOString() };
             await workspace.saveFix(item.fix);
           } else {
             const opened = await createIssue(gh, { repo: resolved!.repo, title, body,
-              labels: config.agents.github.labels });
+              labels: config.agents.github.labels, key: item.issue.fingerprint });
             url = opened.url;
             item.issue.github = { ...opened, at: new Date().toISOString() };
             item.issue.status = 'filed';
@@ -254,4 +256,8 @@ export async function runPublisher(root: string, config: BughuntersConfig, deps:
     deps.onSession?.();
   }
   return outcomes;
+}
+
+export async function runPublisher(root: string, config: BughuntersConfig, deps: Deps = {}): Promise<PublishOutcome[]> {
+  return withWorkspaceLock(root, () => publishOwned(root, config, deps));
 }

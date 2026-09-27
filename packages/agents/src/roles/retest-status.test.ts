@@ -21,7 +21,14 @@ describe('applyRetest', () => {
 
   it('marks a fix verified when the judge says fixed', () => {
     const item = fix();
-    applyRetest(config, item, retest('fixed'));
+    item.commit = 'exact-head';
+    applyRetest(config, item, { ...retest('fixed'), commit: 'exact-head' });
     expect(item.status).toBe('verified');
   });
+});
+
+it('does not promote legacy or stale verification to a ready fix', () => {
+  const item = fix(); item.commit = 'new';
+  applyRetest(config, item, { ...retest('fixed'), commit: 'old' });
+  expect(item.status).toBe('proposed');
 });

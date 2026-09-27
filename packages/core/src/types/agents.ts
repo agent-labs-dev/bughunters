@@ -200,6 +200,9 @@ export type RetestShot = {
 };
 
 export type Retest = {
+  /** Clean commit and configuration exercised by this retest. */
+  commit?: string;
+  configHash?: string;
   build?: 'main';
   attempt: number;
   outcome: RetestOutcome;
