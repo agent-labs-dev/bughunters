@@ -176,3 +176,13 @@ application startup code can itself mutate data. Native app networking and exist
 Electron connections need isolation at the worker/network level. Never point an
 autonomous session at production accounts. The legacy `crawl` policy configures
 the recon classifier; it does not grant agent action permissions.
+
+## Workspace ownership
+
+Mutating agent commands and GitHub synchronization acquire one renewable
+filesystem lease for `.bughunters/runs`. Patrol holds it while sleeping between
+cycles, so cron and interactive invocations cannot start a second writer.
+Nested operations in the same command reuse its lease. A crash leaves a lease
+that expires after two minutes; do not delete a live owner's lock to force entry.
+A dashboard can still read local results while the patrol runs; its periodic
+GitHub synchronization waits for a later attempt if the workspace is busy.

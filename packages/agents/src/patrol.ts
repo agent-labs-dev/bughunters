@@ -1,3 +1,4 @@
+import { withWorkspaceLock, workspaceSignal } from './lock.js';
 import { execFile } from 'node:child_process';
 import { resolve } from 'node:path';
 import { promisify } from 'node:util';
@@ -101,6 +102,10 @@ export type PatrolResult = {
  * next cycle tries again.
  */
 export async function runPatrol(options: PatrolOptions): Promise<PatrolResult> {
+  return withWorkspaceLock(options.root, () => runOwnedPatrol(options));
+}
+
+async function runOwnedPatrol(options: PatrolOptions): Promise<PatrolResult> {
   const problems: string[] = [];
   const { root, config } = options;
   const workspace = new Workspace(root);
@@ -119,11 +124,13 @@ export async function runPatrol(options: PatrolOptions): Promise<PatrolResult> {
       activeSession.cancelled = true;
     }
   };
-  const idle = () => workspace.setPatrol({ state: 'stopped',
+  const idle = () => workspace.setPatrol({ state: 'running',
     nextAt: new Date(Date.now() + config.agents.patrol.intervalMinutes * 60_000).toISOString() });
   // The commit of the last full cycle, also from an earlier run, so a cron job
   // with --once tests only new commits. --force tests the first cycle anyway.
   let tested = options.force ? undefined : previous?.commit;
+  const lease = workspaceSignal();
+  lease?.addEventListener('abort', onSignal, { once: true });
   process.on('SIGINT', onSignal);
   process.on('SIGTERM', onSignal);
   try {
@@ -233,6 +240,7 @@ export async function runPatrol(options: PatrolOptions): Promise<PatrolResult> {
   } finally {
     // No cycle follows, so the dashboard must not show a next patrol.
     await workspace.setPatrol({ state: 'stopped', nextAt: undefined });
+    lease?.removeEventListener('abort', onSignal);
     process.off('SIGINT', onSignal);
     process.off('SIGTERM', onSignal);
   }

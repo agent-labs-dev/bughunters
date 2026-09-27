@@ -1,3 +1,4 @@
+import { withWorkspaceLock } from './lock.js';
 import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
@@ -38,7 +39,7 @@ export async function resolveRepo(gh: Gh, config: BughuntersConfig, source: stri
   return { repo, defaultBranch };
 }
 
-export async function syncGitHub(root: string, config: BughuntersConfig,
+async function syncOwnedGitHub(root: string, config: BughuntersConfig,
   deps: { gh?: Gh; onLog?: (message: string) => void } = {}): Promise<{ changed: string[] }> {
   const changed = new Set<string>();
   if (!config.agents.github.enabled) return { changed: [] };
@@ -227,4 +228,10 @@ export async function closeOnGitHub(root: string, config: BughuntersConfig, issu
     await closeIssue(gh, repo, issue.github.number, issue.closedBy?.reason ?? 'Fixed by Bughunters',
       issue.status === 'dismissed' ? 'not planned' : 'completed');
   } catch (error) { onLog(`GitHub close failed: ${String(error)}`); }
+}
+
+export async function syncGitHub(root: string, config: BughuntersConfig,
+  deps: { gh?: Gh; onLog?: (message: string) => void } = {}): Promise<{ changed: string[] }> {
+  if (!config.agents.github.enabled) return { changed: [] };
+  return withWorkspaceLock(root, () => syncOwnedGitHub(root, config, deps));
 }

@@ -1,4 +1,4 @@
-import { requireCompleted } from '@bughunters/agents';
+import { requireCompleted, withWorkspaceLock } from '@bughunters/agents';
 import { ConfigError, InfrastructureError, formatUsage, type AgentRole, type BughuntersConfig } from '@bughunters/core';
 import { createDriver } from '@bughunters/drivers';
 import { AgentSession, Vars, Workspace, createRuntime, pendingCandidates, replayRoutine, runExplorer, runJudge, runtimeProblem,
@@ -96,7 +96,7 @@ export function preflight(command: string, config: BughuntersConfig, env: NodeJS
 }
 
 /** Owns lifecycle cleanup for a single agent command, including interrupted runs. */
-export async function runAgentCommand(
+async function runOwnedAgentCommand(
   command: string,
   args: string[],
   root: string,
@@ -248,4 +248,9 @@ export async function runAgentCommand(
       process.off('SIGTERM', onSignal);
     }
   }
+}
+
+export async function runAgentCommand(command: string, args: string[], root: string,
+  config: BughuntersConfig, log: (message: string) => void): Promise<void> {
+  return withWorkspaceLock(root, () => runOwnedAgentCommand(command, args, root, config, log));
 }

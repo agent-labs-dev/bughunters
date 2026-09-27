@@ -10,7 +10,7 @@ import { startDashboard } from '@bughunters/dashboard';
 import { runAgentCommand } from './commands/agents.js';
 import { runIssueCommand } from './commands/issue.js';
 import { runMemoryCommand } from './commands/memory.js';
-import { cleanWorktrees, syncGitHub } from '@bughunters/agents';
+import { cleanWorktrees, syncGitHub, withWorkspaceLock } from '@bughunters/agents';
 
 const [command, ...args] = process.argv.slice(2);
 // The folder that holds .bughunters/, found from any subfolder the way git does.
@@ -95,12 +95,12 @@ try {
     }
 
     case 'issue': {
-      await runIssueCommand(args, root, (line) => process.stdout.write(`${line}\n`), tryLoadConfig(root));
+      await withWorkspaceLock(root, () => runIssueCommand(args, root, (line) => process.stdout.write(`${line}\n`), tryLoadConfig(root)));
       break;
     }
 
     case 'memory': {
-      await runMemoryCommand(args, root, (line) => process.stdout.write(`${line}\n`));
+      await withWorkspaceLock(root, () => runMemoryCommand(args, root, (line) => process.stdout.write(`${line}\n`)));
       break;
     }
 
@@ -108,7 +108,7 @@ try {
       if (args.length !== 1 || args[0] !== 'sync') throw new Error('Use bughunters github sync');
       const config = loadConfig(root);
       const result = await syncGitHub(root, config, { onLog: console.error });
-      await cleanWorktrees(root, config, { onLog: console.error });
+      await withWorkspaceLock(root, () => cleanWorktrees(root, config, { onLog: console.error }));
       process.stdout.write(`Synced: ${result.changed.length} change(s)\n`);
       for (const id of result.changed) process.stdout.write(`${id}\n`);
       break;
@@ -116,7 +116,7 @@ try {
 
     case 'worktrees': {
       if (args.length !== 1 || args[0] !== 'clean') throw new Error('Use bughunters worktrees clean');
-      const result = await cleanWorktrees(root, loadConfig(root), { onLog: console.error });
+      const result = await withWorkspaceLock(root, () => cleanWorktrees(root, loadConfig(root), { onLog: console.error }));
       process.stdout.write(`Removed: ${result.removed.length} worktree(s)\n`);
       for (const id of result.removed) process.stdout.write(`${id}\n`);
       for (const item of result.kept) process.stdout.write(`Kept ${item.id}: ${item.reason}\n`);
