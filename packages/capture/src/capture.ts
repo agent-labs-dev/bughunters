@@ -1,8 +1,8 @@
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import type { Page } from 'playwright';
 import type { BughuntersConfig, MaskConfig, ViewportConfig } from '@bughunters/core';
-import { sha256 } from '@bughunters/core';
+import { maskScreenshot, overlaps, sha256 } from '@bughunters/core';
 import { PROBE_SOURCE, type ScreenSnapshot } from '@bughunters/invariants';
 import { STABILITY_STYLESHEET } from './determinism.js';
 import { waitForStableFrame } from './stability-gate.js';
@@ -40,12 +40,12 @@ export async function captureScreen(
   const missingFonts = await assertNoFontFallback(page, config.determinism.failOnFontFallback);
   const stability = await waitForStableFrame(page, config.determinism.stabilityGate);
 
-  const masks = await resolveMasks(page, config.mask, request.url);
+  const masks = await resolveMasks(page, [...config.mask, ...config.app.privacy.selectors.map((selector) => ({ selector }))], request.url);
+  const privateRegions = [...masks, ...config.app.privacy.regions];
   const consoleErrors = collectedErrors.get(page) ?? [];
 
   mkdirSync(dirname(request.outPath), { recursive: true });
-  const buffer = await page.screenshot({
-    path: request.outPath,
+  const captured = await page.screenshot({
     fullPage: request.fullPage ?? true,
     animations: 'disabled',
     caret: 'hide',
@@ -54,9 +54,15 @@ export async function captureScreen(
     mask: masks.map((m) => page.locator(m.selector)),
   });
 
+  const buffer = maskScreenshot(captured, config.app.privacy.regions, request.viewport.deviceScaleFactor ?? 1);
+  writeFileSync(request.outPath, buffer, { mode: 0o600 });
   const probe = (await page.evaluate(PROBE_SOURCE)) as Omit<ScreenSnapshot, 'screenId' | 'viewport' | 'consoleErrors'> & {
     document: ScreenSnapshot['document'] & { scrollX?: number; scrollY?: number };
   };
+
+  probe.elements = probe.elements.filter((element) => !privateRegions.some((region) => overlaps(element.box, region)));
+  probe.links = probe.links?.filter((link) => !privateRegions.some((region) => overlaps(link.box, region)));
+  if (privateRegions.length) probe.images = [];
 
   // Element boxes are viewport-relative; the full-page screenshot is in page
   // coordinates, so the scroll offset joins them.

@@ -17,3 +17,4 @@ export * from './fingerprint.js';
 export * from './paths.js';
 export * from './baseline-store.js';
 export * from './origin.js';
+export * from './privacy.js';

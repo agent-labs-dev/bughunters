@@ -150,6 +150,9 @@ importers:
 
   packages/core:
     dependencies:
+      pngjs:
+        specifier: ^7.0.0
+        version: 7.0.0
       yaml:
         specifier: ^2.5.1
         version: 2.9.1

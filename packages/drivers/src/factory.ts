@@ -7,11 +7,11 @@ import { PolicyDriver } from './policy.js';
 
 /** Pick the transport configured for the app while resolving captured endpoints. */
 export function createDriver(config: BughuntersConfig, vars: (value: string) => string): Driver {
-  const { platform, connect, safety } = config.app;
+  const { platform, connect, safety, privacy } = config.app;
   const origins = [...safety.allowedOrigins];
   const appUrl = connect.url ?? config.run?.url;
   if (appUrl) origins.push(new URL(vars(appUrl)).origin);
-  const wrap = (driver: Driver) => new PolicyDriver(driver, safety, origins);
+  const wrap = (driver: Driver) => new PolicyDriver(driver, safety, origins, privacy.regions);
   if (platform === 'web') {
     const url = connect.url ?? config.run?.url;
     if (!url) {
@@ -21,6 +21,7 @@ export function createDriver(config: BughuntersConfig, vars: (value: string) => 
     return wrap(new WebDriver({
       url: vars(url),
       viewport: { width: viewport.width, height: viewport.height },
+      privacy,
       policy: { origins, mutations: safety.mode === 'test' },
     }));
   }
@@ -28,7 +29,7 @@ export function createDriver(config: BughuntersConfig, vars: (value: string) => 
     if (!connect.cdp) {
       throw new ConfigError('Electron driver requires app.connect.cdp');
     }
-    return wrap(new ElectronDriver(vars(connect.cdp), { origins, mutations: safety.mode === 'test' }));
+    return wrap(new ElectronDriver(vars(connect.cdp), { origins, mutations: safety.mode === 'test' }, privacy));
   }
   if (!connect.appId) {
     throw new ConfigError(`${platform} driver requires app.connect.appId`);

@@ -312,8 +312,8 @@ describe('multi-screen retest', () => {
   async function screensFixture() {
     const f = await repoFixture();
     const driver = new FakeDriver({ usage: { elements: [] }, memories: { elements: [] } }, 'usage');
-    const beforeUsage = 'before-usage.png';
-    const beforeMemories = 'before-memories.png';
+    const beforeUsage = '.bughunters/runs/before-usage.png';
+    const beforeMemories = '.bughunters/runs/before-memories.png';
     await writeFile(join(f.root, beforeUsage), (await driver.observe()).screenshot);
     driver.current = 'memories';
     await writeFile(join(f.root, beforeMemories), (await driver.observe()).screenshot);
@@ -340,8 +340,8 @@ describe('multi-screen retest', () => {
     const f = await screensFixture();
     try {
       expect(await retestTargets(f.workspace, f.issue)).toMatchObject([
-        { screenId: 'usage', before: 'before-usage.png' },
-        { screenId: 'memories', before: 'before-memories.png' },
+        { screenId: 'usage', before: '.bughunters/runs/before-usage.png' },
+        { screenId: 'memories', before: '.bughunters/runs/before-memories.png' },
       ]);
       const retest = await retestFix(f.root, f.config, f.issue, f.fix, 1, {
         createDriver: () => f.driver,

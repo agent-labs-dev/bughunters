@@ -1,3 +1,4 @@
+import { readEvidence } from './evidence.js';
 import { withWorkspaceLock } from './lock.js';
 import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -148,8 +149,9 @@ export async function ensureAssetsBranch(gh: Gh, repo: string, branch: string): 
     { input: json({ ref: `refs/heads/${branch}`, sha: commit.sha }) });
 }
 
-export async function uploadImage(gh: Gh, repo: string, branch: string, localPath: string, issueId: string): Promise<string> {
-  const bytes = await readFile(localPath);
+export async function uploadImage(gh: Gh, repo: string, branch: string, localPath: string, issueId: string, root: string): Promise<string> {
+  const bytes = await readEvidence(root, localPath);
+  if (!/^[a-zA-Z0-9_-]+$/.test(issueId)) throw new Error('Invalid issue identifier');
   const remotePath = `${issueId}/${createHash('sha256').update(bytes).digest('hex').slice(0, 12)}-${basename(localPath)}`;
   try { await gh(['api', `repos/${repo}/contents/${remotePath}?ref=${encodeURIComponent(branch)}`]); }
   catch (error) {

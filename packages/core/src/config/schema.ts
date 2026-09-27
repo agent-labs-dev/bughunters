@@ -192,6 +192,11 @@ export const appSchema = z
     instructions: z.string().optional(),
     /** Names of env vars the explorer may use as {{NAME}} placeholders. */
     secrets: z.array(z.string()).default([]),
+    privacy: z.object({
+      selectors: z.array(z.string().min(1)).default(['input[type="password"]', '[data-private]']),
+      regions: z.array(z.object({ x: z.number().finite(), y: z.number().finite(),
+        width: z.number().finite().nonnegative(), height: z.number().finite().nonnegative() })).default([]),
+    }).default({}),
     safety: z.object({
       mode: z.enum(['observe', 'test']).default('observe'),
       allowDestructive: z.boolean().default(false),
@@ -334,6 +339,7 @@ export const agentsSchema = z
       })
       .default({}),
     github: z.object({
+      uploadScreenshots: z.boolean().default(false),
       enabled: z.boolean().default(false),
       repo: z.string().optional(),
       pullRequests: z.enum(['draft', 'ready']).default('draft'),

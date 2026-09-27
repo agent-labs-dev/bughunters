@@ -1,3 +1,4 @@
+import { readEvidence } from '../evidence.js';
 import { checkedWorker } from '../worker.js';
 import { createHash } from 'node:crypto';
 import { execFile } from 'node:child_process';
@@ -30,7 +31,7 @@ const string = { type: 'string' };
 const response = (value: string) => ({ content: [{ type: 'text' as const, text: value }] });
 async function image(root: string, file?: string): Promise<{ type: 'image'; png: Buffer }[]> {
   if (!file) return [];
-  try { return [{ type: 'image', png: await readFile(resolve(root, file)) }]; } catch { return []; }
+  try { return [{ type: 'image', png: await readEvidence(root, file) }]; } catch { return []; }
 }
 
 type Deps = {

@@ -5,8 +5,8 @@ import { WebDriver, type WebOptions } from './web.js';
 export class ElectronDriver extends WebDriver {
   override readonly platform = 'electron' as const;
 
-  constructor(private readonly cdpUrl: string, policy?: WebOptions['policy']) {
-    super({ url: '', policy, viewport: { width: 1280, height: 800 } });
+  constructor(private readonly cdpUrl: string, policy?: WebOptions['policy'], privacy?: WebOptions['privacy']) {
+    super({ url: '', policy, privacy, viewport: { width: 1280, height: 800 } });
   }
 
   override async connect(): Promise<void> {

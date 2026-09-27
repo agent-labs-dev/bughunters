@@ -1,4 +1,4 @@
-import { permitsUrl, type AppConfig } from '@bughunters/core';
+import { maskScreenshot, overlaps, permitsUrl, type PrivacyRegion, type AppConfig } from '@bughunters/core';
 import type { Driver, DriverAction, Observation, ActResult } from './types.js';
 
 export type ActionPolicy = AppConfig['safety'];
@@ -7,13 +7,19 @@ const destructive = /\b(delete|remove|destroy|revoke|cancel|deactivate|purge|wip
 /** The same fence surrounds exploration and replay because both use Driver.act. */
 export class PolicyDriver implements Driver {
   readonly platform;
-  constructor(private readonly driver: Driver, private readonly policy: ActionPolicy, private readonly origins: string[]) {
+  constructor(private readonly driver: Driver, private readonly policy: ActionPolicy, private readonly origins: string[], private readonly regions: PrivacyRegion[] = []) {
     this.platform = driver.platform;
   }
   connect() { return this.driver.connect(); }
-  observe() { return this.driver.observe(); }
+  async observe() {
+    const observation = await this.driver.observe();
+    if (!this.regions.length) return observation;
+    return { ...observation, screenshot: maskScreenshot(observation.screenshot, this.regions, observation.viewport.scale),
+      elements: observation.elements.filter((item) => !this.regions.some((region) => overlaps(item.box, region))) };
+  }
   settle(options?: Parameters<Driver['settle']>[0]) { return this.driver.settle(options); }
-  snapshot(observation: Observation, screenId: string) { return this.driver.snapshot(observation, screenId); }
+  snapshot(observation: Observation, screenId: string) { const snapshot = this.driver.snapshot(observation, screenId);
+    return { ...snapshot, elements: snapshot.elements.filter((item) => !this.regions.some((region) => overlaps(item.box, region))) }; }
   close() { return this.driver.close(); }
 
   async act(action: DriverAction): Promise<ActResult> {

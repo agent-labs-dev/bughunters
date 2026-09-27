@@ -93,6 +93,7 @@ describe('runPublisher', () => {
     expect(await runPublisher(f.root, f.config, { gh: fakeGh(calls), createRuntime })).toMatchObject([
       { kind: 'issue', url: 'https://github.com/o/r/issues/8' }]);
     expect((await f.workspace.readIssue(f.issue.id))?.github?.number).toBe(8);
+    expect(calls.some((args) => args.some((arg) => /git\/(blobs|trees|commits)|contents\//.test(arg)))).toBe(false);
   });
   it('ignores minor and dismissed issues', async () => {
     for (const [severity, status] of [['minor', 'new'], ['major', 'dismissed']] as const) {

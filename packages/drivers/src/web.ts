@@ -1,5 +1,5 @@
 import { chromium, type Browser, type BrowserContext, type Page } from 'playwright';
-import { permitsUrl, sha256 } from '@bughunters/core';
+import { maskScreenshot, overlaps, permitsUrl, sha256, type AppConfig } from '@bughunters/core';
 import { PROBE_SOURCE, type ScreenSnapshot } from '@bughunters/invariants';
 import { observeDom, resolveTarget, stepFor } from './dom.js';
 import type { ActResult, Driver, DriverAction, Observation, UiElement } from './types.js';
@@ -8,6 +8,7 @@ export type WebOptions = {
   url: string;
   viewport: { width: number; height: number };
   headless?: boolean;
+  privacy?: AppConfig['privacy'];
   policy?: { origins: string[]; mutations: boolean };
 };
 
@@ -112,8 +113,12 @@ export class WebDriver implements Driver {
     for (const candidate of context.pages()) {
       this.watch(candidate);
     }
+    const selectors = this.options.privacy?.selectors ?? ['input[type="password"]', '[data-private]'];
+    const privateBoxes = await page.locator(selectors.join(',') || ':not(*)').evaluateAll((nodes) =>
+      nodes.map((node) => { const r = node.getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width, height: r.height }; }));
+    const regions = [...privateBoxes, ...(this.options.privacy?.regions ?? [])];
     const [screenshot, elements, title] = await Promise.all([
-      page.screenshot({ fullPage: false }),
+      page.screenshot({ fullPage: false, mask: selectors.map((selector) => page.locator(selector)), maskColor: '#000000' }),
       observeDom(page),
       page.title(),
     ]);
@@ -130,16 +135,21 @@ export class WebDriver implements Driver {
       platform: this.platform,
       location: page.url(),
       title,
-      screenshot,
+      screenshot: maskScreenshot(screenshot, regions, (await page.evaluate(() => devicePixelRatio))),
       viewport: { ...size, scale: 1 },
-      elements,
+      elements: elements.map((item) => ({ ...item, value: undefined, ...(regions.some((region) => overlaps(item.box, region)) ? { name: '[redacted]', text: undefined, testId: undefined, selector: undefined } : {}) })),
       windows,
       volatileRegions: [],
       consoleErrors: errors.splice(0),
       networkErrors: (this.failures.get(page) ?? []).splice(0),
       at: new Date().toISOString(),
     };
-    this.lastObservation = observation;
+    if (this.probe && regions.length) {
+      this.probe.elements = this.probe.elements.filter((element) => !regions.some((region) => overlaps(element.box, region)));
+      this.probe.links = this.probe.links?.filter((link) => !regions.some((region) => overlaps(link.box, region)));
+      this.probe.images = []; // Alternative text may contain the same private data.
+    }
+    this.lastObservation = { ...observation, elements };
     return observation;
   }
 

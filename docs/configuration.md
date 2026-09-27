@@ -247,3 +247,26 @@ If a trusted CLI needs a login stored in your home directory, explicitly include
 `HOME`; that grants it access to that user's stored configuration and credentials.
 App setup/teardown remain trusted operator shell commands. Review project
 configuration before running it; Docker fixer settings do not sandbox app setup.
+
+### Evidence privacy
+
+Web and Electron captures mask password inputs and `[data-private]` elements by
+default, before saving or sending screenshots to a model. Set
+`app.privacy.selectors` to the complete list for your app. `app.privacy.regions`
+accepts `{ x, y, width, height }` rectangles in logical pixels and also works on
+mobile. Masks replace pixels with opaque black; they are not reversible blurs.
+Masked DOM text/geometry is removed from observations and snapshots, and input
+values are omitted from web observations. This deliberately reduces coverage in
+private areas. Retake approved baselines after changing the privacy configuration.
+
+Use synthetic accounts: configured masks are not automatic PII detection and do
+not scrub secrets from page titles, URLs, application logs or unmarked content.
+Mobile selector masking is unavailable; use rectangles and test fixtures there.
+Review masks at every viewport and screen. Existing artifacts are not rewritten.
+
+GitHub screenshots are **off by default**, independently of GitHub issue/PR
+publishing. Opt in with `agents.github.uploadScreenshots: true` only after reviewing
+evidence. Uploaded images live in the configured repository's assets branch;
+public repositories expose them publicly and Git history may retain them. Image
+reads/uploads are confined to PNG evidence under `.bughunters/runs`, with size and
+dimension limits. New screenshot files use owner-only permissions.

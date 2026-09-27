@@ -1,3 +1,4 @@
+import { readEvidence } from '../evidence.js';
 import { createHash } from 'node:crypto';
 import { withWorkspaceLock } from '../lock.js';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
@@ -37,7 +38,7 @@ async function candidatesFor(workspace: Workspace, issue: Issue): Promise<Candid
 
 async function image(root: string, path?: string) {
   if (!path) return [];
-  try { return [{ type: 'image' as const, png: await readFile(resolve(root, path)) }]; }
+  try { return [{ type: 'image' as const, png: await readEvidence(root, path) }]; }
   catch { return []; }
 }
 
@@ -169,10 +170,10 @@ async function publishOwned(root: string, config: BughuntersConfig, deps: Deps =
             for (const path of pathsFor(item, candidates)) urls.set(path, path);
           } else {
             resolved ??= await resolveRepo(gh, config, resolve(root, config.app.source));
-            if (!assetsReady) { await ensureAssetsBranch(gh, resolved.repo, config.agents.github.assetsBranch); assetsReady = true; }
+            if (config.agents.github.uploadScreenshots && !assetsReady) { await ensureAssetsBranch(gh, resolved.repo, config.agents.github.assetsBranch); assetsReady = true; }
             if (!labelsReady) { await ensureLabels(gh, resolved.repo, config.agents.github.labels); labelsReady = true; }
-            for (const path of pathsFor(item, candidates)) urls.set(path,
-              await uploadImage(gh, resolved.repo, config.agents.github.assetsBranch, resolve(root, path), item.issue.id));
+            if (config.agents.github.uploadScreenshots) for (const path of pathsFor(item, candidates)) urls.set(path,
+              await uploadImage(gh, resolved.repo, config.agents.github.assetsBranch, resolve(root, path), item.issue.id, root));
           }
           const body = buildReport({ kind: item.kind, summary, issue: item.issue, candidates,
             fix: item.fix, imageUrl: (path) => urls.get(path), redact: (text) => vars.redact(text) as string,

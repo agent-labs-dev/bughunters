@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdtemp, mkdir, rm, writeFile, symlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { parseConfig } from '@bughunters/core';
 import { modelTools } from './fixer.js';
 import { assertSafeGit, dockerArguments, requireTrustedCli, workerEnvironment } from '../worker.js';
@@ -34,6 +34,8 @@ describe('fixer boundary', () => {
     } finally { await rm(root, { recursive: true, force: true }); }
   });
   it('rejects host command extensions rather than bypassing them', async () => {
+    vi.stubEnv('GIT_CONFIG_GLOBAL', '/dev/null');
+    vi.stubEnv('GIT_CONFIG_NOSYSTEM', '1');
     const root = await mkdtemp(join(tmpdir(), 'bh-git-policy-'));
     try {
       execFileSync('git', ['init', '-q'], { cwd: root });
@@ -41,6 +43,6 @@ describe('fixer boundary', () => {
       await expect(assertSafeGit(root, execution)).resolves.toBeUndefined();
       execFileSync('git', ['config', 'filter.private.clean', 'sh bad.sh'], { cwd: root });
       await expect(assertSafeGit(root, execution)).rejects.toThrow('Git filters');
-    } finally { await rm(root, { recursive: true, force: true }); }
+    } finally { vi.unstubAllEnvs(); await rm(root, { recursive: true, force: true }); }
   });
 });

@@ -244,7 +244,7 @@ export class Workspace {
     const files = await readdir(dir);
     const number = files.filter((file) => /^\d{3}-.*\.png$/.test(file)).length + 1;
     const file = join(dir, `${String(number).padStart(3, '0')}-${basename(label).replace(/[^a-zA-Z0-9_-]/g, '-')}.png`);
-    await writeFile(file, png);
+    await writeFile(file, png, { mode: 0o600 });
     return relative(this.root, file);
   }
 

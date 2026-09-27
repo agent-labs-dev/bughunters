@@ -1,5 +1,6 @@
+import { FakeDriver } from './testing/fake-driver.js';
 import { execFileSync } from 'node:child_process';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -33,10 +34,11 @@ describe('GitHub client', () => {
   });
   it('skips upload of an existing image', async () => {
     const dir = await temp();
-    const path = join(dir, 'screen.png');
-    await writeFile(path, 'png');
+    await mkdir(join(dir, '.bughunters/runs'), { recursive: true });
+    const path = join(dir, '.bughunters/runs/screen.png');
+    await writeFile(path, (await new FakeDriver({ home: { elements: [] } }).observe()).screenshot);
     const calls: string[][] = [];
-    const url = await uploadImage(async (args) => { calls.push(args); return '{}'; }, 'o/r', 'assets', path, 'iss_1');
+    const url = await uploadImage(async (args) => { calls.push(args); return '{}'; }, 'o/r', 'assets', path, 'iss_1', dir);
     expect(calls).toHaveLength(1);
     expect(url).toMatch(/iss_1\/[a-f0-9]{12}-screen\.png\?raw=true$/);
   });
