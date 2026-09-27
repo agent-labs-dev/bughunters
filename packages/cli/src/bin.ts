@@ -10,7 +10,7 @@ import { startDashboard } from '@bughunters/dashboard';
 import { runAgentCommand } from './commands/agents.js';
 import { runIssueCommand } from './commands/issue.js';
 import { runMemoryCommand } from './commands/memory.js';
-import { cleanWorktrees, syncGitHub, withWorkspaceLock } from '@bughunters/agents';
+import { pruneArtifacts, cleanWorktrees, syncGitHub, withWorkspaceLock } from '@bughunters/agents';
 
 const [command, ...args] = process.argv.slice(2);
 // The folder that holds .bughunters/, found from any subfolder the way git does.
@@ -63,6 +63,19 @@ try {
       break;
     }
 
+    case 'artifacts': {
+      if (args.shift() !== 'prune') throw new Error('Use artifacts prune --older-than DAYS [--apply]');
+      let days = 30; let apply = false;
+      for (let i = 0; i < args.length; i++) {
+        if (args[i] === '--apply') apply = true;
+        else if (args[i] === '--older-than') days = Number(args[++i]);
+        else throw new Error(`Unknown artifact option: ${args[i]}`);
+      }
+      const items = await pruneArtifacts(root, { olderThanDays: days, apply });
+      process.stdout.write(`${apply ? 'Removed' : 'Would remove'} ${items.length} old, unreferenced runs\n`);
+      for (const item of items) process.stdout.write(`${item.path} (${item.bytes} bytes)\n`);
+      break;
+    }
     case 'baseline':
     case 'run': {
       const updateBaselines = command === 'baseline';

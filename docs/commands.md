@@ -45,3 +45,16 @@ Run each command in your repo. Bughunters finds the `.bughunters/` folder in the
 | `bughunters run [--all \| --smoke \| --screens /a,/b] [--no-models]` | Capture, compare with the baselines, and run the checks |
 
 These commands are planned and not built yet: `recon`, `model`, `baseline`, `findings`, `intent`, `report`, `export`, and `watch`.
+
+### Artifact retention
+
+`bughunters artifacts prune --older-than 30` previews old, completed sessions and
+gate runs that no saved workspace metadata references. Add `--apply` to remove the
+listed directories under the workspace writer lock. Age uses completion time;
+active, incomplete metadata, malformed candidate files, symlinks, and referenced
+evidence are preserved. Corrupt reference metadata aborts cleanup.
+
+Baselines, worktrees, issues, routines and memory are never pruned by this command.
+References from those records can retain evidence indefinitely. Review local
+records first if you need stricter retention. This removes local data only, not
+images already uploaded to GitHub or retained in backups.

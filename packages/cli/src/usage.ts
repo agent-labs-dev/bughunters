@@ -32,6 +32,9 @@ Agents
   bughunters memory list [--role r] | add --role r "text" [--scope s]
   bughunters memory remove <id> | retire <id> --reason "..."
 
+Artifacts
+  bughunters artifacts prune [--older-than DAYS] [--apply]  preview or remove old unreferenced runs
+
 Baselines
   bughunters baseline update              explicitly approve captures as new baselines
 

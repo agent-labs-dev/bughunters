@@ -21,3 +21,4 @@ export * from './github.js';
 export * from './report.js';
 export * from './patrol.js';
 export * from './lock.js';
+export * from './retention.js';
