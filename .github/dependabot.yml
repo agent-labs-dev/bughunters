@@ -1,0 +1,23 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      test-toolchain:
+        patterns: [vitest, '@vitest/*', vite]
+    # Browser updates must include the matching runner image and docs.
+    ignore:
+      - dependency-name: playwright
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+  - package-ecosystem: docker
+    directory: /images/runner
+    schedule:
+      interval: weekly
+    # The version-consistency test requires a matching package update.
+    open-pull-requests-limit: 2
