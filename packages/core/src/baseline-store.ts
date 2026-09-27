@@ -8,12 +8,13 @@ import { paths, type BaselineManifest } from './paths.js';
 
 const manifestSchema = z.object({
   version: z.literal(1), imageDigest: z.string(),
-  entries: z.record(z.object({ sha256: z.string().regex(/^[a-f0-9]{64}$/), viewport: z.string(),
+  entries: z.record(z.object({ snapshotHash: z.string().regex(/^[a-f0-9]{64}$/).optional(), sha256: z.string().regex(/^[a-f0-9]{64}$/), viewport: z.string(),
     bytes: z.number().int().nonnegative(), capturedAt: z.string() })),
 });
 export type BaselineKey = string;
 
 export type BaselineEntry = {
+  snapshotHash?: string;
   sha256: string;
   viewport: string;
   bytes: number;
@@ -92,7 +93,22 @@ export class BaselineStore {
     return file;
   }
 
-  put(key: BaselineKey, viewport: string, image: Buffer): BaselineEntry {
+  snapshotPath(hash: string): string {
+    if (!/^[a-f0-9]{64}$/.test(hash)) throw new ConfigError('Invalid baseline snapshot hash');
+    return join(paths.baselines(this.root), `${hash}.snapshot.json`);
+  }
+
+  verifySnapshot(key: BaselineKey): unknown {
+    const hash = this.get(key)?.snapshotHash;
+    if (!hash) throw new InfrastructureError(`Approved structural baseline unavailable for ${key}. Explicitly update baselines to approve a complete capture.`);
+    const file = this.snapshotPath(hash);
+    if (!existsSync(file)) throw new InfrastructureError(`Approved structural baseline unavailable for ${key}. Restore the approved object.`);
+    const bytes = readFileSync(file);
+    if (sha256(bytes) !== hash) throw new InfrastructureError(`Structural baseline integrity check failed for ${key}.`);
+    try { return JSON.parse(bytes.toString()); } catch (cause) { throw new InfrastructureError('Invalid structural baseline JSON', { cause }); }
+  }
+
+  put(key: BaselineKey, viewport: string, image: Buffer, snapshot?: unknown): BaselineEntry {
     const hash = sha256(image);
     const target = this.objectPath(hash);
     mkdirSync(paths.baselines(this.root), { recursive: true });
@@ -101,7 +117,16 @@ export class BaselineStore {
     if (!existsSync(target)) writeFileSync(target, image, { flag: 'wx' });
     else if (sha256(readFileSync(target)) !== hash) throw new InfrastructureError('Existing baseline object is corrupted; restore it before updating.');
 
+    let snapshotHash: string | undefined;
+    if (snapshot !== undefined) {
+      const bytes = Buffer.from(JSON.stringify(snapshot));
+      snapshotHash = sha256(bytes);
+      const file = this.snapshotPath(snapshotHash);
+      if (!existsSync(file)) writeFileSync(file, bytes, { flag: 'wx', mode: 0o600 });
+      else if (sha256(readFileSync(file)) !== snapshotHash) throw new InfrastructureError('Existing structural baseline is corrupted; restore it before updating.');
+    }
     const entry: BaselineEntry = {
+      snapshotHash,
       sha256: hash,
       viewport,
       bytes: image.byteLength,

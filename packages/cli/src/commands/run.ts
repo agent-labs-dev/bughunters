@@ -83,6 +83,7 @@ export async function runCommand(options: RunCommandOptions): Promise<RunResult>
   if (!targets.length) throw new InfrastructureError('No active screens were selected; nothing can be verified.');
   if (!options.updateBaselines) for (const viewport of config.viewports) for (const target of targets) {
     store.verify(baselineKeyFor(target.id, viewport.name));
+    store.verifySnapshot(baselineKeyFor(target.id, viewport.name));
   }
 
   log(`Starting the app: ${requireRun(config).command}`);
@@ -244,8 +245,7 @@ async function captureOne(args: {
   // regress against a baseline it just created, and reporting otherwise would
   // be the first-run avalanche.
   if (args.updateBaselines) {
-    store.put(key, viewport.name, readFileSync(actualPath));
-    saveBaselineSnapshot(args.root, key, output.snapshot);
+    store.put(key, viewport.name, readFileSync(actualPath), output.snapshot);
     return {
       screenId: target.id,
       url: target.url,
@@ -277,7 +277,7 @@ async function captureOne(args: {
     url: target.url,
     viewport: viewport.name,
     snapshot: output.snapshot,
-    baselineSnapshot: loadBaselineSnapshot(args.root, key),
+    baselineSnapshot: store.verifySnapshot(key) as ScreenSnapshot,
     comparison,
     baselineCreated: false,
     artifacts: {
@@ -328,34 +328,6 @@ function loadAppModel(root: string): AppModel | undefined {
   } catch (cause) {
     throw new BughuntersError(`${file} is not valid JSON`, ExitCode.Usage, { cause });
   }
-}
-
-/**
- * The structural snapshot captured alongside the baseline pixels. Without it,
- * change-aware invariants have nothing to compare against and are skipped --
- * which is correct, but means older baselines get weaker checks until they are
- * re-captured.
- */
-function loadBaselineSnapshot(root: string, key: string): ScreenSnapshot | undefined {
-  const file = snapshotFile(root, key);
-  if (!existsSync(file)) return undefined;
-  try {
-    return JSON.parse(readFileSync(file, 'utf8')) as ScreenSnapshot;
-  } catch {
-    return undefined;
-  }
-}
-
-function snapshotFile(root: string, key: string): string {
-  // The slug alone is not unique: `/::desktop` slugifies to `desktop`, which
-  // collides with any other screen whose path is punctuation-only. The hash
-  // suffix keys the file to the exact screen+viewport pair.
-  return join(paths.baselines(root), `${slugify(key)}-${shortHash(key, 8)}.snapshot.json`);
-}
-
-function saveBaselineSnapshot(root: string, key: string, snapshot: ScreenSnapshot): void {
-  mkdirSync(paths.baselines(root), { recursive: true });
-  writeFileSync(snapshotFile(root, key), `${JSON.stringify(snapshot)}\n`);
 }
 
 export function slugify(value: string): string {

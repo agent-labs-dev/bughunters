@@ -103,5 +103,5 @@ export type BaselineManifest = {
   version: 1;
   /** Every entry was captured in this image. Changing it invalidates them all. */
   imageDigest: string;
-  entries: Record<string, { sha256: string; viewport: string; bytes: number; capturedAt: string }>;
+  entries: Record<string, { sha256: string; snapshotHash?: string; viewport: string; bytes: number; capturedAt: string }>;
 };

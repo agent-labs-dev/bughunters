@@ -79,3 +79,20 @@ describe('approved baseline integrity', () => {
     expect(() => BaselineStore.load(root, DIGEST)).toThrow('Invalid baseline manifest');
   });
 });
+
+it('binds structural snapshots to the manifest and rejects missing or changed data', async () => {
+  const { writeFileSync, unlinkSync } = await import('node:fs');
+  const store = BaselineStore.load(root, DIGEST);
+  const snapshot = { elements: [], viewport: { name: 'desktop' } };
+  const entry = store.put('screen', 'desktop', png, snapshot);
+  store.save();
+  const reloaded = BaselineStore.load(root, DIGEST);
+  expect(reloaded.verifySnapshot('screen')).toEqual(snapshot);
+  const file = store.snapshotPath(entry.snapshotHash!);
+  writeFileSync(file, '{}');
+  expect(() => reloaded.verifySnapshot('screen')).toThrow('integrity');
+  unlinkSync(file);
+  expect(() => reloaded.verifySnapshot('screen')).toThrow('unavailable');
+  store.put('legacy', 'desktop', png);
+  expect(() => store.verifySnapshot('legacy')).toThrow('complete capture');
+});

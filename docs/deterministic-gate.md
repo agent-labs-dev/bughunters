@@ -59,3 +59,9 @@ and structural snapshots) from trusted storage before CI verification. Missing o
 corrupted objects return exit 4. This repository does not yet ship remote baseline
 storage commands. Run `baseline update` explicitly in a trusted environment,
 review the manifest changes and images, then distribute those approved objects.
+
+Approved baselines include content hashes for both pixels and structural snapshots.
+Verification fails if either object is missing or changed. Older pixel-only
+manifests require an explicit `baseline update`; missing geometry is never silently
+treated as an opportunity to skip change-aware checks. Restore both object types
+along with the reviewed manifest when moving baselines between machines.
