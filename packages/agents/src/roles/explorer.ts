@@ -31,7 +31,12 @@ export function stopOnCancellation(session: AgentSession, tool: Tool): Tool {
   return {
     ...tool,
     async run(input) {
-      if (session.cancelled) return { content: [{ type: 'text', text: 'Session cancelled' }], isError: true, done: true };
+      if (session.cancelled)
+        return {
+          content: [{ type: 'text', text: 'Session cancelled' }],
+          isError: true,
+          done: true,
+        };
       const result = await tool.run(input, session.signal);
       return session.cancelled ? { ...result, done: true } : result;
     },
@@ -53,8 +58,12 @@ export async function runExplorer(
     role: 'explorer' as const,
     sessionId: session.sessionId,
     signal: session.signal,
-    system: explorerSystem(session.config.app.platform, instructions,
-      lessonsFor(await session.workspace.readMemory(), 'explorer'), session.config.agents.checks),
+    system: explorerSystem(
+      session.config.app.platform,
+      instructions,
+      lessonsFor(await session.workspace.readMemory(), 'explorer'),
+      session.config.agents.checks,
+    ),
     prompt: explorerPrompt({
       goal: opts.goal,
       screens: map?.screens ?? [],
@@ -75,21 +84,36 @@ export async function runExplorer(
     const screens = (await session.workspace.readAppMap())?.screens ?? [];
     outcome.summary = sessionSummary(outcome, screens.length, candidates.length);
     await session.workspace.endSession(session.sessionId, {
-      status: session.cancelled ? 'cancelled' : outcome.stop === 'error' ? 'failed' : outcome.stop === 'done' ? 'finished' : 'incomplete',
+      status: session.cancelled
+        ? 'cancelled'
+        : outcome.stop === 'error'
+          ? 'failed'
+          : outcome.stop === 'done'
+            ? 'finished'
+            : 'incomplete',
       steps: outcome.steps,
       costUsd: outcome.costUsd,
       summary: outcome.summary,
       candidates: candidates.length,
       screensFound: screens.map((item) => item.id),
     });
-    session.emit({ kind: 'session-end', summary: outcome.summary ?? `Explorer stopped: ${outcome.stop}` });
+    session.emit({
+      kind: 'session-end',
+      summary: outcome.summary ?? `Explorer stopped: ${outcome.stop}`,
+    });
     await session.idle(outcome.costUsd);
-    const learned = await reflectOnSession(session.root, session.config, session.sessionId,
-      { vars: session.vars, onLog: (message) => session.emit({ kind: 'error', summary: message }) });
-    if (learned) session.emit({ kind: 'lesson', summary: `Saved ${learned} lesson(s) for the next sessions` });
+    const learned = await reflectOnSession(session.root, session.config, session.sessionId, {
+      vars: session.vars,
+      onLog: (message) => session.emit({ kind: 'error', summary: message }),
+    });
+    if (learned)
+      session.emit({ kind: 'lesson', summary: `Saved ${learned} lesson(s) for the next sessions` });
     return outcome;
   } catch (error) {
-    await session.workspace.endSession(session.sessionId, { status: 'failed', summary: String(error) });
+    await session.workspace.endSession(session.sessionId, {
+      status: 'failed',
+      summary: String(error),
+    });
     await session.idle();
     throw error;
   }

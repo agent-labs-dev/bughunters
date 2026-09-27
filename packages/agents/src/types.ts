@@ -6,9 +6,7 @@ import type { AgentEvent, AgentRole, RoleRuntime } from '@bughunters/core';
  * loop calls `run` in-process; the CLI runtime exposes the same tool over MCP.
  * So a role behaves the same whatever runs it.
  */
-export type ToolContent =
-  | { type: 'text'; text: string }
-  | { type: 'image'; png: Buffer };
+export type ToolContent = { type: 'text'; text: string } | { type: 'image'; png: Buffer };
 
 export type ToolResult = {
   content: ToolContent[];
@@ -71,5 +69,8 @@ export type RuntimeFactory = (use: RoleRuntime) => Runtime;
 
 /** Keep provider failure and budget exhaustion out of the successful-run cache. */
 export function requireCompleted(outcome: RoleOutcome, role: string): void {
-  if (outcome.stop !== 'done') throw new InfrastructureError(`${role} did not complete (${outcome.stop}): ${outcome.error ?? outcome.summary ?? 'no result'}`);
+  if (outcome.stop !== 'done')
+    throw new InfrastructureError(
+      `${role} did not complete (${outcome.stop}): ${outcome.error ?? outcome.summary ?? 'no result'}`,
+    );
 }

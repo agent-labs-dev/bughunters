@@ -34,7 +34,10 @@ function task(tools: Tool[], maxSteps = 8, budgetUsd?: number): RoleTask {
 }
 
 function response(value: unknown, status = 200): Response {
-  return new Response(JSON.stringify(value), { status, headers: { 'content-type': 'application/json' } });
+  return new Response(JSON.stringify(value), {
+    status,
+    headers: { 'content-type': 'application/json' },
+  });
 }
 
 const finish: Tool = {
@@ -55,22 +58,45 @@ describe('ModelRuntime', () => {
     let requests = 0;
     const fake = async () => {
       requests++;
-      return requests === 1 ? response({ choices: [{ message: { tool_calls: [
-        { id: 'bad', function: { name: 'finish', arguments: '{broken' } },
-        { id: 'ok', function: { name: 'look', arguments: '{}' } },
-      ] } }], usage: { cost: 0.2 } }) :
-        response({ choices: [{ message: { tool_calls: [call('finish')] } }] });
+      return requests === 1
+        ? response({
+            choices: [
+              {
+                message: {
+                  tool_calls: [
+                    { id: 'bad', function: { name: 'finish', arguments: '{broken' } },
+                    { id: 'ok', function: { name: 'look', arguments: '{}' } },
+                  ],
+                },
+              },
+            ],
+            usage: { cost: 0.2 },
+          })
+        : response({ choices: [{ message: { tool_calls: [call('finish')] } }] });
     };
-    const look: Tool = { name: 'look', description: 'Look', inputSchema: { type: 'object' },
-      async run() { return { content: [{ type: 'text', text: 'looked' }] }; } };
+    const look: Tool = {
+      name: 'look',
+      description: 'Look',
+      inputSchema: { type: 'object' },
+      async run() {
+        return { content: [{ type: 'text', text: 'looked' }] };
+      },
+    };
     const events: Partial<AgentEvent>[] = [];
-    const runtime = new ModelRuntime({ runtime: 'model', via: 'openai', model: 'test' },
-      { fetch: fake as typeof fetch });
+    const runtime = new ModelRuntime(
+      { runtime: 'model', via: 'openai', model: 'test' },
+      { fetch: fake as typeof fetch },
+    );
     const outcome = await runtime.run(task([finish, look]), (event) => events.push(event));
     expect(outcome.stop).toBe('done');
-    expect(events.some((event) => String(event.output).includes('arguments were not valid JSON'))).toBe(true);
-    expect(events.filter((event) => event.kind === 'tool-result').reduce((sum, event) =>
-      sum + (event.costUsd ?? 0), 0)).toBe(0.2);
+    expect(
+      events.some((event) => String(event.output).includes('arguments were not valid JSON')),
+    ).toBe(true);
+    expect(
+      events
+        .filter((event) => event.kind === 'tool-result')
+        .reduce((sum, event) => sum + (event.costUsd ?? 0), 0),
+    ).toBe(0.2);
     expect(events.some((event) => event.summary?.startsWith('Tokens:'))).toBe(false);
   });
 
@@ -112,14 +138,17 @@ describe('ModelRuntime', () => {
     expect(JSON.stringify(fourthMessages)).toContain('[earlier screenshot omitted]');
     expect(JSON.stringify(fourthMessages)).toContain('data:image/png;base64');
     expect(bodies[0]?.usage).toEqual({ include: true });
-    expect(events.some((event) => event.kind === 'tool-result' && event.costUsd === 0.1)).toBe(true);
+    expect(events.some((event) => event.kind === 'tool-result' && event.costUsd === 0.1)).toBe(
+      true,
+    );
   });
 
   it('stops at cost budget and max steps', async () => {
-    const fake = async () => response({
-      choices: [{ message: { content: 'thinking', tool_calls: [] } }],
-      usage: { cost: 0.2 },
-    });
+    const fake = async () =>
+      response({
+        choices: [{ message: { content: 'thinking', tool_calls: [] } }],
+        usage: { cost: 0.2 },
+      });
     const runtime = new ModelRuntime(
       { runtime: 'model', via: 'openai', model: 'test' },
       { fetch: fake as typeof fetch },
@@ -138,8 +167,10 @@ describe('ModelRuntime', () => {
       { runtime: 'model', via: 'openai', model: 'test' },
       { fetch: fake as typeof fetch },
     );
-    expect((await runtime.run(task([finish]), () => {}))).toMatchObject({
-      stop: 'error', steps: 3, summary: 'plain answer',
+    expect(await runtime.run(task([finish]), () => {})).toMatchObject({
+      stop: 'error',
+      steps: 3,
+      summary: 'plain answer',
     });
     expect(JSON.stringify(bodies[1])).toContain('Call one of the tools');
   });
@@ -159,12 +190,15 @@ describe('ModelRuntime', () => {
     expect((await openai.run(task([finish]), () => {})).stop).toBe('done');
     expect(attempts).toBe(2);
     let body: Record<string, unknown> = {};
-    const anthropic = new ModelRuntime({ runtime: 'model', via: 'anthropic', model: 'test' }, {
-      fetch: (async (_url: string | URL | Request, init?: RequestInit) => {
-      body = JSON.parse(String(init?.body)) as Record<string, unknown>;
-      return response({ content: [{ type: 'tool_use', id: 'a', name: 'finish', input: {} }] });
-      }) as typeof fetch,
-    });
+    const anthropic = new ModelRuntime(
+      { runtime: 'model', via: 'anthropic', model: 'test' },
+      {
+        fetch: (async (_url: string | URL | Request, init?: RequestInit) => {
+          body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+          return response({ content: [{ type: 'tool_use', id: 'a', name: 'finish', input: {} }] });
+        }) as typeof fetch,
+      },
+    );
     expect((await anthropic.run(task([finish]), () => {})).stop).toBe('done');
     expect(body).toMatchObject({
       max_tokens: 4096,
@@ -176,21 +210,37 @@ describe('ModelRuntime', () => {
 
 it('does not dispatch tools when cost is unavailable or the budget is exhausted', async () => {
   const run = vi.fn(finish.run);
-  const fetch = vi.fn(async () => response({ choices: [{ message: { tool_calls: [call('finish')] } }] }));
-  const runtime = new ModelRuntime({ runtime: 'model', via: 'openai', model: 'test' }, { fetch: fetch as typeof globalThis.fetch });
+  const fetch = vi.fn(async () =>
+    response({ choices: [{ message: { tool_calls: [call('finish')] } }] }),
+  );
+  const runtime = new ModelRuntime(
+    { runtime: 'model', via: 'openai', model: 'test' },
+    { fetch: fetch as typeof globalThis.fetch },
+  );
   expect((await runtime.run(task([{ ...finish, run }], 8, 0), () => {})).stop).toBe('budget');
   expect(fetch).not.toHaveBeenCalled();
-  expect(await runtime.run(task([{ ...finish, run }], 8, 1), () => {})).toMatchObject({ stop: 'error', costKnown: false });
+  expect(await runtime.run(task([{ ...finish, run }], 8, 1), () => {})).toMatchObject({
+    stop: 'error',
+    costKnown: false,
+  });
   expect(run).not.toHaveBeenCalled();
 });
 
 it('validates model tool arguments and bounds calls within a single response', async () => {
   const run = vi.fn(finish.run);
-  const fetch = async () => response({ choices: [{ message: { tool_calls: [call('finish'), call('finish', 'c2')] } }] });
-  const runtime = new ModelRuntime({ runtime: 'model', via: 'openai', model: 'test' }, { fetch: fetch as typeof globalThis.fetch });
+  const fetch = async () =>
+    response({ choices: [{ message: { tool_calls: [call('finish'), call('finish', 'c2')] } }] });
+  const runtime = new ModelRuntime(
+    { runtime: 'model', via: 'openai', model: 'test' },
+    { fetch: fetch as typeof globalThis.fetch },
+  );
   expect((await runtime.run(task([{ ...finish, run }], 1), () => {})).stop).toBe('max-steps');
   expect(run).not.toHaveBeenCalled();
-  const typed = { ...finish, run, inputSchema: { type: 'object', required: ['value'], properties: { value: { type: 'string' } } } };
+  const typed = {
+    ...finish,
+    run,
+    inputSchema: { type: 'object', required: ['value'], properties: { value: { type: 'string' } } },
+  };
   expect((await runtime.run(task([typed], 4), () => {})).stop).toBe('max-steps');
   expect(run).not.toHaveBeenCalled();
 });
