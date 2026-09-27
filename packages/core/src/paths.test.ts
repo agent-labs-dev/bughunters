@@ -16,8 +16,15 @@ describe('paths', () => {
   it('keeps the config in .bughunters/ and all local data in .bughunters/runs/', () => {
     const root = '/repo';
     expect(paths.config(root)).toBe('/repo/.bughunters/bughunters.yml');
-    for (const file of [paths.issue(root, 'i'), paths.session(root, 's'), paths.worktrees(root),
-      paths.memory(root), paths.run(root, 'r'), paths.baselines(root), paths.publish(root)]) {
+    for (const file of [
+      paths.issue(root, 'i'),
+      paths.session(root, 's'),
+      paths.worktrees(root),
+      paths.memory(root),
+      paths.run(root, 'r'),
+      paths.baselines(root),
+      paths.publish(root),
+    ]) {
       expect(file.startsWith('/repo/.bughunters/runs/')).toBe(true);
     }
   });
@@ -55,4 +62,22 @@ describe('legacyLayout', () => {
     expect(legacyLayout(root)).toContain('mv bughunters.yml instructions.md .bughunters/');
     expect(() => loadConfig(root)).toThrow(/now keeps its config in \.bughunters/);
   });
+});
+
+it('rejects caller-controlled paths at every file-backed record boundary', () => {
+  const readers = [
+    paths.run,
+    paths.session,
+    paths.routine,
+    paths.issue,
+    paths.fix,
+    paths.agentBaseline,
+    paths.agentBaselineSnapshot,
+  ];
+  for (const reader of readers) {
+    for (const value of ['../private', '/absolute', '..', 'x/y', 'x\\y', 'x\0y', '']) {
+      expect(() => reader('/project', value)).toThrow('Invalid workspace record');
+    }
+    expect(reader('/project', 'ses_20260927_ab12')).toContain('ses_20260927_ab12');
+  }
 });

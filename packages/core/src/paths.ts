@@ -18,6 +18,13 @@ export const BUGHUNTERS_DIR = '.bughunters';
 export const DATA_DIR = 'runs';
 export const CONFIG_FILENAME = 'bughunters.yml';
 
+/** File-backed identifiers are single path segments, never caller-provided paths. */
+export function recordId(value: string): string {
+  if (!/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,199}$/.test(value))
+    throw new Error('Invalid workspace record identifier');
+  return value;
+}
+
 const data = (root: string, ...parts: string[]) => join(root, BUGHUNTERS_DIR, DATA_DIR, ...parts);
 
 export const paths = {
@@ -36,7 +43,7 @@ export const paths = {
   baselines: (root: string) => data(root, 'baselines'),
   /** Gate run output. */
   runs: (root: string) => data(root, 'gate'),
-  run: (root: string, runId: string) => data(root, 'gate', runId),
+  run: (root: string, runId: string) => data(root, 'gate', recordId(runId)),
   /** Progress for the gate run currently in flight. Rewritten per screen. */
   live: (root: string) => data(root, 'gate', 'live.json'),
   appMap: (root: string) => data(root, 'appmap.json'),
@@ -44,18 +51,19 @@ export const paths = {
   triage: (root: string) => data(root, 'triage.json'),
   memory: (root: string) => data(root, 'memory.json'),
   agentBaselines: (root: string) => data(root, 'agent-baselines'),
-  agentBaseline: (root: string, id: string) => data(root, 'agent-baselines', `${id}.png`),
-  agentBaselineSnapshot: (root: string, id: string) => data(root, 'agent-baselines', `${id}.snapshot.json`),
+  agentBaseline: (root: string, id: string) => data(root, 'agent-baselines', `${recordId(id)}.png`),
+  agentBaselineSnapshot: (root: string, id: string) =>
+    data(root, 'agent-baselines', `${recordId(id)}.snapshot.json`),
   worktrees: (root: string) => data(root, 'worktrees'),
   routines: (root: string) => data(root, 'routines'),
-  routine: (root: string, id: string) => data(root, 'routines', `${id}.json`),
+  routine: (root: string, id: string) => data(root, 'routines', `${recordId(id)}.json`),
   issues: (root: string) => data(root, 'issues'),
-  issue: (root: string, id: string) => data(root, 'issues', `${id}.json`),
+  issue: (root: string, id: string) => data(root, 'issues', `${recordId(id)}.json`),
   fixes: (root: string) => data(root, 'fixes'),
-  fix: (root: string, id: string) => data(root, 'fixes', `${id}.json`),
+  fix: (root: string, id: string) => data(root, 'fixes', `${recordId(id)}.json`),
   publish: (root: string) => data(root, 'publish'),
   sessions: (root: string) => data(root, 'sessions'),
-  session: (root: string, id: string) => data(root, 'sessions', id),
+  session: (root: string, id: string) => data(root, 'sessions', recordId(id)),
   agents: (root: string) => data(root, 'agents.json'),
 } as const;
 
@@ -103,5 +111,8 @@ export type BaselineManifest = {
   version: 1;
   /** Every entry was captured in this image. Changing it invalidates them all. */
   imageDigest: string;
-  entries: Record<string, { sha256: string; snapshotHash?: string; viewport: string; bytes: number; capturedAt: string }>;
+  entries: Record<
+    string,
+    { sha256: string; snapshotHash?: string; viewport: string; bytes: number; capturedAt: string }
+  >;
 };
