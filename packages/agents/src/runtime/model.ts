@@ -1,3 +1,5 @@
+import { workspaceSignal } from '../lock.js';
+import { validateTools } from '../tool-validation.js';
 import { ConfigError, usageFrom, type AgentEvent, type RoleRuntime } from '@bughunters/core';
 import { MODEL_KEYS, MODEL_ROUTES } from '@bughunters/decide';
 import type { EventSink, RoleOutcome, RoleTask, Runtime, ToolResult } from '../types.js';
@@ -142,6 +144,8 @@ export class ModelRuntime implements Runtime {
   }
 
   async run(task: RoleTask, emit: EventSink): Promise<RoleOutcome> {
+    const signals = [task.signal, workspaceSignal()].filter((signal): signal is AbortSignal => Boolean(signal));
+    task = { ...task, signal: AbortSignal.any([...signals, AbortSignal.timeout(task.timeoutMs)]), tools: validateTools(task.tools) };
     const keyName = MODEL_KEYS[this.use.via];
     const apiKey = process.env[keyName];
     if (!apiKey) {
@@ -158,24 +162,28 @@ export class ModelRuntime implements Runtime {
     const deadline = started + task.timeoutMs;
     let steps = 0;
     let costUsd = 0;
+    let costKnown = true;
     let lastText = '';
     let textOnly = 0;
+    let toolCalls = 0;
     const outcome = (stop: RoleOutcome['stop'], summary?: string, error?: string): RoleOutcome => ({
       stop,
       steps,
       costUsd,
+      costKnown,
       summary,
       error,
     });
+    if (task.budgetUsd === 0) return outcome('budget');
     while (steps < task.maxSteps) {
-      if (Date.now() - started >= task.timeoutMs) {
+      if (task.signal?.aborted || Date.now() - started >= task.timeoutMs) {
         return outcome('timeout', lastText);
       }
       prune(messages);
       const body = requestBody(this.use, task, messages, anthropic);
       let payload: ResponsePayload;
       try {
-        payload = await this.call(endpoint, apiKey, anthropic, body, deadline);
+        payload = await this.call(endpoint, apiKey, anthropic, body, deadline, task.signal);
       } catch (error) {
         if (Date.now() - started >= task.timeoutMs || (error instanceof Error && error.name === 'AbortError')) {
           return outcome('timeout', lastText);
@@ -185,9 +193,13 @@ export class ModelRuntime implements Runtime {
       steps++;
       const usage = payload.usage as { cost?: number; input_tokens?: number; output_tokens?: number;
         prompt_tokens?: number; completion_tokens?: number } | undefined;
-      const stepCost = typeof usage?.cost === 'number' ? usage.cost : 0;
+      const knownCost = typeof usage?.cost === 'number' && Number.isFinite(usage.cost) && usage.cost >= 0;
+      if (task.budgetUsd !== undefined && !knownCost) return { ...outcome('error', lastText, 'Provider did not report a valid USD cost; cannot enforce budgetUsd.'), costKnown: false };
+      costKnown &&= knownCost;
+      const stepCost = knownCost ? usage!.cost! : 0;
       costUsd += stepCost;
       const step = { tokens: usageFrom(usage), model: this.use.model ?? MODEL_ROUTES[this.use.via].model };
+      if (task.budgetUsd !== undefined && costUsd >= task.budgetUsd) return outcome('budget', lastText);
       const parsed = parseResponse(payload, anthropic);
       if (parsed.text) {
         lastText = parsed.text;
@@ -198,11 +210,13 @@ export class ModelRuntime implements Runtime {
         emit({ kind: 'tool-result', summary: 'Model replied without a tool call.', costUsd: stepCost, ...step });
         textOnly++;
         if (textOnly >= 3) {
-          return outcome('done', lastText);
+          return outcome('error', lastText, 'Model did not call a completion tool.');
         }
         messages.push({ role: 'user', content: 'Call one of the tools. Call finish when you are done.' });
       } else {
         textOnly = 0;
+        if (toolCalls + parsed.calls.length > task.maxSteps) return outcome('max-steps', lastText);
+        toolCalls += parsed.calls.length;
         const calls = await this.runCalls(task, parsed.calls, emit, messages, anthropic, deadline, stepCost, step);
         if (calls.timeout) {
           return outcome('timeout', lastText);
@@ -229,6 +243,7 @@ export class ModelRuntime implements Runtime {
       emit({ kind: 'tool-call', summary: `Called ${call.name}.`, tool: call.name, input: call.input });
       let result: ToolResult;
       let timer: NodeJS.Timeout | undefined;
+      let removeAbort: (() => void) | undefined;
       try {
         if (call.invalidJson) {
           result = { content: [{ type: 'text', text: 'Error: the arguments were not valid JSON' }], isError: true };
@@ -236,14 +251,18 @@ export class ModelRuntime implements Runtime {
           result = { content: [{ type: 'text', text: `Error: Unknown tool ${call.name}` }], isError: true };
         } else {
           result = await Promise.race([
-            tool.run(call.input),
+            tool.run(call.input, task.signal),
             new Promise<ToolResult>((_, reject) => {
               timer = setTimeout(() => reject(new Error('Tool timed out')), Math.max(1, deadline - Date.now()));
+              const abort = () => reject(task.signal?.reason ?? new Error('Cancelled'));
+              task.signal?.addEventListener('abort', abort, { once: true });
+              removeAbort = () => task.signal?.removeEventListener('abort', abort);
+              if (task.signal?.aborted) abort();
             }),
           ]);
         }
       } catch (error) {
-        if (Date.now() >= deadline) {
+        if (task.signal?.aborted || Date.now() >= deadline) {
           emit({
             kind: 'tool-result',
             summary: `${call.name}: timed out`,
@@ -256,7 +275,7 @@ export class ModelRuntime implements Runtime {
         }
         result = { content: [{ type: 'text', text: `Error: ${String(error)}` }], isError: true };
       } finally {
-        clearTimeout(timer);
+        clearTimeout(timer); removeAbort?.();
       }
       const output = textOf(result);
       emit({
@@ -301,7 +320,7 @@ export class ModelRuntime implements Runtime {
   }
 
   private async call(endpoint: string, apiKey: string, anthropic: boolean,
-    body: unknown, deadline: number): Promise<ResponsePayload> {
+    body: unknown, deadline: number, signal?: AbortSignal): Promise<ResponsePayload> {
     for (let attempt = 0; attempt < 3; attempt++) {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), Math.max(1, deadline - Date.now()));
@@ -312,7 +331,7 @@ export class ModelRuntime implements Runtime {
             'anthropic-version': '2023-06-01' } :
             { 'content-type': 'application/json', authorization: `Bearer ${apiKey}` },
           body: JSON.stringify(body),
-          signal: controller.signal,
+          signal: signal ? AbortSignal.any([signal, controller.signal]) : controller.signal,
         });
         if (response.ok) {
           return await response.json() as ResponsePayload;
@@ -324,7 +343,7 @@ export class ModelRuntime implements Runtime {
           throw new Error(`Model returned ${response.status}`);
         }
       } catch (error) {
-        if (attempt === 2 || (error instanceof Error &&
+        if (signal?.aborted || attempt === 2 || (error instanceof Error &&
           (/^Model returned 4(?!29)/.test(error.message) || error.name === 'AbortError'))) {
           throw error;
         }

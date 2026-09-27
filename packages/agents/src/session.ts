@@ -20,7 +20,10 @@ export class AgentSession {
   lastScreenLocation?: string;
   /** Issues already counted as seen again in this session. */
   readonly seenIssues = new Set<string>();
-  cancelled = false;
+  private readonly cancellation = new AbortController();
+  get signal(): AbortSignal { return this.cancellation.signal; }
+  get cancelled(): boolean { return this.signal.aborted; }
+  set cancelled(value: boolean) { if (value) this.cancellation.abort(new Error('Session cancelled')); }
   private spentUsd = 0;
   private runtimeLabel = '';
   private statusQueue: Promise<unknown> = Promise.resolve();

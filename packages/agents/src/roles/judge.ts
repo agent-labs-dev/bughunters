@@ -19,6 +19,7 @@ export async function runJudge(
     const task = {
       role: 'judge' as const,
       sessionId: session.sessionId,
+    signal: session.signal,
       system: judgeSystem(lessonsFor(await session.workspace.readMemory(), 'judge')),
       prompt: judgePrompt(opts.sessionIds, candidates, issues),
       tools: judgeTools(session, opts.sessionIds, runtime.label),

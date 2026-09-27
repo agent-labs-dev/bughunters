@@ -179,6 +179,7 @@ async function fixCi(root: string, config: BughuntersConfig, fix: FixProposal, f
     const outcome = await runtime.run({
       role: 'fixer',
       sessionId: session.sessionId,
+    signal: session.signal,
       workdir: fix.worktree,
       system: fixerSystem(lessonsFor(await workspace.readMemory(), 'fixer')),
       prompt: ciPrompt(fix.pr!.number, failed, log),

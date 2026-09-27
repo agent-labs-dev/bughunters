@@ -1,8 +1,9 @@
-import { spawn } from 'node:child_process';
+import { runProcess } from '../process.js';
+import { workspaceSignal } from '../lock.js';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { addUsage, formatUsage, usageFrom, type RoleRuntime, type TokenUsage } from '@bughunters/core';
+import { ConfigError, addUsage, formatUsage, usageFrom, type RoleRuntime, type TokenUsage } from '@bughunters/core';
 import { serveTools } from '../mcp-server.js';
 import { firstLine } from './model.js';
 import type { EventSink, RoleOutcome, RoleTask, Runtime } from '../types.js';
@@ -78,6 +79,10 @@ export class CliRuntime implements Runtime {
   }
 
   async run(task: RoleTask, emit: EventSink): Promise<RoleOutcome> {
+    if (task.budgetUsd !== undefined) throw new ConfigError('CLI runtimes cannot enforce a dollar budget. Use a model runtime with reported cost, or remove budgetUsd and set time/step limits.');
+    const signals = [task.signal, workspaceSignal()].filter((signal): signal is AbortSignal => Boolean(signal));
+    const signal = AbortSignal.any([...signals, AbortSignal.timeout(task.timeoutMs)]);
+    signal.throwIfAborted();
     const temp = await mkdtemp(join(tmpdir(), 'bughunters-agent-'));
     let summary = '';
     let steps = 0;
@@ -106,6 +111,7 @@ export class CliRuntime implements Runtime {
     };
     const mcp = await serveTools(task.tools, {
       maxCalls: task.maxSteps,
+      signal,
       onCall(name, input, result, ms) {
         steps++;
         emit({ kind: 'tool-call', summary: `Called ${name}.`, tool: name, input });
@@ -144,40 +150,14 @@ export class CliRuntime implements Runtime {
       const command = this.use.command.replace(/\{(prompt|mcp|mcpUrl|workdir)\}/g, (_, name: string) => {
         return quote(replacements[name as keyof typeof replacements]);
       });
-      const child = spawn('/bin/sh', ['-c', command], {
-        cwd: workdir,
-        detached: true,
-        stdio: ['pipe', 'pipe', 'pipe'],
+      const processResult = await runProcess('/bin/sh', ['-c', command], {
+        cwd: workdir, timeoutMs: task.timeoutMs, signal, input: prompt, onOutput: onText,
       });
-      child.stdin.end(prompt);
-      child.stdout.on('data', (chunk: Buffer) => {
-        stdout += chunk.toString();
-        onText(chunk.toString());
-      });
-      child.stderr.on('data', (chunk: Buffer) => {
-        stderr += chunk.toString();
-        onText(chunk.toString());
-      });
-      let timedOut = false;
-      const timer = setTimeout(() => {
-        timedOut = true;
-        if (child.pid) {
-          try {
-            process.kill(-child.pid, 'SIGTERM');
-          } catch {
-            child.kill('SIGTERM');
-          }
-        }
-      }, task.timeoutMs);
-      let code: number | null;
-      try {
-        code = await new Promise<number | null>((done, reject) => {
-          child.once('error', reject);
-          child.once('exit', done);
-        });
-      } finally {
-        clearTimeout(timer);
-      }
+      stdout = processResult.stdout; stderr = processResult.stderr;
+      const { code } = processResult;
+      const timedOut = processResult.timedOut || (signal.aborted && signal.reason?.name === 'TimeoutError');
+      if (processResult.cancelled && !timedOut) return { stop: 'error', steps, costUsd: 0, costKnown: false, error: 'Session cancelled' };
+      if (processResult.overflow) return { stop: 'error', steps, costUsd: 0, costKnown: false, error: 'CLI output exceeded 4 MiB' };
       if (partial) pending += displayLine(partial);
       if (pending.trim()) {
         emit({ kind: 'thought', summary: pending.trim().slice(0, 300) });

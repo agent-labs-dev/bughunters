@@ -23,7 +23,7 @@ describe('startApp', () => {
       const running = await startApp(app, { root, vars, emit: (line) => emitted.push(line) });
       expect(vars.resolve('{{CDP_PORT}}')).toBe('9624');
       await expect(running.stop()).resolves.toBeUndefined();
-      expect(emitted.some((line) => line.includes('Teardown: ran'))).toBe(true);
+      expect(emitted.some((line) => line.includes('Teardown: completed'))).toBe(true);
       expect(emitted.some((line) => line.includes('failed'))).toBe(true);
     } finally {
       await rm(root, { recursive: true, force: true });
@@ -73,4 +73,9 @@ describe('startApp', () => {
       expect((await readFile(join(other, 'other-env'), 'utf8')).trim()).toBe(source);
     } finally { await rm(root, { recursive: true, force: true }); }
   });
+});
+
+it('terminates stubborn foreground setup rather than hanging teardown', async () => {
+  const app = appSchema.parse({ setup: [{ run: "trap '' TERM; while :; do sleep 1; done", timeoutMs: 100 }] });
+  await expect(startApp(app, { root: process.cwd(), vars: new Vars() })).rejects.toThrow('timeout');
 });

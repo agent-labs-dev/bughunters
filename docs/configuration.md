@@ -186,3 +186,18 @@ Nested operations in the same command reuse its lease. A crash leaves a lease
 that expires after two minutes; do not delete a live owner's lock to force entry.
 A dashboard can still read local results while the patrol runs; its periodic
 GitHub synchronization waits for a later attempt if the workspace is busy.
+
+### Runtime limits
+
+Agent cancellation propagates to model requests, tool dispatch, and owned shell
+process groups. Shell output is capped at 4 MiB. Processes that ignore termination
+are killed after one second; the runtime waits for their pipes to close.
+
+`maxSteps` bounds both model turns and the total tool calls, including batches.
+A configured `budgetUsd: 0` makes no model request. With a positive budget,
+provider-reported USD usage is required: missing or invalid cost stops the run
+before tool execution. This is a stop-before-the-next-request limit, **not a hard
+billing cap**: the last request can exceed it. Set a provider-side spending cap
+for a hard financial limit. CLI runtimes cannot enforce USD budgets and reject
+that configuration; use time and step limits instead. Unknown cost is not proof
+of a free run. MCP step limits do not constrain a CLI's built-in tools.

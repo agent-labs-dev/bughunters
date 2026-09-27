@@ -1,6 +1,7 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import { resolve } from 'node:path';
 import { InfrastructureError, type AppCommand, type AppConfig } from '@bughunters/core';
+import { runProcess } from './process.js';
 import { Vars } from './vars.js';
 
 type Options = { root: string; vars: Vars; emit?: (summary: string) => void; source?: string };
@@ -18,6 +19,19 @@ export async function startApp(app: AppConfig, opts: Options): Promise<{ vars: V
     const cwd = opts.source && configuredCwd === configuredSource ? opts.source : configuredCwd;
     const env = { ...process.env, ...Object.fromEntries(opts.vars.entries()), BUGHUNTERS_SOURCE: effectiveSource };
     const started = Date.now();
+    if (!command.background) {
+      const result = await runProcess('/bin/sh', ['-c', shell], { cwd, env, timeoutMs: command.timeoutMs });
+      const output = result.stdout + result.stderr;
+      for (const [name, pattern] of Object.entries(command.capture)) {
+        const match = new RegExp(pattern).exec(output);
+        if (match?.[1] !== undefined) opts.vars.set(name, match[1]);
+      }
+      if (result.code !== 0 || result.timedOut || result.overflow) {
+        throw new InfrastructureError(`${phase} command failed (${result.timedOut ? 'timeout' : result.overflow ? 'output limit' : `exit ${result.code}`}): ${opts.vars.redact(output.slice(-4000))}`);
+      }
+      report(`${phase}: completed (${((Date.now() - started) / 1000).toFixed(1)}s)`);
+      return;
+    }
     const child = spawn('/bin/sh', ['-c', shell], {
       cwd,
       env,
@@ -28,7 +42,7 @@ export async function startApp(app: AppConfig, opts: Options): Promise<{ vars: V
     let settled = false;
     const captures = Object.entries(command.capture).map(([name, pattern]) => [name, new RegExp(pattern)] as const);
     const append = (chunk: Buffer) => {
-      output += chunk.toString();
+      output = (output + chunk.toString()).slice(-4 * 1024 * 1024);
       for (const [name, pattern] of captures) {
         const match = pattern.exec(output);
         if (match?.[1] !== undefined) {
@@ -45,7 +59,8 @@ export async function startApp(app: AppConfig, opts: Options): Promise<{ vars: V
         done(code ?? 1);
       });
     });
-    const timeout = setTimeout(() => killGroup(child), command.timeoutMs);
+    void exit.catch(() => undefined);
+    const timeout = setTimeout(() => killGroup(child, 'SIGKILL'), command.timeoutMs);
     try {
       if (command.background) {
         if (command.readyWhen) {
@@ -88,7 +103,8 @@ export async function startApp(app: AppConfig, opts: Options): Promise<{ vars: V
       report(`${phase}: ran \`${shell}\` (${((Date.now() - started) / 1000).toFixed(1)}s)`);
     } catch (cause) {
       if (!settled) {
-        killGroup(child);
+        killGroup(child, 'SIGKILL');
+        await exit.catch(() => undefined);
       }
       const tail = output.trim().split('\n').slice(-20).join('\n');
       const message = `${phase} command \`${opts.vars.redact(shell)}\` failed: ${String(cause)}`;

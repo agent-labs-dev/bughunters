@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto';
-import { AjvJsonSchemaValidator } from '@modelcontextprotocol/sdk/validation/ajv-provider.js';
+import { validateTools } from './tool-validation.js';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
@@ -9,6 +9,7 @@ import type { Tool, ToolResult } from './types.js';
 type Options = {
   onCall?: (name: string, input: Record<string, unknown>, result: ToolResult, ms: number) => void;
   maxCalls?: number;
+  signal?: AbortSignal;
 };
 
 type McpContent =
@@ -26,15 +27,7 @@ export async function serveTools(tools: Tool[], opts: Options = {}): Promise<{ u
   // A per-session capability URL works with every supported CLI MCP client.
   // It is written only to the private temporary config, never to the activity feed.
   const endpoint = `/mcp/${randomBytes(32).toString('base64url')}`;
-  const validator = new AjvJsonSchemaValidator();
-  const validatedTools = tools.map((tool) => {
-    const validate = validator.getValidator<Record<string, unknown>>(tool.inputSchema);
-    return { ...tool, async run(input: Record<string, unknown>) {
-      const checked = validate(input);
-      if (!checked.valid) return { content: [{ type: 'text' as const, text: `Invalid arguments: ${checked.errorMessage}` }], isError: true };
-      return tool.run(checked.data);
-    } };
-  });
+  const validatedTools = validateTools(tools);
 
   const http = createServer((request, response) => {
     if (request.url !== endpoint) {
@@ -148,7 +141,8 @@ async function callTool(
     return { content: [{ type: 'text', text: `Unknown tool ${name}` }], isError: true };
   }
   try {
-    return await tool.run(input);
+    opts.signal?.throwIfAborted();
+    return await tool.run(input, opts.signal);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     return { content: [{ type: 'text', text: `Error: ${message}` }], isError: true };

@@ -28,7 +28,7 @@ export type Tool = {
   description: string;
   /** JSON Schema for the input object. */
   inputSchema: Record<string, unknown>;
-  run(input: Record<string, unknown>): Promise<ToolResult>;
+  run(input: Record<string, unknown>, signal?: AbortSignal): Promise<ToolResult>;
 };
 
 export type RoleTask = {
@@ -43,6 +43,7 @@ export type RoleTask = {
   /** No limit when it is not set. */
   budgetUsd?: number;
   timeoutMs: number;
+  signal?: AbortSignal;
   /** The working directory for a CLI runtime. Default: the workspace root. */
   workdir?: string;
 };
@@ -52,6 +53,7 @@ export type RoleOutcome = {
   stop: 'done' | 'max-steps' | 'budget' | 'timeout' | 'error';
   steps: number;
   costUsd: number;
+  costKnown?: boolean;
   /** The last text the agent wrote, or the finish tool's summary. */
   summary?: string;
   error?: string;

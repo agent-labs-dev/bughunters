@@ -202,7 +202,7 @@ export async function retestFix(root: string, config: BughuntersConfig, issue: I
       const guide = config.app.instructions;
       const instructions = guide ? await readFile(resolve(root, guide), 'utf8') : '';
       const result = await explorerRuntime.run({
-        role: 'explorer', sessionId: record.id,
+        role: 'explorer', sessionId: record.id, signal: session.signal,
         system: explorerRetestSystem(config.app.platform, instructions,
           lessonsFor(await workspace.readMemory(), 'explorer')).replace('a build with a proposed fix',
           options.build === 'main' ? 'the main build after a merged fix' : 'a build with a proposed fix'),
@@ -290,7 +290,7 @@ export async function retestFix(root: string, config: BughuntersConfig, issue: I
         return { ...response(`Retest verdict: ${judged.outcome} — ${judged.reason}`), done: true };
       },
     }, ...lessonTools(session, 'judge')];
-    const result = await judgeRuntime.run({ role: 'judge', sessionId: record.id,
+    const result = await judgeRuntime.run({ role: 'judge', sessionId: record.id, signal: session.signal,
       system: judgeRetestSystem(lessonsFor(await workspace.readMemory(), 'judge')),
       prompt: `Issue: ${issue.title}\n${issue.body}\nFixer summary: ${fix.summary ?? ''}\nScreens:\n${targets.map((target, index) =>
         `${index + 1}. ${target.shot.screenId ?? '(unknown)'} — reached: ${target.shot.reached === true} — explorer: ${target.shot.note ?? ''}`).join('\n')}`,

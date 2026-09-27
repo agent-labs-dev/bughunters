@@ -1,3 +1,4 @@
+import { runProcess } from '../process.js';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { lstat, mkdir, readFile, readdir, realpath, symlink, writeFile } from 'node:fs/promises';
@@ -98,10 +99,11 @@ export function modelTools(worktree: string): Tool[] {
       name: 'run',
       description: 'Run a command in the worktree with a five-minute timeout.',
       inputSchema: { type: 'object', properties: { command: { type: 'string' } } },
-      async run(input) {
+      async run(input, signal) {
         try {
-          const output = await exec('/bin/sh', ['-c', String(input.command)],
-            { cwd: worktree, timeout: 300_000, maxBuffer: 4 * 1024 * 1024 });
+          const output = await runProcess('/bin/sh', ['-c', String(input.command)],
+            { cwd: worktree, timeoutMs: 300_000, signal });
+          if (output.code !== 0 || output.timedOut || output.cancelled || output.overflow) return { ...result('Command failed, cancelled, or exceeded its resource limit.'), isError: true };
           return result((output.stdout + output.stderr).slice(-4000));
         } catch (error) {
           return { ...result(String(error).slice(-4000)), isError: true };
@@ -384,6 +386,7 @@ async function runOne(session: AgentSession, runtime: Runtime, issue: Issue, wor
   return runtime.run({
     role: 'fixer',
     sessionId: session.sessionId,
+    signal: session.signal,
     workdir: worktree,
     system: fixerSystem(lessonsFor(await session.workspace.readMemory(), 'fixer')),
     prompt: `Issue: ${issue.title}\nSeverity: ${issue.severity}\n${issue.body}\nEvidence:\n${evidence}\n` +

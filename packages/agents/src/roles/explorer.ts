@@ -31,7 +31,8 @@ export function stopOnCancellation(session: AgentSession, tool: Tool): Tool {
   return {
     ...tool,
     async run(input) {
-      const result = await tool.run(input);
+      if (session.cancelled) return { content: [{ type: 'text', text: 'Session cancelled' }], isError: true, done: true };
+      const result = await tool.run(input, session.signal);
       return session.cancelled ? { ...result, done: true } : result;
     },
   };
@@ -51,6 +52,7 @@ export async function runExplorer(
   const task = {
     role: 'explorer' as const,
     sessionId: session.sessionId,
+    signal: session.signal,
     system: explorerSystem(session.config.app.platform, instructions,
       lessonsFor(await session.workspace.readMemory(), 'explorer'), session.config.agents.checks),
     prompt: explorerPrompt({

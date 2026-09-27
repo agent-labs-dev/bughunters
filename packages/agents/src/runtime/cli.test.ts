@@ -42,7 +42,6 @@ function task(workdir: string): RoleTask {
     prompt: 'prompt',
     tools: [echo, finish],
     maxSteps: 2,
-    budgetUsd: 1,
     timeoutMs: 5000,
     workdir,
   };
@@ -151,4 +150,9 @@ describe('CLI token usage', () => {
       await rm(root, { recursive: true, force: true });
     }
   });
+});
+
+it('rejects a dollar budget before launching a CLI', async () => {
+  const runtime = new CliRuntime({ runtime: 'cli', command: 'false' });
+  await expect(runtime.run({ ...task(process.cwd()), budgetUsd: 1 }, () => {})).rejects.toThrow('cannot enforce a dollar budget');
 });

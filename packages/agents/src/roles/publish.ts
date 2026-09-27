@@ -230,7 +230,7 @@ export async function runPublisher(root: string, config: BughuntersConfig, deps:
       inputSchema: schema({ summary: string }, ['summary']),
       async run(input) { return { ...result(String(input.summary ?? '')), done: true }; },
     }];
-    const outcome = await runtime.run({ role: 'judge', sessionId: record.id,
+    const outcome = await runtime.run({ role: 'judge', sessionId: record.id, signal: session.signal,
       system: judgePublishSystem(lessonsFor(await workspace.readMemory(), 'judge')),
       prompt: vars.redact(`${deps.dryRun ? 'DRY RUN: publish writes a local draft file, and nothing goes to GitHub. Say "drafted", not "published".\n' : ''}Review and publish these items:\n${items.map((item) => `${item.issue.id}: ${item.issue.title}`).join('\n')}`) as string,
       tools: tools.map((tool) => ({ ...tool, async run(input) {

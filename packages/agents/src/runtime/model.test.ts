@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AgentEvent } from '@bughunters/core';
 import type { RoleTask, Tool } from '../types.js';
 import { ModelRuntime } from './model.js';
@@ -20,7 +20,7 @@ afterEach(() => {
   else process.env.OPENROUTER_API_KEY = oldOpenrouter;
 });
 
-function task(tools: Tool[], maxSteps = 8, budgetUsd = 1): RoleTask {
+function task(tools: Tool[], maxSteps = 8, budgetUsd?: number): RoleTask {
   return {
     role: 'explorer',
     sessionId: 's',
@@ -128,7 +128,7 @@ describe('ModelRuntime', () => {
     expect((await runtime.run(task([finish], 1, 1), () => {})).stop).toBe('max-steps');
   });
 
-  it('nudges text-only answers and finishes after three', async () => {
+  it('does not accept text-only answers as completed work', async () => {
     const bodies: Record<string, unknown>[] = [];
     const fake = async (_url: string | URL | Request, init?: RequestInit) => {
       bodies.push(JSON.parse(String(init?.body)) as Record<string, unknown>);
@@ -139,7 +139,7 @@ describe('ModelRuntime', () => {
       { fetch: fake as typeof fetch },
     );
     expect((await runtime.run(task([finish]), () => {}))).toMatchObject({
-      stop: 'done', steps: 3, summary: 'plain answer',
+      stop: 'error', steps: 3, summary: 'plain answer',
     });
     expect(JSON.stringify(bodies[1])).toContain('Call one of the tools');
   });
@@ -172,4 +172,25 @@ describe('ModelRuntime', () => {
       tools: [{ name: 'finish', input_schema: { type: 'object' } }],
     });
   });
+});
+
+it('does not dispatch tools when cost is unavailable or the budget is exhausted', async () => {
+  const run = vi.fn(finish.run);
+  const fetch = vi.fn(async () => response({ choices: [{ message: { tool_calls: [call('finish')] } }] }));
+  const runtime = new ModelRuntime({ runtime: 'model', via: 'openai', model: 'test' }, { fetch: fetch as typeof globalThis.fetch });
+  expect((await runtime.run(task([{ ...finish, run }], 8, 0), () => {})).stop).toBe('budget');
+  expect(fetch).not.toHaveBeenCalled();
+  expect(await runtime.run(task([{ ...finish, run }], 8, 1), () => {})).toMatchObject({ stop: 'error', costKnown: false });
+  expect(run).not.toHaveBeenCalled();
+});
+
+it('validates model tool arguments and bounds calls within a single response', async () => {
+  const run = vi.fn(finish.run);
+  const fetch = async () => response({ choices: [{ message: { tool_calls: [call('finish'), call('finish', 'c2')] } }] });
+  const runtime = new ModelRuntime({ runtime: 'model', via: 'openai', model: 'test' }, { fetch: fetch as typeof globalThis.fetch });
+  expect((await runtime.run(task([{ ...finish, run }], 1), () => {})).stop).toBe('max-steps');
+  expect(run).not.toHaveBeenCalled();
+  const typed = { ...finish, run, inputSchema: { type: 'object', required: ['value'], properties: { value: { type: 'string' } } } };
+  expect((await runtime.run(task([typed], 4), () => {})).stop).toBe('max-steps');
+  expect(run).not.toHaveBeenCalled();
 });
