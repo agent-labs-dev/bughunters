@@ -192,6 +192,15 @@ export const appSchema = z
     instructions: z.string().optional(),
     /** Names of env vars the explorer may use as {{NAME}} placeholders. */
     secrets: z.array(z.string()).default([]),
+    safety: z.object({
+      mode: z.enum(['observe', 'test']).default('observe'),
+      allowDestructive: z.boolean().default(false),
+      allowedOrigins: z.array(z.string().url().refine((value) => {
+        const url = new URL(value);
+        return ['http:', 'https:'].includes(url.protocol) && !url.username && !url.password && url.pathname === '/' && !url.search && !url.hash;
+      }, 'Use an HTTP origin without credentials, path, query, or fragment')).default([]),
+      deepLinkOrigins: z.array(z.string().url()).default([]),
+    }).default({}),
   })
   .default({});
 

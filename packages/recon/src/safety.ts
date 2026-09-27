@@ -1,10 +1,9 @@
-import type { Decider } from '@bughunters/core';
+import { permitsUrl, type Decider } from '@bughunters/core';
 import { IS_DESTRUCTIVE } from '@bughunters/decide';
 
 export type ActionClass = 'navigation' | 'safe-action' | 'destructive' | 'external' | 'auth-gated';
 
 const DESTRUCTIVE_COPY = /\b(delete|remove|destroy|revoke|cancel|deactivate|close account|purge|wipe|reset)\b/i;
-const EXTERNAL_PROTOCOLS = /^(mailto:|tel:|https?:\/\/(?!localhost|127\.0\.0\.1))/i;
 
 export type ElementCandidate = {
   selector: string;
@@ -23,6 +22,10 @@ export async function classifyAction(
   candidate: ElementCandidate,
   options: { origin: string; decider?: Decider } = { origin: '' },
 ): Promise<{ class: ActionClass; reason: string }> {
+  if (candidate.href && !permitsUrl(candidate.href, [options.origin], options.origin)) {
+    return { class: 'external', reason: 'Leaves the configured origin.' };
+  }
+
   if (candidate.dataAttributes?.['bughuntersSafe'] === 'true') {
     return { class: 'safe-action', reason: 'Explicitly marked safe by the repo.' };
   }
@@ -30,9 +33,7 @@ export async function classifyAction(
     return { class: 'destructive', reason: 'Explicitly marked destructive by the repo.' };
   }
 
-  if (candidate.href && EXTERNAL_PROTOCOLS.test(candidate.href) && !candidate.href.startsWith(options.origin)) {
-    return { class: 'external', reason: 'Leaves the configured origin.' };
-  }
+
 
   if (DESTRUCTIVE_COPY.test(candidate.text)) {
     return { class: 'destructive', reason: `Copy matches a destructive verb: "${candidate.text.trim()}".` };

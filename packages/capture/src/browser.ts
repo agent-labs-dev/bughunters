@@ -1,6 +1,6 @@
 import { chromium, type Browser, type BrowserContext, type Page } from 'playwright';
 import type { BughuntersConfig, ViewportConfig } from '@bughunters/core';
-import { InfrastructureError, requireRun } from '@bughunters/core';
+import { InfrastructureError, permitsUrl, requireRun } from '@bughunters/core';
 import { DETERMINISTIC_CHROMIUM_ARGS, STABILITY_STYLESHEET, buildFreezeScript, FONT_AUDIT_SOURCE, type FontAudit } from './determinism.js';
 
 export type CaptureSession = {
@@ -32,6 +32,7 @@ export async function openSession(
     colorScheme: 'light',
     recordVideo: options.recordVideoDir ? { dir: options.recordVideoDir } : undefined,
     storageState: options.storageState,
+    serviceWorkers: 'block',
   });
 
   await context.addInitScript(buildFreezeScript(config.determinism));
@@ -68,8 +69,15 @@ async function blockThirdParty(context: BrowserContext, appUrl: string): Promise
   const origin = new URL(appUrl).origin;
   await context.route('**/*', async (route) => {
     const url = route.request().url();
-    if (url.startsWith(origin) || url.startsWith('data:') || url.startsWith('blob:')) {
-      await route.continue();
+    if (permitsUrl(url, [origin])) {
+      try {
+        const response = await route.fetch({ maxRedirects: 0, timeout: 30_000 });
+        const location = response.headers()['location'];
+        if (response.status() >= 300 && response.status() < 400 && location) {
+          await route.abort('blockedbyclient'); return;
+        }
+        await route.fulfill({ response });
+      } catch { await route.abort('failed').catch(() => {}); }
       return;
     }
     await route.abort('blockedbyclient');

@@ -1,5 +1,5 @@
 import { chromium, type Browser, type BrowserContext, type Page } from 'playwright';
-import { sha256 } from '@bughunters/core';
+import { permitsUrl, sha256 } from '@bughunters/core';
 import { PROBE_SOURCE, type ScreenSnapshot } from '@bughunters/invariants';
 import { observeDom, resolveTarget, stepFor } from './dom.js';
 import type { ActResult, Driver, DriverAction, Observation, UiElement } from './types.js';
@@ -8,6 +8,7 @@ export type WebOptions = {
   url: string;
   viewport: { width: number; height: number };
   headless?: boolean;
+  policy?: { origins: string[]; mutations: boolean };
 };
 
 type TargetResult = { degraded: boolean; element?: UiElement };
@@ -30,11 +31,41 @@ export class WebDriver implements Driver {
     this.context = await this.browser.newContext({
       viewport: this.options.viewport,
       reducedMotion: 'reduce',
+      serviceWorkers: 'block',
     });
+    await this.installNetworkPolicy();
     this.context.on('page', (page) => this.watch(page));
     this.page = await this.context.newPage();
     this.watch(this.page);
     await this.page.goto(this.options.url);
+  }
+
+  protected async installNetworkPolicy(): Promise<void> {
+    const policy = this.options.policy;
+    if (!policy || !this.context) return;
+    await this.context.route('**/*', async (route) => {
+      const request = route.request();
+      if (!permitsUrl(request.url(), policy.origins) ||
+        (!policy.mutations && !['GET', 'HEAD', 'OPTIONS'].includes(request.method()))) {
+        await route.abort('blockedbyclient'); return;
+      }
+      try {
+        // Playwright's continue() follows redirects without re-running routing.
+        // Fail closed on redirects; otherwise a later hop escapes this handler.
+        // Users must configure the final URL until an egress proxy owns redirects.
+        const response = await route.fetch({ maxRedirects: 0, timeout: 30_000 });
+        const location = response.headers()['location'];
+        if (response.status() >= 300 && response.status() < 400 && location) {
+          await route.abort('blockedbyclient'); return;
+        }
+        await route.fulfill({ response });
+      } catch { await route.abort('failed').catch(() => {}); }
+    });
+    await this.context.routeWebSocket('**/*', (socket) => {
+      const url = socket.url().replace(/^ws:/, 'http:').replace(/^wss:/, 'https:');
+      if (policy.mutations && permitsUrl(url, policy.origins)) socket.connectToServer();
+      else socket.close();
+    });
   }
 
   protected activePage(): Page {

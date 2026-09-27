@@ -145,3 +145,34 @@ The layout checks can report controls that are correct, for example text hidden 
 ## The deterministic gate
 
 The web gate (`bughunters run`) has more settings: `run`, `auth`, `viewports`, `scope`, `crawl`, `mask`, `tolerance`, `determinism`, and `decisions` (an optional general model that reviews the gate findings). `bughunters init --gate` writes a starter file with all of them. Refer to [The deterministic gate](deterministic-gate.md) and to [bughunters.example.yml](../bughunters.example.yml).
+
+## App action permissions
+
+The driver defaults to `app.safety.mode: observe`. It can observe, wait, and scroll;
+clicking, typing, keyboard activation, and navigation require `mode: test`.
+Set that mode only for an isolated app using disposable accounts and synthetic data:
+
+```yaml
+app:
+  safety:
+    mode: test
+    allowDestructive: false
+    allowedOrigins: [https://api.staging.example.com]
+    deepLinkOrigins: [my-test-app://login]
+```
+
+The configured web URL's origin is allowed automatically. Additional HTTP origins
+must be listed explicitly (including Electron renderer origins). Browser requests,
+popups and newly opened WebSockets share the network restriction. HTTP redirects
+are blocked: configure a final URL or navigate explicitly. Playwright does not
+re-intercept every redirected request, so allowing even an internal first hop
+would permit a later hop to escape the boundary.
+Mobile deep links require an allowed scheme and host. Replay uses the same policy.
+Unknown or potentially destructive controls and destructive keyboard activation
+are blocked unless `allowDestructive` is explicitly enabled in test mode.
+
+This is an action fence, not proof that an application is safe: a GET request or
+application startup code can itself mutate data. Native app networking and existing
+Electron connections need isolation at the worker/network level. Never point an
+autonomous session at production accounts. The legacy `crawl` policy configures
+the recon classifier; it does not grant agent action permissions.

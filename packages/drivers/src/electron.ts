@@ -1,12 +1,12 @@
 import { chromium, type Page } from 'playwright';
-import { WebDriver } from './web.js';
+import { WebDriver, type WebOptions } from './web.js';
 
 /** Reuse web observation over CDP without taking ownership of the Electron app. */
 export class ElectronDriver extends WebDriver {
   override readonly platform = 'electron' as const;
 
-  constructor(private readonly cdpUrl: string) {
-    super({ url: '', viewport: { width: 1280, height: 800 } });
+  constructor(private readonly cdpUrl: string, policy?: WebOptions['policy']) {
+    super({ url: '', policy, viewport: { width: 1280, height: 800 } });
   }
 
   override async connect(): Promise<void> {
@@ -15,6 +15,7 @@ export class ElectronDriver extends WebDriver {
     if (!this.context) {
       throw new Error('Electron CDP connection has no context');
     }
+    await this.installNetworkPolicy();
     this.page = await this.choosePage();
     for (const page of this.context.pages()) {
       this.watch(page);
