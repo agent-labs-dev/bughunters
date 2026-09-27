@@ -7,6 +7,8 @@ pnpm install
 pnpm build
 pnpm --filter @bughunters/capture exec playwright install chromium
 pnpm test
+pnpm lint
+pnpm test:tooling
 ```
 
 Node 22.13+ and pnpm 9+.
@@ -43,3 +45,15 @@ Tests live next to the code as `*.test.ts`. Prefer tests that encode a design pr
 ## Commits
 
 Conventional commits. Keep the diff minimal; a sprawling diff cannot be reviewed, which is the same standard Bughunters holds its own fix PRs to.
+
+## Formatting and review
+
+`pnpm format` formats changed source/documentation files; `pnpm format:check`
+checks them. Set `FORMAT_BASE=origin/main` to check a branch against main. Pull
+request CI uses the PR base commit. Generated files and dependencies are excluded.
+Use `pnpm exec prettier --write path/to/file` to format a specific file.
+
+Use a Conventional Commit title that names the user-visible outcome. Explain the
+problem, resulting behavior, validation, and any migration or limitations. Add a
+regression for behavior changes and keep unrelated refactors separate. For public
+API/package changes, run the installed-distribution test as well.

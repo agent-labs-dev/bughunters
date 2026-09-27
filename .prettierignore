@@ -1,0 +1,6 @@
+node_modules
+**/dist
+**/.bughunters/runs
+packages/bughunters/src/ui
+pnpm-lock.yaml
+coverage

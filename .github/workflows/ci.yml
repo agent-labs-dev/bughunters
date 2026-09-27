@@ -18,6 +18,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 2
       # No `version:` here: it is read from package.json's packageManager,
       # and pinning it twice makes the action refuse to run at all.
       - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
@@ -27,6 +29,11 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
+      - run: pnpm lint
+      - run: pnpm format:check
+        if: github.event_name == 'pull_request'
+        env:
+          FORMAT_BASE: ${{ github.event.pull_request.base.sha }}
       # The npm package is a bundle of the workspace, so a break in the bundle
       # must fail here, not in a release.
       - run: pnpm --filter bughunters build
@@ -35,7 +42,7 @@ jobs:
       # only mean anything against a real rendering engine.
       - run: pnpm --filter @bughunters/capture exec playwright install --with-deps chromium
       - run: pnpm test
-      - run: node --test scripts/release.test.mjs
+      - run: pnpm test:tooling
       - run: pnpm test:package
 
   worker-isolation:

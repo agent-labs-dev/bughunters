@@ -13,14 +13,21 @@
     "typecheck": "tsc --build --force",
     "test": "vitest run",
     "test:watch": "vitest",
-    "lint": "eslint .",
-    "format": "prettier --write .",
-    "test:package": "node scripts/package-smoke.mjs"
+    "lint": "eslint . --max-warnings 0",
+    "format": "node scripts/format-changed.mjs --write",
+    "test:package": "node scripts/package-smoke.mjs",
+    "format:check": "node scripts/format-changed.mjs",
+    "test:tooling": "node --test scripts/*.test.mjs"
   },
   "devDependencies": {
+    "@eslint/js": "10.0.1",
     "@types/node": "^22.7.5",
     "@types/proper-lockfile": "4.1.4",
+    "eslint": "10.11.0",
+    "globals": "17.4.0",
+    "prettier": "3.9.9",
     "typescript": "^5.6.3",
+    "typescript-eslint": "8.70.1",
     "vite": "8.3.1",
     "vitest": "5.0.2"
   }
