@@ -110,3 +110,33 @@ describe('agent status under concurrency', () => {
     ]);
   });
 });
+
+it('persists reported cost without treating missing cost as free', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'bh-billing-'));
+  try {
+    const workspace = new Workspace(root);
+    const session = await workspace.startSession('fixer');
+    await workspace.appendEvent(session.id, {
+      sessionId: session.id,
+      role: 'fixer',
+      kind: 'usage',
+      summary: 'first call',
+      costUsd: 0.2,
+      costKnown: true,
+    });
+    await workspace.appendEvent(session.id, {
+      sessionId: session.id,
+      role: 'fixer',
+      kind: 'usage',
+      summary: 'unreported',
+      costUsd: 0,
+      costKnown: false,
+    });
+    expect(await workspace.endSession(session.id)).toMatchObject({
+      costUsd: 0.2,
+      costKnown: false,
+    });
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});

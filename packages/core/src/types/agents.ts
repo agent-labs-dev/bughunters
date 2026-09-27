@@ -313,6 +313,7 @@ export type AgentEvent = {
   screenshot?: string;
   screenId?: string;
   costUsd?: number;
+  costKnown?: boolean;
   /** The tokens of the model call behind this event. */
   tokens?: TokenUsage;
   /** The model that used them, when the runtime knows it. */
@@ -331,6 +332,7 @@ export type AgentStatus = {
   sessionId?: string;
   updatedAt: string;
   spentUsd: number;
+  costKnown?: boolean;
   /** The process that wrote this. A reader treats "working" from a dead process as stopped. */
   pid?: number;
 };
@@ -362,6 +364,7 @@ export type SessionSummary = {
   summary?: string;
   steps: number;
   costUsd: number;
+  costKnown?: boolean;
   /** The sum of the tokens on the session's events. */
   tokens?: TokenUsage;
   /** The same tokens for each model, for example the explorer's LLM and the reflect model. */

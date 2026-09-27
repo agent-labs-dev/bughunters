@@ -1,6 +1,6 @@
 import { workspaceSignal } from '../lock.js';
 import { validateTools } from '../tool-validation.js';
-import { ConfigError, usageFrom, type AgentEvent, type RoleRuntime } from '@bughunters/core';
+import { ConfigError, usageFrom, type RoleRuntime } from '@bughunters/core';
 import { MODEL_KEYS, MODEL_ROUTES } from '@bughunters/decide';
 import type { EventSink, RoleOutcome, RoleTask, Runtime, ToolResult } from '../types.js';
 
@@ -233,6 +233,13 @@ export class ModelRuntime implements Runtime {
       try {
         payload = await this.call(endpoint, apiKey, anthropic, body, deadline, task.signal);
       } catch (error) {
+        costKnown = false;
+        emit({
+          kind: 'usage',
+          summary: 'Provider request failed; charge is unknown.',
+          costUsd: 0,
+          costKnown: false,
+        });
         if (
           Date.now() - started >= task.timeoutMs ||
           (error instanceof Error && error.name === 'AbortError')
@@ -253,22 +260,23 @@ export class ModelRuntime implements Runtime {
         | undefined;
       const knownCost =
         typeof usage?.cost === 'number' && Number.isFinite(usage.cost) && usage.cost >= 0;
-      if (task.budgetUsd !== undefined && !knownCost)
-        return {
-          ...outcome(
-            'error',
-            lastText,
-            'Provider did not report a valid USD cost; cannot enforce budgetUsd.',
-          ),
-          costKnown: false,
-        };
       costKnown &&= knownCost;
       const stepCost = knownCost ? usage!.cost! : 0;
       costUsd += stepCost;
-      const step = {
+      emit({
+        kind: 'usage',
+        summary: knownCost ? 'Provider reported usage.' : 'Provider did not report USD cost.',
+        costUsd: stepCost,
+        costKnown: knownCost,
         tokens: usageFrom(usage),
         model: this.use.model ?? MODEL_ROUTES[this.use.via].model,
-      };
+      });
+      if (task.budgetUsd !== undefined && !knownCost)
+        return outcome(
+          'error',
+          lastText,
+          'Provider did not report a valid USD cost; cannot enforce budgetUsd.',
+        );
       if (task.budgetUsd !== undefined && costUsd >= task.budgetUsd)
         return outcome('budget', lastText);
       const parsed = parseResponse(payload, anthropic);
@@ -281,8 +289,6 @@ export class ModelRuntime implements Runtime {
         emit({
           kind: 'tool-result',
           summary: 'Model replied without a tool call.',
-          costUsd: stepCost,
-          ...step,
         });
         textOnly++;
         if (textOnly >= 3) {
@@ -296,16 +302,7 @@ export class ModelRuntime implements Runtime {
         textOnly = 0;
         if (toolCalls + parsed.calls.length > task.maxSteps) return outcome('max-steps', lastText);
         toolCalls += parsed.calls.length;
-        const calls = await this.runCalls(
-          task,
-          parsed.calls,
-          emit,
-          messages,
-          anthropic,
-          deadline,
-          stepCost,
-          step,
-        );
+        const calls = await this.runCalls(task, parsed.calls, emit, messages, anthropic, deadline);
         if (calls.timeout) {
           return outcome('timeout', lastText);
         }
@@ -327,12 +324,10 @@ export class ModelRuntime implements Runtime {
     messages: Message[],
     anthropic: boolean,
     deadline: number,
-    stepCost: number,
-    step: Pick<AgentEvent, 'tokens' | 'model'>,
   ): Promise<{ done?: boolean; timeout?: boolean; output?: string }> {
     const anthroResults: Record<string, unknown>[] = [];
     const images: Record<string, unknown>[] = [];
-    for (const [index, call] of calls.entries()) {
+    for (const call of calls) {
       const tool = task.tools.find((item) => item.name === call.name);
       const started = Date.now();
       emit({
@@ -381,8 +376,6 @@ export class ModelRuntime implements Runtime {
             kind: 'tool-result',
             summary: `${call.name}: timed out`,
             tool: call.name,
-            costUsd: index === 0 ? stepCost : undefined,
-            ...(index === 0 ? step : {}),
             durationMs: Date.now() - started,
           });
           return { timeout: true };
@@ -400,8 +393,6 @@ export class ModelRuntime implements Runtime {
         output: output.slice(0, 500),
         screenshot: result.meta?.screenshot,
         screenId: result.meta?.screenId,
-        costUsd: index === 0 ? stepCost : undefined,
-        ...(index === 0 ? step : {}),
         durationMs: Date.now() - started,
       });
       if (anthropic) {

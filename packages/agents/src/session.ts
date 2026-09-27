@@ -31,6 +31,7 @@ export class AgentSession {
     if (value) this.cancellation.abort(new Error('Session cancelled'));
   }
   private spentUsd = 0;
+  private costKnown: boolean | undefined;
   private runtimeLabel = '';
   private statusQueue: Promise<unknown> = Promise.resolve();
 
@@ -48,14 +49,16 @@ export class AgentSession {
     this.emit = (event) => {
       record(event);
       onEvent?.(vars.redact(event.summary) as string);
-      if (event.costUsd) {
+      if (event.costUsd !== undefined) {
         this.spentUsd += event.costUsd;
+        this.costKnown = (this.costKnown ?? true) && event.costKnown === true;
         this.statusQueue = this.statusQueue
           .then(() =>
             this.workspace.setAgentStatus(role, {
               state: 'working',
               sessionId,
               spentUsd: this.spentUsd,
+              costKnown: this.costKnown,
             }),
           )
           .catch(() => undefined);
@@ -71,17 +74,19 @@ export class AgentSession {
       activity: text,
       sessionId: this.sessionId,
       spentUsd: spentUsd ?? this.spentUsd,
+      costKnown: this.costKnown,
       runtime: this.runtimeLabel,
     });
   }
 
-  async idle(spentUsd = 0): Promise<void> {
+  async idle(spentUsd = this.spentUsd): Promise<void> {
     await this.statusQueue;
     await this.safeStatus({
       state: 'idle',
       activity: undefined,
       sessionId: undefined,
       spentUsd,
+      costKnown: this.costKnown,
     });
   }
 

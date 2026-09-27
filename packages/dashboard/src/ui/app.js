@@ -1,6 +1,7 @@
 // Bughunters dashboard. Vanilla ES modules on purpose: no build step means the UI
 // is served straight from source, so `bughunters dashboard` works from a clone with
 // nothing compiled but the CLI itself.
+import { formatCost } from './cost.js';
 import { layoutGraph } from './graph-layout.js';
 
 const view = document.getElementById('view');
@@ -696,7 +697,7 @@ function renderOverview() {
         el('div', {
           class: 'muted',
           text:
-            `API ${money(agent.spentUsd)} today` +
+            `API ${formatCost(agent.spentUsd, agent.costKnown)} this session` +
             (String(agent.runtime).startsWith('cli') ? ' · the model runs on your CLI plan' : ''),
         }),
       ]),
@@ -1169,7 +1170,7 @@ function renderActivity() {
               class: 'muted',
               text:
                 `${capital(session.role)} · ${relativeTime(session.startedAt)} · ${duration(session)} · ${session.steps} steps · ` +
-                `${session.tokens ? `${tokens(session.tokens)} · ` : ''}API ${money(session.costUsd)} · ` +
+                `${session.tokens ? `${tokens(session.tokens)} · ` : ''}API ${formatCost(session.costUsd, session.costKnown)} · ` +
                 `${session.screensFound.length} screens · ${session.issues.length} issues`,
             }),
           ]),

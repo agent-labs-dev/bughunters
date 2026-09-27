@@ -402,6 +402,9 @@ export class AgentReader {
         sessionsToday: sessions.filter(
           (session) => new Date(session.startedAt).toLocaleDateString('en-CA') === today,
         ).length,
+        costKnownToday: sessions
+          .filter((session) => new Date(session.startedAt).toLocaleDateString('en-CA') === today)
+          .every((session) => session.costKnown === true),
         spentTodayUsd: sessions
           .filter((session) => new Date(session.startedAt).toLocaleDateString('en-CA') === today)
           .reduce((sum, session) => sum + session.costUsd, 0),

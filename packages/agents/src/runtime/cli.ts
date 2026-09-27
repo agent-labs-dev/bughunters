@@ -161,6 +161,7 @@ export class CliRuntime implements Runtime {
           screenId: result.meta?.screenId,
           durationMs: ms,
           costUsd: 0,
+          costKnown: false,
         });
         if (result.done && !result.isError) {
           completed = true;
@@ -204,7 +205,13 @@ export class CliRuntime implements Runtime {
       const timedOut =
         processResult.timedOut || (signal.aborted && signal.reason?.name === 'TimeoutError');
       if (processResult.cancelled && !timedOut)
-        return { stop: 'error', steps, costUsd: 0, costKnown: false, error: 'Session cancelled' };
+        return {
+          stop: 'error',
+          steps,
+          costUsd: 0,
+          costKnown: false,
+          error: 'Session cancelled',
+        };
       if (processResult.overflow)
         return {
           stop: 'error',
@@ -226,6 +233,7 @@ export class CliRuntime implements Runtime {
           tokens: parsed.tokens,
           model,
           costUsd: 0,
+          costKnown: false,
         });
       }
       const text = parsed.text.trim().split('\n').slice(-20).join('\n');
@@ -236,6 +244,7 @@ export class CliRuntime implements Runtime {
           stop: 'timeout',
           steps,
           costUsd: 0,
+          costKnown: false,
           summary: summary || text,
         };
       }
@@ -244,6 +253,7 @@ export class CliRuntime implements Runtime {
           stop: 'error',
           steps,
           costUsd: 0,
+          costKnown: false,
           error: stderr.trim().split('\n').slice(-20).join('\n') || text || `CLI exited ${code}`,
         };
       }
@@ -259,6 +269,7 @@ export class CliRuntime implements Runtime {
         stop: 'done',
         steps,
         costUsd: 0,
+        costKnown: false,
         summary: summary || text,
       };
     } finally {

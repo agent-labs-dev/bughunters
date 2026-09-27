@@ -35,6 +35,7 @@ export async function runJudge(
           stop: 'done' as const,
           steps: 0,
           costUsd: 0,
+          costKnown: true,
           summary: 'No candidates to judge',
         };
     const after = await session.workspace.listIssues();
@@ -49,6 +50,7 @@ export async function runJudge(
             : 'incomplete',
       steps: outcome.steps,
       costUsd: outcome.costUsd,
+      costKnown: outcome.costKnown,
       summary: outcome.summary,
       issues: newIssues.map((item) => item.id),
     });

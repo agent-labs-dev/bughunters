@@ -308,10 +308,19 @@ export class Workspace {
   }
 
   async endSession(id: string, patch: Partial<SessionSummary> = {}): Promise<SessionSummary> {
+    const events = await this.readEvents(id);
+    const billed = events.filter((event) => event.costUsd !== undefined);
+    const costUsd = billed.reduce(
+      (sum, event) => sum + (Number.isFinite(event.costUsd) ? event.costUsd! : 0),
+      0,
+    );
+    const costKnown = billed.length > 0 && billed.every((event) => event.costKnown === true);
     return this.updateSession(id, {
       status: 'finished',
       endedAt: new Date().toISOString(),
-      ...usageOf(await this.readEvents(id)),
+      ...usageOf(events),
+      costUsd,
+      costKnown,
       ...patch,
     });
   }

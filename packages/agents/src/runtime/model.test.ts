@@ -95,7 +95,7 @@ describe('ModelRuntime', () => {
     ).toBe(true);
     expect(
       events
-        .filter((event) => event.kind === 'tool-result')
+        .filter((event) => event.kind === 'usage')
         .reduce((sum, event) => sum + (event.costUsd ?? 0), 0),
     ).toBe(0.2);
     expect(events.some((event) => event.summary?.startsWith('Tokens:'))).toBe(false);
@@ -139,9 +139,7 @@ describe('ModelRuntime', () => {
     expect(JSON.stringify(fourthMessages)).toContain('[earlier screenshot omitted]');
     expect(JSON.stringify(fourthMessages)).toContain('data:image/png;base64');
     expect(bodies[0]?.usage).toEqual({ include: true });
-    expect(events.some((event) => event.kind === 'tool-result' && event.costUsd === 0.1)).toBe(
-      true,
-    );
+    expect(events.some((event) => event.kind === 'usage' && event.costUsd === 0.1)).toBe(true);
   });
 
   it('stops at cost budget and max steps', async () => {
@@ -154,7 +152,13 @@ describe('ModelRuntime', () => {
       { runtime: 'model', via: 'openai', model: 'test' },
       { fetch: fake as typeof fetch },
     );
-    expect((await runtime.run(task([finish], 5, 0.1), () => {})).stop).toBe('budget');
+    const events: Partial<AgentEvent>[] = [];
+    expect((await runtime.run(task([finish], 5, 0.1), (event) => events.push(event))).stop).toBe(
+      'budget',
+    );
+    expect(events.filter((event) => event.kind === 'usage')).toEqual([
+      expect.objectContaining({ costUsd: 0.2, costKnown: true }),
+    ]);
     expect((await runtime.run(task([finish], 1, 1), () => {})).stop).toBe('max-steps');
   });
 

@@ -94,6 +94,7 @@ export async function runExplorer(
             : 'incomplete',
       steps: outcome.steps,
       costUsd: outcome.costUsd,
+      costKnown: outcome.costKnown,
       summary: outcome.summary,
       candidates: candidates.length,
       screensFound: screens.map((item) => item.id),
