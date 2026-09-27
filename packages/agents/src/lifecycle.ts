@@ -13,8 +13,8 @@ export async function startApp(app: AppConfig, opts: Options): Promise<{ vars: V
   const effectiveSource = opts.source ?? configuredSource;
 
   async function run(command: AppCommand, phase: 'Setup' | 'Teardown'): Promise<void> {
-    const shell = opts.vars.resolve(command.run);
-    const configuredCwd = resolve(opts.root, opts.vars.resolve(command.cwd ?? '.'));
+    const shell = opts.vars.resolveConfig(command.run);
+    const configuredCwd = resolve(opts.root, opts.vars.resolveConfig(command.cwd ?? '.'));
     const cwd = opts.source && configuredCwd === configuredSource ? opts.source : configuredCwd;
     const env = { ...process.env, ...Object.fromEntries(opts.vars.entries()), BUGHUNTERS_SOURCE: effectiveSource };
     const started = Date.now();

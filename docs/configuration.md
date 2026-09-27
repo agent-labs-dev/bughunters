@@ -80,6 +80,18 @@ Each item in `app.setup` and `app.teardown` is one shell command:
 
 Later commands and `connect` can use a captured value as `${NAME}`. The explorer can use it as `{{NAME}}`. Bughunters treats each captured value as a secret.
 
+## Secret interpolation
+
+Agent actions and saved routines may expand `{{NAME}}` or `${NAME}` only when the
+name is declared in `app.secrets` or captured by setup. Unknown names fail before
+an action runs. Never put production credentials in a test environment.
+
+Repository-owned setup and teardown commands and their `cwd` may also expand
+`${NAME}` from the host environment. Those values are redacted from text output
+but do not become available to the agent. Review configuration before running an
+untrusted repository: setup commands are executable code. Text redaction does
+not mask screenshots.
+
 ## Connect
 
 | Platform | Field | Example |
