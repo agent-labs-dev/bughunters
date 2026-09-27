@@ -36,7 +36,20 @@ Refer to [CONTRIBUTING.md](../CONTRIBUTING.md) for the rules that the product de
 
 ## Releases
 
-A maintainer runs the **Release** workflow in GitHub Actions and selects `patch`, `minor`, or `major`. The workflow tests the repo, bumps `packages/bughunters/package.json`, publishes `bughunters` to npm with provenance, and pushes a tag and a GitHub release. The internal `@bughunters/*` packages are private. The bundle includes them.
+A maintainer runs the **Release** workflow on main with an explicit stable version,
+for example `0.2.0`. The protected `npm` environment and npm trusted publisher
+must allow this workflow. It tests the source and installed tarball, records the
+Verified source SHA in the package, reserves a source tag, and publishes that
+exact artifact with OIDC provenance. It does not create an unsigned release
+commit or push credentials from the runner.
+
+To resume a failed release, rerun the same workflow run with the same version and
+source SHA. Existing npm bytes and tags must match exactly; conflicts stop the
+release instead of choosing another version or overwriting artifacts. If main
+has moved, use GitHub's rerun action on the original run. The source tag points to
+the original commit; the release version is applied only to the staged package.
+Registry/network errors fail visibly and can be retried; there is no token fallback.
+The internal `@bughunters/*` packages remain private and are included in the bundle.
 
 ## Examples
 
