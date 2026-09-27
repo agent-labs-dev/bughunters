@@ -30,6 +30,7 @@ jobs:
       # only mean anything against a real rendering engine.
       - run: pnpm --filter @bughunters/capture exec playwright install --with-deps chromium
       - run: pnpm test
+      - run: pnpm test:package
 
   worker-isolation:
     runs-on: ubuntu-latest

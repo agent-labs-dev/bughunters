@@ -12,7 +12,9 @@
   },
   "files": [
     "dist",
-    "src/ui"
+    "src/ui",
+    "LICENSE",
+    "NOTICE"
   ],
   "repository": {
     "type": "git",

@@ -26,3 +26,7 @@ playwright-report/
 
 # Copied from packages/dashboard/src/ui by the bughunters bundle build.
 packages/bughunters/src/ui/
+
+# Generated redistribution notices; originals live at the repository root.
+packages/bughunters/LICENSE
+packages/bughunters/NOTICE

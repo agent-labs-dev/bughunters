@@ -13,6 +13,7 @@ await build({
   entryPoints: [entry],
   outfile: join(here, 'dist/bin.js'),
   bundle: true,
+  legalComments: 'eof',
   platform: 'node',
   format: 'esm',
   target: 'node22',
@@ -29,4 +30,9 @@ for (const file of await readdir(source, { withFileTypes: true })) {
   if (file.isFile() && /\.(?:html|js|css|png|jpe?g|svg|json)$/.test(file.name) && !/\.(?:test|spec)\./.test(file.name)) {
     await copyFile(join(source, file.name), join(target, file.name));
   }
+}
+
+// Apache-2.0 redistribution requires the license and applicable attribution notice.
+for (const file of ['LICENSE', 'NOTICE']) {
+  await copyFile(join(here, '../..', file), join(here, file));
 }

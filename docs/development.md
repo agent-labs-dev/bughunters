@@ -71,3 +71,12 @@ A maintainer runs the **Release** workflow in GitHub Actions and selects `patch`
 - [Architecture decisions](adr/): all ADRs
 - [Technical specification](spec/bughunters-technical-spec.md): the deterministic gate
 - [Competitive landscape](research/oss-visual-testing-landscape-2026.md): the research behind the design
+
+### Test the installed distribution
+
+After building the workspace and npm bundle, run `pnpm test:package`. It packs a
+real tarball, installs it in a temporary directory with no workspace links,
+checks LICENSE/NOTICE and runtime dependencies, starts the installed dashboard,
+and runs baseline approval plus an offline browser comparison. Install the pinned
+Chromium build first. CI runs this check; a working source checkout alone is not
+a distribution test. Generated package notices come from the root LICENSE/NOTICE.
