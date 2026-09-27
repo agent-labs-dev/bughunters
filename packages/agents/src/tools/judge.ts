@@ -3,6 +3,7 @@ import { join, resolve } from 'node:path';
 import { paths, shortHash, type Candidate, type Issue, type TriageFile } from '@bughunters/core';
 import type { AgentSession } from '../session.js';
 import type { Tool, ToolResult } from '../types.js';
+import { lessonTools } from './memory.js';
 
 const response = (value: string): ToolResult => ({ content: [{ type: 'text', text: value }] });
 const schema = (properties: Record<string, unknown>, required: string[] = []) => ({
@@ -80,6 +81,7 @@ function triageEntries(
 /** Judge tools make every acceptance or dismissal auditable. */
 export function judgeTools(session: AgentSession, sessionIds: string[], runtimeLabel: string): Tool[] {
   return [
+    ...lessonTools(session, 'judge'),
     {
       name: 'list_candidates',
       description: 'List undecided candidates and existing issues.',

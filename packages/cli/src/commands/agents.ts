@@ -1,8 +1,7 @@
 import { ConfigError, InfrastructureError, formatUsage, type AgentRole, type BughuntersConfig } from '@bughunters/core';
 import { createDriver } from '@bughunters/drivers';
 import { AgentSession, Vars, Workspace, createRuntime, pendingCandidates, replayRoutine, runExplorer, runJudge, runtimeProblem,
-  applyRetest, runFixCycle, runPatrol, runPublisher, retestFix, startApp, syncGitHub } from '@bughunters/agents';
-import { resolveDecider } from '@bughunters/decide';
+  applyRetest, runFixCycle, runPatrol, runPublisher, watchCi, retestFix, startApp, syncGitHub } from '@bughunters/agents';
 
 type AgentFlags = Record<string, string | string[] | boolean | number>;
 
@@ -29,6 +28,7 @@ export function parseAgentFlags(command: string, args: string[]): AgentFlags {
     fix: ['--issue'],
     retest: ['--issue'],
     publish: ['--issue'],
+    ci: ['--issue'],
     patrol: [],
   };
   if (!values[command]) throw new ConfigError(`Unknown agent command ${command}`);
@@ -36,6 +36,10 @@ export function parseAgentFlags(command: string, args: string[]): AgentFlags {
     const flag = args[index]!;
     if (command === 'patrol' && (flag === '--once' || flag === '--force')) {
       flags[flag.slice(2)] = true;
+      continue;
+    }
+    if (command === 'ci' && flag === '--wait') {
+      flags.wait = true;
       continue;
     }
     if (command === 'publish' && flag === '--dry-run') {
@@ -74,6 +78,7 @@ function rolesFor(command: string, config: BughuntersConfig): AgentRole[] {
   switch (command) {
     case 'explore': return ['explorer'];
     case 'judge': case 'publish': return ['judge'];
+    case 'ci': return ['fixer'];
     case 'retest': return ['explorer', 'judge'];
     case 'fix': return ['fixer', 'explorer', 'judge'];
     case 'patrol': return config.agents.fixer.enabled ? ['explorer', 'judge', 'fixer'] : ['explorer', 'judge'];
@@ -81,16 +86,12 @@ function rolesFor(command: string, config: BughuntersConfig): AgentRole[] {
   }
 }
 
-/**
- * Every role needs an LLM: stop before the app starts when one cannot reach
- * it, and say which decider will run, because no Jev key costs more.
- */
-export function preflight(command: string, config: BughuntersConfig, env: NodeJS.ProcessEnv = process.env): string[] {
+/** Every role needs an LLM: stop before the app starts when one cannot reach it. */
+export function preflight(command: string, config: BughuntersConfig, env: NodeJS.ProcessEnv = process.env): void {
   const problems = rolesFor(command, config)
     .map((role) => runtimeProblem(role, config.agents[role].use, env))
     .filter((problem): problem is string => Boolean(problem));
   if (problems.length) throw new ConfigError(problems.join('\n'));
-  return ['explore', 'patrol'].includes(command) ? [resolveDecider(config.decisions, env).reason] : [];
 }
 
 /** Owns lifecycle cleanup for a single agent command, including interrupted runs. */
@@ -102,10 +103,27 @@ export async function runAgentCommand(
   log: (message: string) => void,
 ): Promise<void> {
   const flags = parseAgentFlags(command, args);
-  for (const line of preflight(command, config)) log(line);
+  preflight(command, config);
   const workspace = new Workspace(root);
   if (command === 'patrol') {
-    await runPatrol({ root, config, once: Boolean(flags.once), force: Boolean(flags.force), onLog: log });
+    const { problems } = await runPatrol({ root, config, once: Boolean(flags.once), force: Boolean(flags.force), onLog: log });
+    if (problems.length) {
+      log(`The patrol had ${problems.length} problem(s):\n${problems.map((problem) => `- ${problem.split('\n')[0]}`).join('\n')}`);
+      process.exitCode = 1;
+    }
+    return;
+  }
+  if (command === 'ci') {
+    if (!config.agents.github.enabled) {
+      throw new ConfigError('GitHub is off. Set agents.github.enabled: true in .bughunters/bughunters.yml.');
+    }
+    const { problems } = await watchCi(root, config, { onLog: log, wait: Boolean(flags.wait),
+      issueIds: flags.issue as string[] | undefined });
+    const fixes = (await workspace.listFixes()).filter((fix) => fix.pr && fix.ci
+      && (!flags.issue || (flags.issue as string[]).includes(fix.issueId)));
+    if (!fixes.length) log('No open Bughunters PR has CI checks yet.');
+    for (const fix of fixes) log(`  PR #${fix.pr!.number}  ${fix.ci!.state.padEnd(8)} ${fix.issueId}  ${fix.pr!.url}`);
+    if (problems.length) process.exitCode = 1;
     return;
   }
   if (command === 'publish') {

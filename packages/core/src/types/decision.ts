@@ -12,12 +12,12 @@ export type Answer =
   | { kind: 'score'; value: number; probabilities: number[]; confidence: number; legend: string[] };
 
 /**
- * The decider is an interface on purpose: Jev is early access and rate-limited,
- * so nothing structural may depend on a specific provider (spec 4.6). Because
- * answers are typed, the caller never knows which implementation ran.
+ * The decider is an interface on purpose: nothing structural may depend on a
+ * specific provider (spec 4.6). Because answers are typed, the caller never
+ * knows which implementation ran.
  */
 export interface Decider {
-  readonly name: 'jev' | 'model';
+  readonly name: 'model';
   /** The model id, for the usage records. */
   readonly model?: string;
   /** The tokens of the last `ask`. */

@@ -2,7 +2,8 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { parseConfig } from '@bughunters/core';
+import { AGENT_CHECKS, parseConfig } from '@bughunters/core';
+import { RULES } from '@bughunters/invariants';
 import { AgentSession } from './session.js';
 import { Vars } from './vars.js';
 import { Workspace } from './workspace.js';
@@ -11,7 +12,8 @@ import { evaluateScreen, groupViolations } from './evaluate.js';
 import { judgeTools } from './tools/judge.js';
 import { judgePrompt, judgeSystem } from './prompts.js';
 
-const config = parseConfig({ version: 1, app: { connect: { url: 'fake://home' } } });
+// These tests cover the automatic checks, so they turn all of them on.
+const config = parseConfig({ version: 1, app: { connect: { url: 'fake://home' } }, agents: { checks: [...AGENT_CHECKS] } });
 
 // Three 12px buttons: each breaks the tap-target rule on its own.
 const tiny = (ref: string, x: number) => ({
@@ -21,12 +23,12 @@ const screens: Record<string, FakeScreen> = {
   home: { elements: [tiny('e1', 10), tiny('e2', 60), tiny('e3', 110)], color: 30 },
 };
 
-async function capture(root: string) {
+async function capture(root: string, sessionConfig = config) {
   const workspace = new Workspace(root);
   const record = await workspace.startSession('explorer');
   const driver = new FakeDriver(screens);
   await driver.connect();
-  const session = new AgentSession(root, config, new Vars(), record.id, 'explorer', driver);
+  const session = new AgentSession(root, sessionConfig, new Vars(), record.id, 'explorer', driver);
   const observation = await driver.observe();
   const snapshot = driver.snapshot(observation, 'home');
   const candidates = await evaluateScreen(session, { screenId: 'home', observation, snapshot });
@@ -109,6 +111,34 @@ describe('evaluateScreen', () => {
       screens.home!.elements = original;
       await rm(root, { recursive: true, force: true });
     }
+  });
+
+  it('keeps an issue open when its check is off now, because the check cannot see it', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'bughunters-eval-'));
+    try {
+      const first = await capture(root);
+      const record = await first.workspace.startSession('judge');
+      const judge = new AgentSession(root, config, new Vars(), record.id, 'judge');
+      const file = judgeTools(judge, [first.session.sessionId], 'test').find((item) => item.name === 'file_issue')!;
+      const candidate = first.candidates.find((item) => item.ruleId === 'usability/tap-target')!;
+      await file.run({ candidate_ids: [candidate.id], title: 'Small controls', body: 'Small', severity: 'minor', reason: 'Too small' });
+      const [issue] = await first.workspace.listIssues();
+      const contrastOnly = parseConfig({ version: 1, app: { connect: { url: 'fake://home' } }, agents: { checks: ['usability/contrast'] } });
+      for (let visit = 1; visit <= 3; visit++) {
+        const later = await capture(root, contrastOnly);
+        expect(later.candidates.filter((item) => item.ruleId === 'usability/tap-target')).toEqual([]);
+      }
+      const after = await first.workspace.readIssue(issue!.id);
+      expect(after?.status).toBe(issue!.status);
+      expect(after?.notSeen ?? 0).toBe(0);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('offers every invariant rule except console errors, which the explorer reads itself', () => {
+    const ids = RULES.map((rule) => rule.id).filter((id) => id !== 'runtime/console-errors');
+    expect([...AGENT_CHECKS].sort()).toEqual([...ids, 'pixel-diff'].sort());
   });
 });
 

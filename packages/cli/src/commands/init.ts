@@ -22,14 +22,6 @@ export const KEY_PROVIDERS = {
 export type KeyProvider = keyof typeof KEY_PROVIDERS;
 export type Provider = CliAgent | KeyProvider;
 
-/** Jev routes, in the order the decider tries them. */
-export const JEV_ROUTES = {
-  typesafe: { env: 'TYPESAFE_API_KEY', label: 'TypeSafe', url: 'https://typesafe.ai' },
-  openrouter: { env: 'OPENROUTER_API_KEY', label: 'OpenRouter', url: 'https://openrouter.ai/keys' },
-  vercel: { env: 'AI_GATEWAY_API_KEY', label: 'Vercel AI Gateway', url: 'https://vercel.com/ai-gateway' },
-} as const;
-export type JevRoute = keyof typeof JEV_ROUTES | 'auto';
-
 const CLI_LABELS: Record<CliAgent, string> = { claude: 'Claude Code', codex: 'Codex', kimi: 'Kimi CLI', pi: 'pi' };
 
 export type Detected = {
@@ -37,8 +29,6 @@ export type Detected = {
   clis: CliAgent[];
   /** Model routes with a key in the environment. */
   keys: KeyProvider[];
-  /** Jev routes with a key in the environment. */
-  jev: Exclude<JevRoute, 'auto'>[];
   /** pi is on PATH but has no MCP: it needs pi-mcp-adapter. */
   piWithoutMcp: boolean;
   /** pi has pi-permission-modes, which blocks tool calls in print mode unless --perm yolo. */
@@ -56,7 +46,6 @@ export function detectProviders(env: NodeJS.ProcessEnv = process.env, exec: Run 
   return {
     clis: found.filter((agent) => agent !== 'pi' || !piWithoutMcp),
     keys: (Object.keys(KEY_PROVIDERS) as KeyProvider[]).filter((key) => env[KEY_PROVIDERS[key].env]),
-    jev: (Object.keys(JEV_ROUTES) as Exclude<JevRoute, 'auto'>[]).filter((route) => env[JEV_ROUTES[route].env]),
     piWithoutMcp,
     piPermissionModes: piList.includes('pi-permission-modes'),
   };
@@ -225,7 +214,6 @@ export type InitAnswers = {
   cdpPort?: number;
   ready?: string;
   providers: Record<AgentRole, Provider>;
-  jev: JevRoute;
   /** Add --perm yolo to pi, for installs that have pi-permission-modes. */
   piPermissionModes?: boolean;
 };
@@ -300,12 +288,6 @@ export function renderConfig(answers: InitAnswers): string {
     `    use: ${useLine('fixer', answers.providers.fixer, answers.piPermissionModes)}`,
     '  github:',
     '    enabled: false                   # turn on to open PRs and issues (needs the gh CLI)',
-    '',
-    '# Jev triages each finding in one fast, low-cost call, so the LLM judge sees only the real ones.',
-    '# With no Jev key, a general model or the judge does this work, at a higher cost.',
-    'decisions:',
-    '  decider: jev',
-    `  jev: { via: ${answers.jev} }${answers.jev === 'auto' ? '             # tries TYPESAFE_API_KEY, OPENROUTER_API_KEY, AI_GATEWAY_API_KEY' : ''}`,
     '',
   );
   return lines.join('\n');
@@ -390,12 +372,6 @@ export function writeInitialConfig(root: string, answers: InitAnswers): InitResu
       result.warnings.push(`Set ${route.env} before you run Bughunters. Get a key at ${route.url}`);
     }
   }
-  if (answers.jev !== 'auto' && !process.env[JEV_ROUTES[answers.jev].env]) {
-    result.warnings.push(`Set ${JEV_ROUTES[answers.jev].env} to use Jev. Get a key at ${JEV_ROUTES[answers.jev].url}`);
-  }
-  if (answers.jev === 'auto' && !Object.values(JEV_ROUTES).some((route) => process.env[route.env])) {
-    result.warnings.push('No Jev key is set, so Bughunters costs more. Get a key at https://typesafe.ai');
-  }
   return result;
 }
 
@@ -410,7 +386,6 @@ export type InitFlags = {
   explorer?: Provider;
   judge?: Provider;
   fixer?: Provider;
-  jev?: JevRoute;
 };
 
 const PROVIDERS: Provider[] = [...CLI_AGENTS, ...(Object.keys(KEY_PROVIDERS) as KeyProvider[])];
@@ -438,7 +413,6 @@ export function parseInitFlags(args: string[]): InitFlags {
       case '--agent': case '--explorer': case '--judge': case '--fixer':
         flags[flag.slice(2) as 'agent' | AgentRole] = oneOf(flag, args[++index], PROVIDERS);
         break;
-      case '--jev': flags.jev = oneOf(flag, args[++index], ['typesafe', 'openrouter', 'vercel', 'auto'] as const); break;
       default: throw new ConfigError(`Unknown flag for init: ${flag}`);
     }
   }
@@ -485,7 +459,6 @@ export function defaultAnswers(guess: AppGuess, detected: Detected, flags: InitF
     cdpPort: guess.cdpPort,
     ready: platform === guess.platform ? guess.ready : undefined,
     providers: providers as Record<AgentRole, Provider>,
-    jev: flags.jev ?? detected.jev[0] ?? 'auto',
     piPermissionModes: detected.piPermissionModes,
   };
 }
@@ -539,15 +512,6 @@ export async function interview(ask: Ask, root: string, guess: AppGuess, detecte
   next.providers.judge = await choose(ask, 'Judge: it decides which reports are real bugs.', options, next.providers.explorer);
   next.providers.fixer = await choose(ask, 'Fixer: it writes the fixes (off until you turn it on).', options, next.providers.fixer);
 
-  process.stdout.write('\nJev triages each finding in one fast, low-cost call. The LLM judge then sees only the real findings.\n');
-  const jevOptions: { value: JevRoute; label: string }[] = [
-    ...(Object.keys(JEV_ROUTES) as Exclude<JevRoute, 'auto'>[]).map((route) => ({
-      value: route,
-      label: `${JEV_ROUTES[route].label} (${JEV_ROUTES[route].env}${detected.jev.includes(route) ? ' is set' : `, get a key at ${JEV_ROUTES[route].url}`})`,
-    })),
-    { value: 'auto', label: 'Try each key in order (with no key, the LLM does this work at a higher cost)' },
-  ];
-  next.jev = await choose(ask, 'How does Bughunters reach Jev?', jevOptions, next.jev === 'auto' ? detected.jev[0] ?? 'typesafe' : next.jev);
   return next;
 }
 
@@ -681,9 +645,6 @@ determinism:
   blockThirdPartyRequests: true
 
 decisions:
-  decider: jev                 # jev | model
-  jev:
-    via: auto                  # auto | typesafe | openrouter | vercel
   model:
     via: auto                  # auto | openrouter | vercel | openai | anthropic | custom
     name: ""                   # optional model id override

@@ -55,7 +55,7 @@ A maintainer runs the **Release** workflow in GitHub Actions and selects `patch`
 | `@bughunters/core` | The data types, the config schema, file paths, fingerprints, and exit codes |
 | `@bughunters/agents` | The explorer, judge, and fixer; the retest, publish, and memory steps; model and CLI runtimes; routines; the patrol; workspace files |
 | `@bughunters/drivers` | One driver interface for web (Playwright), Electron (CDP), and iOS and Android (Maestro) |
-| `@bughunters/decide` | The decider interface and its routes: Jev, a general model, a local model, or the offline heuristic |
+| `@bughunters/decide` | The decider for the web gate: a general model, a local model, or the offline heuristic |
 | `@bughunters/invariants` | The layout checks: contrast, overlap, clipped text, tap size, and more |
 | `@bughunters/diff` | Pixel and perceptual comparison, masks, and tolerance rules |
 | `@bughunters/capture` | The Playwright capture for the deterministic gate, with the determinism contract |

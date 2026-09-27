@@ -38,6 +38,9 @@ All the settings:
 | `labels` | `[bughunters]` | The labels on each PR and issue. The first label also finds them again for sync |
 | `assetsBranch` | `bughunters-assets` | The branch that holds the report images |
 | `prScope` | from `fixer.commitMessage` | The scope in PR titles, for example `app` in `fix(app): ...` |
+| `ci.enabled` | `true` | Watch the CI checks of each PR, and fix a failed check |
+| `ci.attempts` | `2` | The fixer attempts for each PR before Bughunters stops |
+| `ci.waitMinutes` | `20` | How long one cycle waits for the running checks |
 
 For PRs, also turn on the fixer. Refer to [Getting started](getting-started.md#6-let-it-fix-bugs).
 
@@ -98,7 +101,23 @@ The judge reads each item before it publishes it. It can skip an item that is cl
 
 Review each PR as you review a PR from a person. A retest verdict of ❔ unclear means that the explorer could not reach the screen in the retest.
 
-## 5. Sync the state back
+## 5. Make CI green
+
+After a PR opens, Bughunters watches its CI checks:
+
+```bash
+npx bughunters ci --wait             # wait for the checks, and fix a failed one
+npx bughunters ci --issue <id>       # one PR
+```
+
+1. Bughunters reads the checks with `gh pr checks`.
+2. When a check fails, the fixer gets the end of the failed log (`gh run view --log-failed`). It fixes the cause in the fix worktree, and it runs `fixer.verify`.
+3. Bughunters commits the change on the same branch, and pushes it. It never force-pushes. The PR then runs its checks again.
+4. After `ci.attempts` tries, Bughunters stops. The dashboard shows `CI red` on the PR, and `patrol --once` exits with code 1. A person must then look at the PR.
+
+`patrol` runs this step after publish, and it waits up to `ci.waitMinutes`. A check that still runs goes to the next cycle. The PR chip on the dashboard shows the state: `CI running`, `CI green`, `CI failed, fixing`, or `CI red`.
+
+## 6. Sync the state back
 
 ```bash
 npx bughunters github sync

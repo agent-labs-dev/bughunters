@@ -52,7 +52,7 @@ export async function runExplorer(
     role: 'explorer' as const,
     sessionId: session.sessionId,
     system: explorerSystem(session.config.app.platform, instructions,
-      lessonsFor(await session.workspace.readMemory(), 'explorer')),
+      lessonsFor(await session.workspace.readMemory(), 'explorer'), session.config.agents.checks),
     prompt: explorerPrompt({
       goal: opts.goal,
       screens: map?.screens ?? [],
@@ -75,13 +75,13 @@ export async function runExplorer(
     await session.workspace.endSession(session.sessionId, {
       status: outcome.stop === 'error' ? 'failed' : 'finished',
       steps: outcome.steps,
-      costUsd: outcome.costUsd + session.decisionSpentUsd,
+      costUsd: outcome.costUsd,
       summary: outcome.summary,
       candidates: candidates.length,
       screensFound: screens.map((item) => item.id),
     });
     session.emit({ kind: 'session-end', summary: outcome.summary ?? `Explorer stopped: ${outcome.stop}` });
-    await session.idle(outcome.costUsd + session.decisionSpentUsd);
+    await session.idle(outcome.costUsd);
     const learned = await reflectOnSession(session.root, session.config, session.sessionId,
       { vars: session.vars, onLog: (message) => session.emit({ kind: 'error', summary: message }) });
     if (learned) session.emit({ kind: 'lesson', summary: `Saved ${learned} lesson(s) for the next sessions` });

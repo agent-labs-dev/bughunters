@@ -28,14 +28,13 @@ function fakePath(...programs: string[]): string {
   return dir;
 }
 
-const none: Detected = { clis: [], keys: [], jev: [], piWithoutMcp: false, piPermissionModes: false };
+const none: Detected = { clis: [], keys: [], piWithoutMcp: false, piPermissionModes: false };
 
 const answers = (overrides: Partial<InitAnswers> = {}): InitAnswers => ({
   platform: 'web',
   start: 'pnpm run dev',
   url: 'http://localhost:5173',
   providers: { explorer: 'claude', judge: 'claude', fixer: 'claude' },
-  jev: 'auto',
   ...overrides,
 });
 
@@ -101,10 +100,9 @@ describe('detectAppId', () => {
 
 describe('detectProviders', () => {
   it('finds agent CLIs on PATH and keys in the environment', () => {
-    const detected = detectProviders({ PATH: fakePath('claude', 'codex'), OPENROUTER_API_KEY: 'x', TYPESAFE_API_KEY: 'y' }, () => '');
+    const detected = detectProviders({ PATH: fakePath('claude', 'codex'), OPENROUTER_API_KEY: 'x' }, () => '');
     expect(detected.clis).toEqual(['claude', 'codex']);
     expect(detected.keys).toEqual(['openrouter']);
-    expect(detected.jev).toEqual(['typesafe', 'openrouter']);
   });
 
   it('skips pi without pi-mcp-adapter, because the explorer needs MCP', () => {
@@ -125,10 +123,9 @@ describe('defaultAnswers', () => {
     expect(picked.providers).toEqual({ explorer: 'codex', judge: 'codex', fixer: 'codex' });
   });
 
-  it('uses a detected key when there is no CLI, and a detected Jev route', () => {
-    const picked = defaultAnswers(guess, { ...none, keys: ['vercel'], jev: ['vercel'] }, parseInitFlags([]));
+  it('uses a detected key when there is no CLI', () => {
+    const picked = defaultAnswers(guess, { ...none, keys: ['vercel'] }, parseInitFlags([]));
     expect(picked.providers.explorer).toBe('vercel');
-    expect(picked.jev).toBe('vercel');
   });
 
   it('requires at least one way to reach an LLM', () => {
@@ -157,7 +154,7 @@ describe('renderConfig', () => {
     answers({ platform: 'electron', start: 'npx electron . --remote-debugging-port=9222', cdpPort: 9222 }),
     answers({ platform: 'ios', start: 'npx expo start', appId: 'com.acme.app' }),
     answers({ platform: 'android', start: undefined, appId: undefined }),
-    answers({ providers: { explorer: 'openrouter', judge: 'vercel', fixer: 'codex' }, jev: 'typesafe' }),
+    answers({ providers: { explorer: 'openrouter', judge: 'vercel', fixer: 'codex' } }),
     answers({ providers: { explorer: 'pi', judge: 'kimi', fixer: 'pi' }, piPermissionModes: true }),
   ])('writes a config that parses: %#', (input) => {
     expect(() => parseConfig(parse(renderConfig(input)))).not.toThrow();
@@ -169,7 +166,7 @@ describe('renderConfig', () => {
     expect(config.agents.fixer.use).toMatchObject({ runtime: 'cli', command: 'claude -p --output-format json --permission-mode acceptEdits' });
     expect(config.agents.fixer.enabled).toBe(false);
     expect(config.agents.github.enabled).toBe(false);
-    expect(config.decisions.decider).toBe('jev');
+    expect(renderConfig(answers())).not.toMatch(/jev|decisions/i);
   });
 
   it('writes a model route for an API key provider', () => {
@@ -216,9 +213,8 @@ describe('writeInitialConfig', () => {
   });
 
   it('warns about a key that the config needs and the shell does not have', () => {
-    const result = writeInitialConfig(fixtureRepo(), answers({ providers: { explorer: 'openrouter', judge: 'openrouter', fixer: 'openrouter' }, jev: 'typesafe' }));
+    const result = writeInitialConfig(fixtureRepo(), answers({ providers: { explorer: 'openrouter', judge: 'openrouter', fixer: 'openrouter' } }));
     expect(result.warnings.join('\n')).toContain('OPENROUTER_API_KEY');
-    expect(result.warnings.join('\n')).toContain('TYPESAFE_API_KEY');
   });
 });
 
@@ -246,16 +242,16 @@ describe('interview', () => {
 
   it('puts each detected value on the input line, so Enter keeps it', async () => {
     const { result, prompts } = await play([]);
-    expect(prompts.map((prompt) => prompt.prefill)).toEqual(['1', 'npm run dev', 'http://localhost:5173', '1', '1', '1', '1']);
+    expect(prompts.map((prompt) => prompt.prefill)).toEqual(['1', 'npm run dev', 'http://localhost:5173', '1', '1', '1']);
     expect(result).toMatchObject({
       platform: 'web', start: 'npm run dev', url: 'http://localhost:5173',
-      providers: { explorer: 'claude', judge: 'claude', fixer: 'claude' }, jev: 'typesafe',
+      providers: { explorer: 'claude', judge: 'claude', fixer: 'claude' },
     });
   });
 
   it('takes an edited value, a cleared value, and a different number', async () => {
-    const { result, replies } = await play([enter, () => 'pnpm dev', enter, () => '2', enter, enter, () => '']);
-    expect(result).toMatchObject({ start: 'pnpm dev', providers: { explorer: 'codex', judge: 'codex', fixer: 'claude' }, jev: 'typesafe' });
+    const { result, replies } = await play([enter, () => 'pnpm dev', enter, () => '2', enter, enter]);
+    expect(result).toMatchObject({ start: 'pnpm dev', providers: { explorer: 'codex', judge: 'codex', fixer: 'claude' } });
     expect(replies).toEqual([]);
     expect((await play([enter, () => ''])).result.start).toBeUndefined();
   });

@@ -24,11 +24,6 @@ describe('preflight', () => {
       .toThrow(/kimi/);
   });
 
-  it('says which decider runs, and asks for a Jev key when there is none', () => {
-    const cfg = config({ explorer: { use: 'claude' } });
-    expect(preflight('explore', cfg, { PATH: bin })[0]).toContain('Set a Jev key');
-    expect(preflight('explore', cfg, { PATH: bin, TYPESAFE_API_KEY: 'k' })[0]).toContain('jev via typesafe');
-  });
 });
 
 describe('agent command flags', () => {

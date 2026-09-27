@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { fingerprint, shortHash, type Candidate, type Locator, type Routine, type RoutineStep, type ScreenTransition } from '@bughunters/core';
 import type { DriverAction, Observation, UiElement } from '@bughunters/drivers';
 import { addOccurrence, evaluateScreen } from '../evaluate.js';
+import { lessonTools } from './memory.js';
 import { replayRoutine } from '../replay.js';
 import type { AgentSession } from '../session.js';
 import type { Tool, ToolResult } from '../types.js';
@@ -23,11 +24,20 @@ function elementLine(element: UiElement): string {
     ` (${box.x},${box.y} ${box.width}x${box.height})${flags ? ` ${flags}` : ''}`;
 }
 
+/** What the app logged since the last observation: the signals that a screenshot does not show. */
+export function errorLines(observation: Observation): string[] {
+  const unique = (items: string[] = []) => [...new Set(items)].map((item) => item.slice(0, 200));
+  const lines = (label: string, items: string[]) => items.length
+    ? [`${label}:`, ...items.slice(0, 5).map((item) => `- ${item}`), ...(items.length > 5 ? [`- (${items.length - 5} more)`] : [])]
+    : [];
+  return [...lines('Console errors', unique(observation.consoleErrors)), ...lines('Failed requests', unique(observation.networkErrors))];
+}
+
 function observationText(observation: Observation): string {
   const windows = observation.windows?.map((window) =>
     `${window.active ? '*' : ' '} ${window.title} (${window.location})`).join('; ') ?? '(none)';
-  return [`Location: ${observation.location}`, `Windows: ${windows}`, 'Elements:',
-    ...observation.elements.slice(0, 117).map(elementLine)].slice(0, 120).join('\n');
+  return [`Location: ${observation.location}`, `Windows: ${windows}`, ...errorLines(observation), 'Elements:',
+    ...observation.elements.slice(0, 117).map(elementLine)].slice(0, 130).join('\n');
 }
 
 async function observe(session: AgentSession, label: string, summary?: string): Promise<ToolResult> {
@@ -381,7 +391,7 @@ export function explorerTools(session: AgentSession): Tool[] {
     },
     {
       name: 'record_screen',
-      description: 'Record this screen, its routine, and automatic findings.',
+      description: 'Record this screen and its routine in the app map.',
       inputSchema: schema({ id: string, name: string, description: string },
         ['id', 'name', 'description']),
       async run(input) {
@@ -392,8 +402,9 @@ export function explorerTools(session: AgentSession): Tool[] {
         await session.driver!.settle();
         const observation = await session.driver!.observe();
         const screenshot = await session.capture(observation, id);
-        const snapshot = session.driver!.snapshot(observation, id);
-        const findings = await evaluateScreen(session, { screenId: id, observation, snapshot });
+        const findings = session.config.agents.checks.length
+          ? await evaluateScreen(session, { screenId: id, observation, snapshot: session.driver!.snapshot(observation, id) })
+          : [];
         const previous = session.lastScreenId;
         const edge = transition(session, id);
         const routineId = `screen-${id}`;
@@ -417,17 +428,19 @@ export function explorerTools(session: AgentSession): Tool[] {
         session.lastScreenTrailIndex = session.trail.length;
         const screens = (await session.workspace.readAppMap())?.screens ?? [];
         const names = screens.map((screen) => screen.id).join(', ') || id;
-        const found = findings.length
-          ? `${findings.length} automatic finding(s): ${findings.map((item) => item.summary).join('; ')}`
-          : 'no automatic findings';
+        const found = !session.config.agents.checks.length ? ''
+          : findings.length
+            ? ` ${findings.length} automatic finding(s): ${findings.map((item) => item.summary).join('; ')}.`
+            : ' No automatic findings.';
+        const errors = errorLines(observation);
         session.emit({
           kind: 'screen',
-          summary: `Recorded ${name} (${found.split(':')[0]})`,
+          summary: `Recorded ${name}${findings.length ? ` (${findings.length} automatic finding(s))` : ''}`,
           screenId: id,
           screenshot,
         });
         return {
-          ...text(`Recorded ${name}. ${found}. Known screens: ${names}`),
+          ...text(session.vars.redact(`Recorded ${name}.${found} Known screens: ${names}${errors.length ? `\n${errors.join('\n')}` : ''}`) as string),
           meta: { summary: '', screenshot, screenId: id },
         };
       },
@@ -543,5 +556,6 @@ export function explorerTools(session: AgentSession): Tool[] {
       run: (input) => act(session, { kind: 'window', match: arg(input, 'match') }),
     });
   }
+  tools.push(...lessonTools(session, 'explorer'));
   return tools;
 }

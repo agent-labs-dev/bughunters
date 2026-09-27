@@ -83,6 +83,7 @@ code, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-
 .gh-open { color: var(--gh-open); }
 .gh-merged { color: var(--gh-merged); }
 .gh-closed { color: var(--gh-closed); }
+.gh-chip.ci-failed, .gh-chip.ci-gave-up { color: var(--gh-closed); }
 .github-summary { font-size: .8rem; margin-bottom: .75rem; }
 
 .sev-critical { --sev: var(--critical); }

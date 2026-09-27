@@ -37,10 +37,10 @@ describe('usageOf', () => {
   it('adds up the events of a session, in total and for each model', () => {
     const event = (model: string, input: number, output: number): AgentEvent =>
       ({ at: '', sessionId: 's', role: 'explorer', kind: 'tool-result', summary: '', model, tokens: { input, output } });
-    const result = usageOf([event('glm', 100, 10), event('jev-latest', 50, 0), event('glm', 200, 20),
+    const result = usageOf([event('glm', 100, 10), event('gpt-mini', 50, 0), event('glm', 200, 20),
       { at: '', sessionId: 's', role: 'explorer', kind: 'thought', summary: 'no tokens' }]);
     expect(result.tokens).toEqual({ input: 350, output: 30 });
-    expect(result.tokensByModel).toEqual({ glm: { input: 300, output: 30 }, 'jev-latest': { input: 50, output: 0 } });
+    expect(result.tokensByModel).toEqual({ glm: { input: 300, output: 30 }, 'gpt-mini': { input: 50, output: 0 } });
     expect(usageOf([])).toEqual({});
   });
 });

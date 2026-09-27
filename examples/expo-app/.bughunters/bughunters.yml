@@ -57,6 +57,3 @@ agents:
       command: >-
         claude -p --output-format json --permission-mode acceptEdits
         --allowedTools "Bash(npm:*)" "Bash(git diff:*)" "Bash(git status:*)"
-
-decisions:
-  decider: jev

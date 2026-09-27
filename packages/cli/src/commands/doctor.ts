@@ -2,7 +2,6 @@ import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { ExitCode, legacyLayout, paths, type BughuntersConfig, type ExitCodeValue } from '@bughunters/core';
 import { runtimeProblem } from '@bughunters/agents';
-import { resolveDecider } from '@bughunters/decide';
 
 export type DoctorCheck = { name: string; ok: boolean; detail: string; fatal: boolean };
 
@@ -67,7 +66,7 @@ export function runChecks(root: string, config: BughuntersConfig | undefined): D
   return checks;
 }
 
-/** The checks that the agent commands need: an LLM for each agent, the decider, and gh for GitHub. */
+/** The checks that the agent commands need: an LLM for each agent, and gh for GitHub. */
 function agentChecks(config: BughuntersConfig, env: NodeJS.ProcessEnv = process.env): DoctorCheck[] {
   const checks: DoctorCheck[] = [];
   const roles = (['explorer', 'judge', 'fixer'] as const)
@@ -78,8 +77,6 @@ function agentChecks(config: BughuntersConfig, env: NodeJS.ProcessEnv = process.
     const label = use.runtime === 'cli' ? `cli: ${use.agent ?? use.command.split(' ')[0]}` : `${use.via}: ${use.model ?? 'default model'}`;
     checks.push({ name: role, ok: !problem, detail: problem ?? `The ${role} uses ${label}`, fatal: true });
   }
-  const decider = resolveDecider(config.decisions, env as Record<string, string>);
-  checks.push({ name: 'decider', ok: Boolean(decider.decider), detail: decider.reason, fatal: false });
   if (config.agents.github.enabled) {
     const installed = spawnSync('gh', ['--version'], { stdio: 'ignore' }).status === 0;
     const loggedIn = installed && spawnSync('gh', ['auth', 'status'], { stdio: 'ignore' }).status === 0;

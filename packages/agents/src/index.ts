@@ -15,6 +15,7 @@ export * from './roles/fixer.js';
 export * from './roles/worktrees.js';
 export * from './roles/retest.js';
 export * from './roles/publish.js';
+export * from './roles/ci.js';
 export * from './roles/reflect.js';
 export * from './github.js';
 export * from './report.js';

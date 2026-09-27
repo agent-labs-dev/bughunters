@@ -2,7 +2,7 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { parseConfig, paths } from '@bughunters/core';
+import { AGENT_CHECKS, parseConfig, paths } from '@bughunters/core';
 import { AgentSession } from './session.js';
 import { Vars } from './vars.js';
 import { Workspace } from './workspace.js';
@@ -13,7 +13,8 @@ import { replayRoutine } from './replay.js';
 
 const element = (ref: string, name: string) => ({ ref, role: 'button', name,
   box: { x: 10, y: 10, width: 40, height: 40 }, interactive: true, enabled: true });
-const config = parseConfig({ version: 1, app: { connect: { url: 'fake://home' } } });
+// These tests cover the automatic checks, so they turn all of them on.
+const config = parseConfig({ version: 1, app: { connect: { url: 'fake://home' } }, agents: { checks: [...AGENT_CHECKS] } });
 const run = async (tools: ReturnType<typeof explorerTools> | ReturnType<typeof judgeTools>,
   name: string, input: Record<string, unknown> = {}) => {
   const tool = tools.find((item) => item.name === name);
@@ -21,7 +22,7 @@ const run = async (tools: ReturnType<typeof explorerTools> | ReturnType<typeof j
   return tool.run(input);
 };
 
-async function fixture() {
+async function fixture(options: { config?: typeof config } = {}) {
   const root = await mkdtemp(join(tmpdir(), 'bughunters-flow-'));
   const screens: Record<string, FakeScreen> = {
     home: { elements: [element('e1', 'Settings')], next: { e1: 'settings' }, color: 20 },
@@ -32,11 +33,33 @@ async function fixture() {
   const record = await workspace.startSession('explorer');
   const vars = new Vars();
   vars.set('SECRET', 'super-secret-value');
-  const session = new AgentSession(root, config, vars, record.id, 'explorer', driver);
+  const session = new AgentSession(root, options.config ?? config, vars, record.id, 'explorer', driver);
   return { root, screens, driver, workspace, session };
 }
 
 describe('explorer, replay, and judge', () => {
+  it('runs no automatic checks by default, and shows the explorer the console and network errors', async () => {
+    const f = await fixture({ config: parseConfig({ version: 1, app: { connect: { url: 'fake://home' } } }) });
+    try {
+      f.screens.home!.consoleErrors = ['TypeError: x is undefined', 'TypeError: x is undefined', 'token super-secret-value'];
+      f.screens.home!.networkErrors = ['GET https://api.test/me → 500'];
+      const tools = explorerTools(f.session);
+      const looked = JSON.stringify(await run(tools, 'look'));
+      expect(looked).toContain('Console errors:\\n- TypeError: x is undefined\\n- token {{SECRET}}');
+      expect(looked).toContain('Failed requests:\\n- GET https://api.test/me → 500');
+      expect(looked).not.toContain('super-secret-value');
+      const recorded = JSON.stringify(await run(tools, 'record_screen', { id: 'home', name: 'Home', description: 'Home' }));
+      expect(recorded).not.toContain('automatic');
+      expect(recorded).toContain('GET https://api.test/me → 500');
+      f.screens.home!.color = 230;
+      await run(tools, 'record_screen', { id: 'home', name: 'Home', description: 'Home' });
+      expect(await f.workspace.readCandidates(f.session.sessionId)).toEqual([]);
+      expect(await readFile(paths.agentBaseline(f.root, 'home')).catch(() => undefined)).toBeUndefined();
+    } finally {
+      await rm(f.root, { recursive: true, force: true });
+    }
+  });
+
   it('records direct tap and open transitions, counts repeats, and skips long paths', async () => {
     const f = await fixture();
     try {
@@ -77,7 +100,7 @@ describe('explorer, replay, and judge', () => {
       expect(f.session.trail.at(-1)).toMatchObject({ kind: 'type', append: true });
       await run(tools, 'save_routine', { id: 'enter-app', description: 'Enter app' });
       const first = await run(tools, 'record_screen', { id: 'Home', name: 'Home', description: 'Launcher' });
-      expect(JSON.stringify(first)).toContain('no automatic findings');
+      expect(JSON.stringify(first)).toContain('No automatic findings');
       await run(tools, 'wait', { seconds: 0 });
       await run(tools, 'tap', { ref: 'e1' });
       await run(tools, 'record_screen', { id: 'Settings', name: 'Settings', description: 'Settings pane' });

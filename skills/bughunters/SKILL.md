@@ -15,8 +15,7 @@ Source and full docs: https://github.com/agent-labs-dev/bughunters
 
 Bughunters has these roles:
 
-- The **explorer** starts the app, maps its screens, and reports what looks wrong. Automatic checks (contrast, overlap, clipped text, tap size, visual change) run on each screen.
-- The **decider** is [Jev](https://typesafe.ai), a fast, low-cost model. It screens each finding from the automatic checks in one call: drop it, or send it to the judge.
+- The **explorer** starts the app, maps its screens, and reports what looks wrong. It also sees the console errors and the failed requests of the app.
 - The **judge** looks at each finding and its screenshot. It files an issue, adds the finding to an open issue, or dismisses it with a reason.
 - The **fixer** (off by default) writes a fix in its own git worktree, on the branch `bughunters/fix-<issue>`.
 - The **retest** starts the app from the fix worktree. The explorer repeats the flow, and the judge compares the before and after screenshots.
@@ -24,7 +23,7 @@ Bughunters has these roles:
 
 Platforms: `web` (Playwright), `electron` (CDP), `ios` and `android` (Maestro).
 
-The explorer, the judge, and the fixer are LLM agents. Each one runs on a local agent CLI (`claude`, `codex`, `kimi`, or `pi`) or on an API key (OpenRouter, Vercel AI Gateway, OpenAI, Anthropic). Jev does the repeated triage, so the LLM agents see only the findings that need them. This split keeps an all-day loop fast and low in cost.
+The explorer, the judge, and the fixer are LLM agents. Each one runs on a local agent CLI (`claude`, `codex`, `kimi`, or `pi`) or on an API key (OpenRouter, Vercel AI Gateway, OpenAI, Anthropic).
 
 Bughunters keeps all of its files in one `.bughunters/` folder at the project root. The config and the app guide are committed. The local data goes in `.bughunters/runs/`, and git ignores it. The first session learns **routines** (for example `enter-app`), so later sessions start faster and replay these paths with no model.
 
@@ -150,7 +149,7 @@ You are an LLM agent, so use yourself as the provider for all the agents. Then t
      --platform web --start "npm run dev" --url http://localhost:3000
    ```
 
-   Other flags: `--app-id <id>` (mobile), `--explorer`, `--judge`, and `--fixer` (a different provider for one agent), and `--jev <typesafe|openrouter|vercel|auto>`.
+   Other flags: `--app-id <id>` (mobile), `--explorer`, `--judge`, and `--fixer` (a different provider for one agent).
 
 `init` writes these files. It never overwrites a file:
 
@@ -269,12 +268,11 @@ Sign in with the email {{TEST_EMAIL}} and the password {{TEST_PASSWORD}}.
 Check which keys are present. Do not print their values:
 
 ```bash
-for k in TYPESAFE_API_KEY OPENROUTER_API_KEY AI_GATEWAY_API_KEY OPENAI_API_KEY ANTHROPIC_API_KEY; do
+for k in OPENROUTER_API_KEY AI_GATEWAY_API_KEY OPENAI_API_KEY ANTHROPIC_API_KEY; do
   test -n "$(printenv $k)" && echo "$k set" || echo "$k missing"
 done
 ```
 
-- **Jev.** Jev needs `TYPESAFE_API_KEY` (https://typesafe.ai), `OPENROUTER_API_KEY`, or `AI_GATEWAY_API_KEY`. If none is set, tell the user that a Jev key cuts the cost, and give them the link. Without it, a general model or the judge does the triage, at a higher cost.
 - **API key agents.** If an agent uses `runtime: model`, its key must be set. OpenRouter keys: https://openrouter.ai/keys. Vercel AI Gateway keys: https://vercel.com/ai-gateway.
 
 If a key is missing, ask the user to set it in their shell. Do not ask the user to paste a key into the chat.
@@ -424,6 +422,13 @@ Do these steps in order:
    ```
 
 4. Give the user the URL of each PR and issue. The command prints them.
+5. Watch CI until the checks of each PR are green. The fixer fixes a failed check and pushes a new commit:
+
+   ```bash
+   npx bughunters@latest ci --wait
+   ```
+
+   If the output says `A person must look at it`, give the user the PR URL and the names of the failed checks.
 
 To read the state of the PRs and issues back from GitHub, run `npx bughunters@latest github sync`. A PR that the team closes without a merge becomes a lesson, and an issue that the team closes as not planned becomes a dismissal. Full reference: https://github.com/agent-labs-dev/bughunters/blob/main/docs/github.md
 
@@ -491,7 +496,7 @@ Severity, worst first: `critical`, `major`, `minor`, `cosmetic`.
 | `fixed` | The fix is verified, or the issue was closed on GitHub as completed |
 | `dismissed` | A human or GitHub closed it as not a bug. It does not come back |
 
-The `costUsd` in each `session.json` counts only the API calls that Bughunters makes: Jev and the `runtime: model` agents. A local agent CLI (`claude`, `codex`, `kimi`, `pi`) uses the user's own plan, and Bughunters does not see its cost.
+The `costUsd` in each `session.json` counts only the API calls that Bughunters makes: the `runtime: model` agents. A local agent CLI (`claude`, `codex`, `kimi`, `pi`) uses the user's own plan, and Bughunters does not see its cost.
 
 Each `session.json` also has `tokens` and `tokensByModel`. The Overview page shows a **Token usage** table for the last 7 days, for each agent and model. When the user asks about cost, or wants to compare models, show this table, and give the tokens per session.
 
@@ -523,6 +528,5 @@ Each `session.json` also has `tokens` and `tokensByModel`. The Overview page sho
 | `GitHub is off` or `The fixer is off` | Ask the user, then set `agents.github.enabled` or `agents.fixer.enabled` to `true` |
 | No issues after `explore` | Run `npx bughunters@latest judge`. The judge files the issues |
 | `... is not set` or `... is not on PATH` at the start | Set the key, install the CLI, or change `agents.<role>.use` |
-| `Decider: none` in the output | No Jev key is set. Ask the user to set `TYPESAFE_API_KEY`, `OPENROUTER_API_KEY`, or `AI_GATEWAY_API_KEY` |
 
 Full docs: https://github.com/agent-labs-dev/bughunters/tree/main/docs

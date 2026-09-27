@@ -20,6 +20,7 @@ export class WebDriver implements Driver {
   protected page?: Page;
   protected lastObservation?: Observation;
   private readonly errors = new Map<Page, string[]>();
+  private readonly failures = new Map<Page, string[]>();
   private readonly watched = new WeakSet<Page>();
 
   constructor(protected readonly options: WebOptions) {}
@@ -51,11 +52,27 @@ export class WebDriver implements Driver {
     const errors: string[] = [];
     this.errors.set(page, errors);
     page.on('console', (message) => {
-      if (message.type() === 'error') {
+      // The failed requests list has the same failure, with its URL.
+      if (message.type() === 'error' && !message.text().startsWith('Failed to load resource:')) {
         errors.push(message.text());
       }
     });
     page.on('pageerror', (error) => errors.push(`${error.name}: ${error.message}`));
+    const failures: string[] = [];
+    this.failures.set(page, failures);
+    const add = (line: string) => { if (failures.length < 50) failures.push(line); };
+    page.on('response', (response) => {
+      const type = response.request().resourceType();
+      if (response.status() >= 400 && ['fetch', 'xhr', 'document'].includes(type)) {
+        add(`${response.request().method()} ${response.url()} → ${response.status()}`);
+      }
+    });
+    page.on('requestfailed', (request) => {
+      const reason = request.failure()?.errorText ?? 'failed';
+      // A navigation or a new render cancels requests all the time.
+      if (/ERR_ABORTED|NS_BINDING_ABORTED|cancelled/i.test(reason)) return;
+      if (['fetch', 'xhr', 'document'].includes(request.resourceType())) add(`${request.method()} ${request.url()} → ${reason}`);
+    });
   }
 
   async observe(): Promise<Observation> {
@@ -88,6 +105,7 @@ export class WebDriver implements Driver {
       windows,
       volatileRegions: [],
       consoleErrors: errors.splice(0),
+      networkErrors: (this.failures.get(page) ?? []).splice(0),
       at: new Date().toISOString(),
     };
     this.lastObservation = observation;
