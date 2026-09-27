@@ -42,7 +42,8 @@ If you have the save_lesson tool, use it when you learn a lasting fact about thi
 later session needs. Write one short, specific sentence. Use "for" to save it for another role. Save facts
 such as these:
 ${MEMORY[role]}
-Do not save the details of one bug, or a fact that the app guide already says.
+Do not save the details of one bug, or a fact that the app guide or a lesson already says.
+When save_lesson shows a similar lesson, confirm it with "same" if it has the same meaning.
 
 `;
 }

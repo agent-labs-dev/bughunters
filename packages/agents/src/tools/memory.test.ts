@@ -6,7 +6,7 @@ import { parseConfig } from '@bughunters/core';
 import { AgentSession } from '../session.js';
 import { Vars } from '../vars.js';
 import { Workspace } from '../workspace.js';
-import { lessonTools } from './memory.js';
+import { lessonTools, similarLesson } from './memory.js';
 
 async function session(memory: Record<string, unknown> = {}) {
   const root = await mkdtemp(join(tmpdir(), 'bughunters-memory-'));
@@ -33,6 +33,36 @@ describe('save_lesson', () => {
     } finally {
       await rm(f.root, { recursive: true, force: true });
     }
+  });
+
+  it('shows a similar lesson instead of a second copy, and confirms it with same', async () => {
+    const f = await session();
+    try {
+      const [tool] = lessonTools(f.session, 'judge');
+      await tool!.run({ text: 'Bughunters drives the Expo web target with mouse clicks, so a View with onTouchEnd '
+        + 'never fires there; use Pressable onPress instead.', for: 'fixer' });
+      const again = 'On the web target, a View with onTouchEnd gets no mouse click, so use Pressable with onPress for tap targets.';
+      const shown = JSON.stringify(await tool!.run({ text: again, for: 'fixer' }));
+      const [first] = (await f.workspace.readMemory()).lessons;
+      expect(shown).toContain(first!.id);
+      expect((await f.workspace.readMemory()).lessons).toHaveLength(1);
+
+      await tool!.run({ text: again, for: 'fixer', same: first!.id });
+      expect((await f.workspace.readMemory()).lessons).toMatchObject([{ id: first!.id, hits: 2 }]);
+
+      await tool!.run({ text: again, for: 'fixer', different: true });
+      expect((await f.workspace.readMemory()).lessons).toHaveLength(2);
+    } finally {
+      await rm(f.root, { recursive: true, force: true });
+    }
+  });
+
+  it('does not match lessons about different things', () => {
+    const lessons = [{ id: 'les_1', role: 'fixer' as const, text: 'ModelPickerSheet stores the pick as "provider:id", '
+      + 'so each screen must accept a bare id.', source: 'agent' as const, hits: 1, createdAt: '', lastSeenAt: '' }];
+    expect(similarLesson(lessons, 'fixer', 'On the web target, a View with onTouchEnd gets no mouse click.')).toBeUndefined();
+    expect(similarLesson(lessons, 'judge', 'ModelPickerSheet stores the pick as provider:id, so screens must accept a bare id.')).toBeUndefined();
+    expect(similarLesson(lessons, 'fixer', 'ModelPickerSheet stores the pick as provider:id, so screens must accept a bare id.')?.id).toBe('les_1');
   });
 
   it('is not there when memory is off', async () => {
