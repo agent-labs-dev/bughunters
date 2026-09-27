@@ -44,6 +44,8 @@ export type Observation = {
   volatileRegions: Array<{ x: number; y: number; width: number; height: number; reason: string }>;
   /** Errors the app logged since the previous observation. */
   consoleErrors: string[];
+  /** Web and Electron: failed requests since the previous observation, e.g. `GET /api/me → 500`. */
+  networkErrors?: string[];
   at: string;
 };
 

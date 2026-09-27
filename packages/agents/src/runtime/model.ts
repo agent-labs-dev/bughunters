@@ -211,7 +211,7 @@ export class ModelRuntime implements Runtime {
           return outcome('done', calls.output);
         }
       }
-      if (costUsd >= task.budgetUsd) {
+      if (task.budgetUsd !== undefined && costUsd >= task.budgetUsd) {
         return outcome('budget', lastText);
       }
     }

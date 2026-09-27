@@ -16,6 +16,8 @@ import { Vars } from '../vars.js';
 import { lessonsFor, Workspace } from '../workspace.js';
 import { reflectOnSession } from './reflect.js';
 import { stopOnCancellation } from './explorer.js';
+import { overlayBughunters } from './overlay.js';
+import { lessonTools } from '../tools/memory.js';
 import { linkEnvFiles, runFixer, stepWords } from './fixer.js';
 import { closeOnGitHub } from '../github.js';
 
@@ -100,9 +102,11 @@ export async function retestFix(root: string, config: BughuntersConfig, issue: I
   const vars = new Vars(config.app.secrets);
   let app: Awaited<ReturnType<typeof startApp>> | undefined;
   let driver: Driver | undefined;
+  let restore = async () => {};
   try {
     // A worktree made before this rule existed has no .env links yet.
     if (!options.build) await linkEnvFiles(fix.repo, fix.worktree);
+    if (!options.build) restore = await overlayBughunters(root, fix.repo, fix.worktree);
     if (!options.build && config.agents.fixer.retest.prepare) {
       await exec('/bin/sh', ['-c', config.agents.fixer.retest.prepare],
         { cwd: fix.worktree, timeout: 600_000, maxBuffer: 4 * 1024 * 1024 });
@@ -128,7 +132,7 @@ export async function retestFix(root: string, config: BughuntersConfig, issue: I
       let finishTried = false;
       let finishSummary = '';
       const allowed = new Set(['look', 'tap', 'type', 'press', 'scroll', 'back', 'open', 'wait',
-        'run_routine', 'switch_window']);
+        'run_routine', 'switch_window', 'save_lesson']);
       const tools: Tool[] = explorerTools(session).filter((tool) => allowed.has(tool.name)).map((tool) =>
         tool.name !== 'run_routine' ? tool : { ...tool, async run(input) {
           const id = String(input.id ?? '');
@@ -240,9 +244,13 @@ export async function retestFix(root: string, config: BughuntersConfig, issue: I
   } catch (error) {
     retest.outcome = 'error';
     retest.reason = `Retest preparation or exploration failed: ${String(error)}`;
+    // Teardown runs after the error and logs its own; this keeps the cause in the log too.
+    deps.onLog?.(retest.reason);
     return retest;
   } finally {
-    try { await driver?.close(); } finally { await app?.stop(); }
+    try { await driver?.close(); } finally {
+      try { await app?.stop(); } finally { await restore(); }
+    }
   }
   if (!targets.some((target) => target.shot.after)) {
     retest.outcome = 'unclear';
@@ -281,7 +289,7 @@ export async function retestFix(root: string, config: BughuntersConfig, issue: I
         judged = { outcome: input.outcome as RetestOutcome, reason: String(input.reason ?? '') };
         return { ...response(`Retest verdict: ${judged.outcome} — ${judged.reason}`), done: true };
       },
-    }];
+    }, ...lessonTools(session, 'judge')];
     const result = await judgeRuntime.run({ role: 'judge', sessionId: record.id,
       system: judgeRetestSystem(lessonsFor(await workspace.readMemory(), 'judge')),
       prompt: `Issue: ${issue.title}\n${issue.body}\nFixer summary: ${fix.summary ?? ''}\nScreens:\n${targets.map((target, index) =>

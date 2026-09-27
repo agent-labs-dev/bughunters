@@ -3,18 +3,9 @@ import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 import { fingerprint, paths, shortHash, type Candidate, type Issue, type RoutineStep } from '@bughunters/core';
 import { closeOnGitHub } from './github.js';
-import {
-  buildState,
-  estimateDecisionCost,
-  resolveDecider,
-  route,
-  SCREEN_QUESTIONS,
-  violationsToAssertions,
-  Budget,
-} from '@bughunters/decide';
 import { diff } from '@bughunters/diff';
 import type { Observation } from '@bughunters/drivers';
-import { evaluateAll, type InvariantViolation, type ScreenSnapshot } from '@bughunters/invariants';
+import { evaluateAll, RULES, type InvariantViolation, type ScreenSnapshot } from '@bughunters/invariants';
 import type { AgentSession } from './session.js';
 
 const NATIVE_DISABLED = [
@@ -69,15 +60,16 @@ export async function evaluateScreen(
   if (firstSight) await saveBaseline(session, baseline, screenshot, snapshot);
 
   const native = observation.platform === 'ios' || observation.platform === 'android';
+  const enabled = new Set<string>(session.config.agents.checks);
   const violations = evaluateAll(snapshot, {
     baseline: baseline.snapshot,
-    disabled: native ? NATIVE_DISABLED : [],
+    disabled: RULES.map((rule) => rule.id).filter((id) => !enabled.has(id) || (native && NATIVE_DISABLED.includes(id))),
   });
   const entries = groupViolations(violations);
 
   let diffPath: string | undefined;
   let visual: Awaited<ReturnType<typeof diff>>['primary'] | undefined;
-  if (!firstSight) {
+  if (!firstSight && enabled.has('pixel-diff')) {
     diffPath = join(paths.session(session.root, session.sessionId), `${screenId}-diff.png`);
     const comparison = await diff({
       baselinePath: baseline.png,
@@ -97,7 +89,7 @@ export async function evaluateScreen(
     .map((entry) => entryFingerprint(screenId, entry))));
   if (fresh.length === 0) return [];
 
-  const routeResult = await decide(session, screenId, snapshot, violations, visual);
+  const routeResult = { to: 'judge' as const, reason: 'Automatic check' };
   const candidates: Candidate[] = [];
   for (const entry of fresh) {
     const candidate = toCandidate(session, screenId, entry, {
@@ -226,6 +218,7 @@ export async function addOccurrence(session: AgentSession, issueId: string): Pro
 export async function closeAbsentChecks(session: AgentSession, screenId: string,
   fired: Set<string>): Promise<string[]> {
   const closed: string[] = [];
+  const enabled = new Set<string>(session.config.agents.checks);
   const ids = new Set((await session.workspace.listIssues()).filter((issue) =>
     issue.screenId === screenId && ['new', 'filed', 'fixing', 'fix-proposed'].includes(issue.status)).map((issue) => issue.id));
   const sources = new Map<string, Candidate>();
@@ -237,6 +230,8 @@ export async function closeAbsentChecks(session: AgentSession, screenId: string,
     if (!issue || !issue.candidateIds.length) continue;
     const candidates = issue.candidateIds.map((candidateId) => sources.get(candidateId));
     if (candidates.some((candidate) => !candidate || candidate.source === 'explorer' || candidate.screenId !== screenId)) continue;
+    // A check that is off now cannot see the problem, so its absence proves nothing.
+    if (candidates.some((candidate) => !enabled.has(candidate!.ruleId ?? candidate!.source))) continue;
     if (candidates.some((candidate) => fired.has(candidate!.fingerprint))) {
       if (issue.notSeen) await session.workspace.saveIssue({ ...issue, notSeen: 0 });
       continue;
@@ -284,63 +279,4 @@ function toCandidate(
     route: extra.route,
     createdAt: new Date().toISOString(),
   };
-}
-
-async function decide(
-  session: AgentSession,
-  screenId: string,
-  snapshot: ScreenSnapshot,
-  violations: InvariantViolation[],
-  visual: Awaited<ReturnType<typeof diff>>['primary'] | undefined,
-): Promise<NonNullable<Candidate['route']>> {
-  const config = session.config.decisions;
-  const { decider } = resolveDecider(config, process.env);
-  if (!decider) return { to: 'judge', reason: 'no decider key is set, so the judge decides' };
-  const { text } = buildState({
-    screen: { id: screenId, description: snapshot.title ?? snapshot.url },
-    product: { summary: '', audience: '', domainVocabulary: [] },
-    assertions: violationsToAssertions(violations),
-    diff: visual
-      ? {
-        changedPixels: visual.changedPixels,
-        changedPercent: visual.changedFraction * 100,
-        maskedPercent: visual.maskedFraction * 100,
-        regions: visual.regions.length,
-      }
-      : undefined,
-    console: snapshot.consoleErrors,
-  });
-  const budget = new Budget(config.budget.perRunUsd);
-  budget.record(session.decisionSpentUsd);
-  const estimate = estimateDecisionCost(text.length, decider.name);
-  if (!budget.canSpend(estimate)) {
-    return { to: 'judge', reason: 'decider budget exhausted' };
-  }
-  try {
-    const answers = await decider.ask(text, SCREEN_QUESTIONS);
-    session.decisionSpentUsd += estimate;
-    const result = route({
-      answers,
-      thresholds: config.confidence,
-      hasDeterministicRegression: false,
-      matchedLedger: false,
-    });
-    session.emit({
-      kind: 'tool-result',
-      tool: 'decider',
-      summary: `Decider routed ${screenId} to ${result.route}`,
-      costUsd: estimate,
-      tokens: decider.lastUsage,
-      model: decider.model ?? decider.name,
-    });
-    const choice = answers['route'];
-    const confidence = choice?.confidence;
-    return {
-      to: result.route === 'ignore' || result.route === 'intent' ? 'ignore' : 'judge',
-      reason: result.reason,
-      confidence,
-    };
-  } catch {
-    return { to: 'judge', reason: 'decider unavailable' };
-  }
 }

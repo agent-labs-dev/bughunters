@@ -32,8 +32,8 @@ app:
 
 agents:
   explorer:
-    maxSteps: 60
-    budgetUsd: 0.5
+    maxSteps: 150               # one step is one tool call; full coverage needs many
+    budgetUsd: 5                # optional: a cost limit for one session in USD; no limit by default
     use: claude                 # a local agent CLI: claude | codex | kimi | pi
   judge:
     use: { runtime: model, via: openrouter, model: z-ai/glm-5.3-flash }   # or an API key
@@ -58,14 +58,11 @@ agents:
     prScope: app                # optional: the scope in PR titles
   memory:
     enabled: true
+  checks: []                    # optional automatic checks, for example [usability/contrast, usability/tap-target]
   patrol:
     intervalMinutes: 30         # wait between cycles; a cycle runs only on a new commit
     cycles: 0                   # 0 = run until stopped
     pull: origin/main           # remote/branch to pull before each cycle; false = no pull
-
-decisions:
-  decider: jev                  # jev | model
-  jev: { via: auto }            # auto | typesafe | openrouter | vercel
 ```
 
 ## Setup and teardown commands
@@ -101,20 +98,38 @@ Each agent (explorer, judge, fixer) runs on an LLM. Each agent can use a differe
 - An API key: `use: { runtime: model, via: openrouter, model: <id> }`. `via` is `openrouter`, `vercel`, `openai`, `anthropic`, or `custom`.
 - A full command: `use: { runtime: cli, command: '...' }`, for extra flags.
 
-[LLMs and Jev](models.md#llm-providers-for-each-agent) has the presets, the keys, and the placeholders for a command.
+[LLMs](models.md#llm-providers-for-each-agent) has the presets, the keys, and the placeholders for a command.
 
-## The decider
+## Automatic checks
 
-Jev screens each finding from the automatic checks, before the judge sees it. Jev is fast and costs little, so we recommend it. With no Jev key, a general model does this work. With no key at all, the judge decides each finding.
+The automatic checks are off by default. The explorer finds most real bugs, and it also reads the console errors and the failed requests of the app. Each check finding costs the judge a step with screenshots, and most check findings are not real bugs.
 
-| Setting | Values |
+To run an accessibility audit, turn on some checks:
+
+```yaml
+agents:
+  checks: [usability/contrast, usability/tap-target]
+```
+
+When a check is on, it runs on each screen that the explorer records. Each finding goes to the judge.
+
+| Check | What it finds |
 | --- | --- |
-| `decisions.decider` | `jev` (default) or `model` |
-| `decisions.jev.via` | `auto` (default), `typesafe`, `openrouter`, or `vercel` |
-| `decisions.model.via` | `auto` (default), `openrouter`, `vercel`, `openai`, `anthropic`, or `custom` |
+| `usability/contrast` | Text with a contrast below 4.5:1 |
+| `usability/tap-target` | Controls smaller than 24 px |
+| `layout/overlap` | Controls on top of each other |
+| `layout/overflow` | Text that is cut off |
+| `layout/occlusion` | Controls that something covers |
+| `layout/zero-size-interactive` | Controls with no size |
+| `layout/off-viewport` | Controls outside the screen |
+| `layout/horizontal-scroll` | A page wider than the screen |
+| `layout/shift-versus-baseline` | Elements that moved since the first visit |
+| `rendering/broken-imagery` | Images that did not load |
+| `rendering/unstyled-content` | A page with no styles |
+| `pixel-diff` | A screen that changed since the first visit |
 
-[LLMs and Jev](models.md#jev) tells what Jev does, and which key each route needs.
+The layout checks can report controls that are correct, for example text hidden for screen readers. Try them on your app before you keep them on.
 
 ## The deterministic gate
 
-The web gate (`bughunters run`) has more settings: `run`, `auth`, `viewports`, `scope`, `crawl`, `mask`, `tolerance`, and `determinism`. `bughunters init --gate` writes a starter file with all of them. Refer to [The deterministic gate](deterministic-gate.md) and to [bughunters.example.yml](../bughunters.example.yml).
+The web gate (`bughunters run`) has more settings: `run`, `auth`, `viewports`, `scope`, `crawl`, `mask`, `tolerance`, `determinism`, and `decisions` (an optional general model that reviews the gate findings). `bughunters init --gate` writes a starter file with all of them. Refer to [The deterministic gate](deterministic-gate.md) and to [bughunters.example.yml](../bughunters.example.yml).

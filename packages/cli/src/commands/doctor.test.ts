@@ -13,11 +13,12 @@ function project(): string {
 }
 
 describe('runChecks', () => {
-  it('checks each agent LLM and the decider, and leaves out the gate checks without a run block', () => {
+  it('checks each agent LLM, and leaves out the gate checks without a run block', () => {
     const config = parseConfig({ version: 1, app: { connect: { url: 'http://localhost:3000' } }, agents: { explorer: { use: { runtime: 'model', via: 'openrouter' } } } });
     const checks = runChecks(project(), config);
     const names = checks.map((check) => check.name);
-    expect(names).toEqual(expect.arrayContaining(['config', 'node', 'explorer', 'judge', 'decider']));
+    expect(names).toEqual(expect.arrayContaining(['config', 'node', 'explorer', 'judge']));
+    expect(names).not.toContain('decider');
     expect(names).not.toContain('fixer');
     expect(names).not.toContain('pinned-image');
     expect(names).not.toContain('app-model');

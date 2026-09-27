@@ -22,12 +22,11 @@ The dashboard shows the tokens that each agent used, so that you can control the
 | An API key (`runtime: model`) | From each API response |
 | `claude` | From `--output-format json`, with the model name and the list price |
 | `codex` | From `--json`, for each turn |
-| Jev and the model decider | From the response. If a route reports none, Bughunters estimates the input from the text length, and shows `~` |
 | `kimi`, `pi` | Not reported |
 
 To compare two models, run the same goal with each one, for example `explore --goal "Test the checkout flow"`, and compare the tokens per session.
 
-The cost on the dashboard counts only the API calls that Bughunters makes: Jev and the agents on an API key. A local agent CLI (`claude`, `codex`, `kimi`, `pi`) uses your own plan, and Bughunters does not see its cost.
+The cost on the dashboard counts only the API calls that Bughunters makes: the agents on an API key. A local agent CLI (`claude`, `codex`, `kimi`, `pi`) uses your own plan, and Bughunters does not see its cost.
 
 ## Pages
 

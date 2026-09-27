@@ -6,6 +6,7 @@ import { judgedRetests, paths, type FixProposal, type Issue, type RoutineStep } 
 import type { AgentSession } from '../session.js';
 import type { RoleOutcome, Runtime, Tool } from '../types.js';
 import { fixerSystem } from '../prompts.js';
+import { lessonTools } from '../tools/memory.js';
 import { lessonsFor } from '../workspace.js';
 
 const exec = promisify(execFile);
@@ -40,7 +41,7 @@ async function existingPath(worktree: string, path: string): Promise<string> {
   return file;
 }
 
-function modelTools(worktree: string): Tool[] {
+export function modelTools(worktree: string): Tool[] {
   return [
     {
       name: 'read_file',
@@ -110,7 +111,7 @@ function modelTools(worktree: string): Tool[] {
   ];
 }
 
-function finishTool(): Tool {
+export function finishTool(): Tool {
   return {
     name: 'finish',
     description: 'Finish with a summary.',
@@ -386,8 +387,11 @@ async function runOne(session: AgentSession, runtime: Runtime, issue: Issue, wor
     workdir: worktree,
     system: fixerSystem(lessonsFor(await session.workspace.readMemory(), 'fixer')),
     prompt: `Issue: ${issue.title}\nSeverity: ${issue.severity}\n${issue.body}\nEvidence:\n${evidence}\n` +
-      `Reproduction: ${repro}` + (last ? `\nYour last change did not fix the issue. The QA lead said: ${last.reason}. After screenshots:\n${after}\nFix it now.` : ''),
-    tools: runtime.label.startsWith('cli:') ? [finishTool()] : [...modelTools(worktree), finishTool()],
+      `Reproduction: ${repro}` + (last ? `\nYour last change did not fix the issue in the running app. The QA lead said: ${last.reason}. After screenshots:\n${after}\n`
+        + 'First find why your last change had no effect in the running app, for example a different file that the app '
+        + 'loads on this platform. Do not trust a guess from the QA lead: check the code. When you find the cause, call '
+        + 'save_lesson with it, so that later fixes avoid it. Then fix the issue.' : ''),
+    tools: [...(runtime.label.startsWith('cli:') ? [] : modelTools(worktree)), ...lessonTools(session, 'fixer'), finishTool()],
     maxSteps: config.maxSteps,
     budgetUsd: config.budgetUsd,
     timeoutMs: config.timeoutMs,

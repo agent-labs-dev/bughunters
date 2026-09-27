@@ -47,7 +47,6 @@ npx bughunters init
 
 1. The kind of app (web, Electron, iOS, or Android), the command that starts it, and its URL or app ID. `init` reads these from `package.json`, the Vite config, `.env`, `app.json`, `app.config.ts`, the Xcode project, and the Gradle files.
 2. The LLM for each agent: the explorer, the judge, and the fixer. An installed agent CLI (Claude Code, Codex, Kimi CLI, or pi) comes first, because it needs no API key. If you have no CLI, `init` recommends an OpenRouter or a Vercel AI Gateway key, and shows where to get one.
-3. The route to Jev, the low-cost model that screens each finding. Refer to [LLMs and Jev](models.md).
 
 `init` puts all the Bughunters files in one `.bughunters/` folder, and it never overwrites a file:
 
@@ -62,7 +61,7 @@ To use the detected values with no questions, add `--yes`. To select the LLM, ad
 
 ```bash
 npx bughunters init --yes --agent claude     # claude | codex | kimi | pi | openrouter | vercel | openai | anthropic
-npx bughunters init --yes --explorer claude --judge claude --fixer codex --jev openrouter
+npx bughunters init --yes --explorer claude --judge claude --fixer codex
 ```
 
 ## 2. Check how Bughunters starts your app
@@ -135,13 +134,13 @@ Secrets and captured values reach the model only as `{{NAME}}` placeholders. Bug
 
 ## 4. Check the model keys
 
-If an agent uses an API key, set the key in your shell. Also set a Jev key, because Jev cuts the cost:
+If an agent uses an API key, set the key in your shell:
 
 ```bash
-export OPENROUTER_API_KEY=...        # one key for the agents and for Jev
+export OPENROUTER_API_KEY=...
 ```
 
-Before an agent command starts the app, Bughunters checks each agent's LLM. If a key or a CLI is missing, it stops and tells you what to do. Refer to [LLMs and Jev](models.md) for all the providers.
+Before an agent command starts the app, Bughunters checks each agent's LLM. If a key or a CLI is missing, it stops and tells you what to do. Refer to [LLMs](models.md) for all the providers.
 
 ## 5. Explore, and look at the results
 
@@ -197,7 +196,7 @@ npx bughunters patrol --once       # one cycle
 
 ## Next steps
 
-- [LLMs and Jev](models.md): what each model does, and the providers for each agent.
+- [LLMs](models.md): what each agent does, and the providers for each agent.
 - [Configuration](configuration.md): all the settings.
 - [Commands](commands.md): all the commands.
 - [The dashboard](dashboard.md): what each page shows.

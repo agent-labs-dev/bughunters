@@ -12,6 +12,7 @@ import { runExplorer } from './roles/explorer.js';
 import { runJudge } from './roles/judge.js';
 import { recheckMerged, runFixCycle } from './roles/retest.js';
 import { runPublisher } from './roles/publish.js';
+import { watchCi } from './roles/ci.js';
 import { syncGitHub } from './github.js';
 import { cleanWorktrees } from './roles/worktrees.js';
 
@@ -88,15 +89,25 @@ export type PatrolOptions = {
   createRuntime?: typeof createRuntime;
 };
 
-/** Every cycle owns app setup, driver connection, roles, and teardown. */
-export async function runPatrol(options: PatrolOptions): Promise<void> {
+export type PatrolResult = {
+  /** What went wrong in the cycles, for example a failed setup or a retest error. */
+  problems: string[];
+};
+
+/**
+ * Every cycle owns app setup, driver connection, roles, and teardown. A cycle
+ * that fails does not stop a patrol: the error goes in `problems`, and the
+ * next cycle tries again.
+ */
+export async function runPatrol(options: PatrolOptions): Promise<PatrolResult> {
+  const problems: string[] = [];
   const { root, config } = options;
   const workspace = new Workspace(root);
   const previous = (await workspace.readAgents()).patrol;
   // A cron job can start a patrol while the last one still runs.
   if (previous?.state === 'running' && previous.pid && previous.pid !== process.pid && alive(previous.pid)) {
     options.onLog?.(`A patrol already runs (pid ${previous.pid}): did not start another.`);
-    return;
+    return { problems };
   }
   const runtime = options.createRuntime ?? createRuntime;
   let interrupted = false;
@@ -128,48 +139,57 @@ export async function runPatrol(options: PatrolOptions): Promise<void> {
       if (config.agents.github.enabled) await syncGitHub(root, config, { onLog: options.onLog });
       await cleanWorktrees(root, config, { onLog: options.onLog });
       const commit = await sourceCommit(root, config);
-      if (commit && commit === tested) {
-        options.onLog?.(`No new commit since the last cycle (${commit.slice(0, 7)}): skipped the cycle.`);
-        await idle();
-        if (options.once) break;
-        continue;
+      // An old commit needs no new explore or judge. The work that is not done
+      // yet (fixes, retests, publish, CI) still runs, so it never waits for a merge.
+      const fresh = !commit || commit !== tested;
+      if (!fresh) {
+        options.onLog?.(`No new commit since the last cycle (${commit!.slice(0, 7)}): skipped explore and judge. `
+          + 'The pending fixes, retests, publish, and CI checks still run.');
       }
-      for (const role of ['explorer', 'judge', 'fixer'] as const) {
-        if (!config.agents[role].enabled) {
-          await workspace.setAgentStatus(role, { state: 'off' });
-        }
-      }
-      const vars = new Vars(config.app.secrets);
-      let app: Awaited<ReturnType<typeof startApp>> | undefined;
-      let driver: Driver | undefined;
-      try {
-        app = await startApp(config.app, { root, vars, emit: options.onLog });
-        driver = (options.createDriver ?? makeDriver)(config, vars.resolve.bind(vars));
-        await driver.connect();
-        let explorerId: string | undefined;
-        if (config.agents.explorer.enabled && !interrupted) {
-          const record = await workspace.startSession('explorer');
-          explorerId = record.id;
-          const session = new AgentSession(root, config, vars, record.id, 'explorer', driver, options.onLog);
-          activeSession = session;
-          if (!interrupted) {
-            await runExplorer(session, runtime(config.agents.explorer.use));
-          } else {
-            await workspace.endSession(record.id, { summary: 'Interrupted' });
+      const before = problems.length;
+      if (fresh) {
+        for (const role of ['explorer', 'judge', 'fixer'] as const) {
+          if (!config.agents[role].enabled) {
+            await workspace.setAgentStatus(role, { state: 'off' });
           }
-          activeSession = undefined;
         }
-        if (config.agents.judge.enabled && explorerId && !interrupted) {
-          const record = await workspace.startSession('judge');
-          const session = new AgentSession(root, config, vars, record.id, 'judge', undefined, options.onLog);
-          activeSession = session;
-          await runJudge(session, runtime(config.agents.judge.use), { sessionIds: [explorerId] });
-        }
-      } finally {
+        const vars = new Vars(config.app.secrets);
+        let app: Awaited<ReturnType<typeof startApp>> | undefined;
+        let driver: Driver | undefined;
         try {
-          await driver?.close();
+          app = await startApp(config.app, { root, vars, emit: options.onLog });
+          driver = (options.createDriver ?? makeDriver)(config, vars.resolve.bind(vars));
+          await driver.connect();
+          let explorerId: string | undefined;
+          if (config.agents.explorer.enabled && !interrupted) {
+            const record = await workspace.startSession('explorer');
+            explorerId = record.id;
+            const session = new AgentSession(root, config, vars, record.id, 'explorer', driver, options.onLog);
+            activeSession = session;
+            if (!interrupted) {
+              await runExplorer(session, runtime(config.agents.explorer.use));
+            } else {
+              await workspace.endSession(record.id, { summary: 'Interrupted' });
+            }
+            activeSession = undefined;
+          }
+          if (config.agents.judge.enabled && explorerId && !interrupted) {
+            const record = await workspace.startSession('judge');
+            const session = new AgentSession(root, config, vars, record.id, 'judge', undefined, options.onLog);
+            activeSession = session;
+            await runJudge(session, runtime(config.agents.judge.use), { sessionIds: [explorerId] });
+          }
+        } catch (error) {
+          activeSession = undefined;
+          const problem = `Cycle ${cycle}: ${String(error)}`;
+          problems.push(problem);
+          options.onLog?.(problem);
         } finally {
-          await app?.stop();
+          try {
+            await driver?.close();
+          } finally {
+            await app?.stop();
+          }
         }
       }
       if (!interrupted && config.agents.explorer.enabled && config.agents.judge.enabled) {
@@ -177,19 +197,30 @@ export async function runPatrol(options: PatrolOptions): Promise<void> {
           createRuntime: options.createRuntime, onLog: options.onLog,
           onSession: (session) => { activeSession = session; }, isInterrupted: () => interrupted });
       }
-      if (!interrupted) await runFixCycle(root, config, {
+      const fixes = interrupted ? [] : await runFixCycle(root, config, {
         createDriver: options.createDriver,
         createRuntime: options.createRuntime,
         onLog: options.onLog,
         onSession: (session) => { activeSession = session; },
         isInterrupted: () => interrupted,
       });
+      for (const fix of fixes) {
+        const last = fix.retests?.at(-1);
+        if (last?.outcome === 'error') problems.push(`Cycle ${cycle}: the retest of ${fix.issueId} failed: ${last.reason}`);
+      }
+      // Only a failed test run tests the commit again. A red CI check is the PR's problem, not the cycle's.
+      const cycleFailed = problems.length > before;
       if (!interrupted && config.agents.github.enabled) await runPublisher(root, config, {
         createRuntime: options.createRuntime, onLog: options.onLog,
         onSession: (session) => { activeSession = session; },
       });
+      if (!interrupted && config.agents.github.enabled) {
+        const ci = await watchCi(root, config, { createRuntime: options.createRuntime, onLog: options.onLog, wait: true });
+        problems.push(...ci.problems.map((problem) => `Cycle ${cycle}: ${problem}`));
+      }
       if (!interrupted && config.agents.github.enabled) await syncGitHub(root, config, { onLog: options.onLog });
-      if (!interrupted && commit) {
+      // A cycle with a problem tests the commit again next time.
+      if (!interrupted && fresh && commit && !cycleFailed) {
         tested = commit;
         await workspace.setPatrol({ commit });
       }
@@ -204,4 +235,5 @@ export async function runPatrol(options: PatrolOptions): Promise<void> {
     process.off('SIGINT', onSignal);
     process.off('SIGTERM', onSignal);
   }
+  return { problems };
 }

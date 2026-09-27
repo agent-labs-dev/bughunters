@@ -3,7 +3,10 @@ import type { Locator, Platform } from '@bughunters/core';
 import type { Driver, DriverAction, Observation, ActResult, UiElement } from '@bughunters/drivers';
 import type { ScreenSnapshot } from '@bughunters/invariants';
 
-export type FakeScreen = { elements: UiElement[]; next?: Record<string, string>; color?: number };
+export type FakeScreen = {
+  elements: UiElement[]; next?: Record<string, string>; color?: number;
+  consoleErrors?: string[]; networkErrors?: string[];
+};
 
 /** Small deterministic app for role tests; every screen has a valid PNG. */
 export class FakeDriver implements Driver {
@@ -36,7 +39,8 @@ export class FakeDriver implements Driver {
     }
     return { platform: this.platform, location: `fake://${this.current}`, title: this.current,
       screenshot: PNG.sync.write(png), viewport: { width: 100, height: 100, scale: 1 },
-      elements: screen.elements, volatileRegions: [], consoleErrors: [], at: new Date().toISOString() };
+      elements: screen.elements, volatileRegions: [], consoleErrors: screen.consoleErrors ?? [],
+      networkErrors: screen.networkErrors ?? [], at: new Date().toISOString() };
   }
 
   async act(action: DriverAction): Promise<ActResult> {

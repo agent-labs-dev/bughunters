@@ -100,15 +100,16 @@ describe('executeRun', () => {
 
   it('still blocks on a pixel regression when a decider answers', async () => {
     // A live decider answered "question" / "needs_frontier" on a real
-    // BREAK=color run and the gate went green. This stub gives Jev the same
-    // low-confidence answers with no network.
-    vi.stubEnv('TYPESAFE_API_KEY', 'test-key');
-    vi.stubGlobal('fetch', vi.fn(async () => Response.json({ answers: {
+    // BREAK=color run and the gate went green. This stub gives the model
+    // decider the same low-confidence answers with no network.
+    vi.stubEnv('OPENROUTER_API_KEY', 'test-key');
+    const answers = {
       is_anomalous: { noul: 0.6 },
       route: { choice: 'question', confidence: 0.4 },
       severity: { score: 1, confidence: 0.4 },
       needs_frontier: { noul: 0.9 },
-    } })));
+    };
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json({ choices: [{ message: { content: JSON.stringify(answers) } }] })));
     const result = await executeRun({
       ...base,
       root,
@@ -117,7 +118,7 @@ describe('executeRun', () => {
       isFirstRun: false,
       screens: [screen({ comparison: comparison(2400) })],
     }).finally(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); });
-    expect(result.notes.join(' ')).toContain('jev via typesafe');
+    expect(result.notes.join(' ')).toContain('model via openrouter');
     expect(result.exitCode).toBe(ExitCode.Regression);
     expect(result.findings.filter((f) => f.route === 'check').map((f) => f.ruleId)).toEqual([PIXEL_DIFF_RULE]);
   });

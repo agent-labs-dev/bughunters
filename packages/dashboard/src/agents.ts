@@ -1,6 +1,6 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { basename, join } from 'node:path';
-import { addUsage, paths, usageOf, type AgentEvent, type AgentRole, type AgentStatus, type AgentsFile, type AppMap,
+import { addUsage, loadConfig, paths, usageOf, type AgentEvent, type AgentRole, type AgentStatus, type AgentsFile, type AppMap,
   type Candidate, type FixProposal, type Issue, type MemoryFile, type Routine, type SessionSummary,
   type TokenUsage } from '@bughunters/core';
 
@@ -94,13 +94,16 @@ export class AgentReader {
       screen && typeof screen.id === 'string' && typeof screen.lastSeenAt === 'string') };
   }
 
-  issues(): (Issue & { pr?: FixProposal['pr'] })[] {
+  issues(): (Issue & { pr?: FixProposal['pr'] & { ci?: string } })[] {
     const fixes = this.fixes();
     return list(paths.issues(this.root)).filter((name) => name.endsWith('.json'))
       .map((name) => readJson<Issue>(join(paths.issues(this.root), name)))
       .filter((issue): issue is Issue => Boolean(issue?.id && issue.title && issue.lastSeenAt
         && issue.evidence && issue.judgement && Array.isArray(issue.candidateIds)))
-      .map((issue) => ({ ...issue, pr: fixes.find((fix) => fix.id === issue.fixId || fix.issueId === issue.id)?.pr }))
+      .map((issue) => {
+        const fix = fixes.find((entry) => entry.id === issue.fixId || entry.issueId === issue.id);
+        return { ...issue, pr: fix?.pr ? { ...fix.pr, ci: fix.ci?.state } : undefined };
+      })
       .sort((a, b) => (severity[a.severity] ?? 9) - (severity[b.severity] ?? 9)
         || b.lastSeenAt.localeCompare(a.lastSeenAt));
   }
@@ -190,6 +193,13 @@ export class AgentReader {
         edges.push({ from: '__start', to: screen.id, kind: 'route', via: 'route', count: 1, steps: 0 });
       }
     }
+    // In a cycle, every screen has an edge in. The app then starts on the
+    // screen that enter-app reaches, or else on the first recorded screen.
+    if (map.screens.length && !edges.some((edge) => edge.from === '__start')) {
+      const entry = byRoutine.get('enter-app')?.requires?.map((id) => screenByRoutine.get(id)).find(Boolean)
+        ?? map.screens[0]!.id;
+      edges.push({ from: '__start', to: entry, kind: 'route', via: 'route', count: 1, steps: 0 });
+    }
     const screens: DashboardScreen[] = map.screens.map((screen) => ({
       ...screen,
       openIssues: issues.filter((issue) => issue.screenId === screen.id).length,
@@ -198,14 +208,31 @@ export class AgentReader {
     return { ...map, screens, edges, entryId: screens.length ? '__start' : undefined };
   }
 
+  /** Each role as the config sets it, in the same form as the runtime labels. */
+  private configuredAgents(): Record<AgentRole, { enabled: boolean; runtime: string }> | undefined {
+    try {
+      const config = loadConfig(this.root);
+      return Object.fromEntries(roles.map((role) => {
+        const { enabled, use } = config.agents[role];
+        const runtime = use.runtime === 'cli' ? `cli:${use.command.split(/\s+/)[0]}` : `model:${use.via}/${use.model}`;
+        return [role, { enabled, runtime }];
+      })) as Record<AgentRole, { enabled: boolean; runtime: string }>;
+    } catch {
+      return undefined;
+    }
+  }
+
   overview(now = new Date()): object {
     const agentFile = this.agents();
     const appmap = this.appmap();
     const issues = this.issues();
     const sessions = this.sessions(Infinity);
     const today = now.toLocaleDateString('en-CA');
+    const configured = this.configuredAgents();
+    // A role with no entry has not run yet: show it from the config, not as off.
     const agents: AgentStatus[] = roles.map((role) => agentFile?.agents.find((agent) => agent.role === role) ?? {
-      role, state: 'off', runtime: '', updatedAt: '', spentUsd: 0,
+      role, state: configured?.[role].enabled === false ? 'off' : configured ? 'idle' : 'off',
+      runtime: configured?.[role].runtime ?? '', updatedAt: '', spentUsd: 0,
     });
     const active = sessions.find((session) => session.status === 'running');
     const detail = active ? this.session(active.id) : undefined;
@@ -213,12 +240,12 @@ export class AgentReader {
     const screenshot = [...(detail?.events ?? [])].reverse().find((event) => event.screenshot)?.screenshot;
     const openIssues = issues.filter((issue) => open.has(issue.status));
     const fixes = this.fixes();
+    // Every open issue, so the list and the "open" count agree while the fixer works.
     const attention = openIssues
-      .filter((issue) => ['new', 'filed', 'fix-proposed'].includes(issue.status))
       .slice(0, 8)
       .map((issue) => {
         const fix = fixes.find((entry) => entry.id === issue.fixId || entry.issueId === issue.id);
-        return { ...issue, pr: fix?.pr, fix: fix ? { status: fix.status } : undefined };
+        return { ...issue, pr: fix?.pr ? { ...fix.pr, ci: fix.ci?.state } : undefined, fix: fix ? { status: fix.status } : undefined };
       });
     const prStates = fixes.map((fix) => fix.pr?.state).filter(Boolean);
     const issueStates = issues.map((issue) => issue.github?.state).filter(Boolean);

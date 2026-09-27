@@ -169,7 +169,7 @@ export async function executeRun(options: PipelineOptions): Promise<RunResult> {
       knownIntents: ledger.summaries(),
     });
 
-    const estimate = decider ? estimateDecisionCost(text.length, decider.name) : 0;
+    const estimate = decider ? estimateDecisionCost(text.length) : 0;
     let answers = {};
     if (!decider) {
       trace.decision = {

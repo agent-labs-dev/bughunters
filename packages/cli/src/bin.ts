@@ -85,6 +85,7 @@ try {
     case 'fix':
     case 'retest':
     case 'publish':
+    case 'ci':
     case 'patrol':
     case 'replay': {
       const config = loadConfig(root);

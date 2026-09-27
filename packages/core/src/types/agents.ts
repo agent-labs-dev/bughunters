@@ -14,7 +14,7 @@ export type Lesson = {
   /** A screen or routine; absent means the whole app. */
   scope?: string;
   text: string;
-  source: 'reflection' | 'human' | 'dismissal' | 'fixer-decline' | 'commit-hook' | 'verify' | 'rejected-pr';
+  source: 'reflection' | 'agent' | 'human' | 'dismissal' | 'fixer-decline' | 'commit-hook' | 'verify' | 'rejected-pr';
   hits: number;
   createdAt: string;
   lastSeenAt: string;
@@ -239,6 +239,15 @@ export type FixProposal = {
   retests?: Retest[];
   pr?: { number: number; url: string; draft: boolean; at?: string;
     state?: 'open' | 'merged' | 'closed'; stateAt?: string; checkedAt?: string };
+  /** The CI checks on the PR, and the fixer's attempts to make them pass. */
+  ci?: {
+    state: 'none' | 'pending' | 'passed' | 'failed' | 'gave-up';
+    /** The commit that the checks ran on. */
+    head?: string;
+    failing?: string[];
+    attempts: number;
+    checkedAt: string;
+  };
 };
 
 export type AgentEventKind =
@@ -315,7 +324,7 @@ export type SessionSummary = {
   costUsd: number;
   /** The sum of the tokens on the session's events. */
   tokens?: TokenUsage;
-  /** The same tokens for each model, for example the explorer's LLM and Jev. */
+  /** The same tokens for each model, for example the explorer's LLM and the reflect model. */
   tokensByModel?: Record<string, TokenUsage>;
   screensFound: string[];
   candidates: number;

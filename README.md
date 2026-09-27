@@ -23,25 +23,17 @@ The [Nebula](https://nebula.gg) team uses Bughunters every day to test our own w
 npx bughunters patrol
 ```
 
-`patrol` runs the full cycle again and again: explore, judge, fix, retest, and publish. The fixer and GitHub stay off until you turn them on.
+`patrol` runs the full cycle again and again: explore, judge, fix, retest, publish, and make CI green. The fixer and GitHub stay off until you turn them on.
 
 ### How the patrol runs
 
-LLM agents do the work that needs reasoning. Jev screens each finding from the automatic checks, so the judge gets only the real findings.
+Three LLM agents do the work: the explorer, the judge, and the fixer. The explorer sees each screen, and also the console errors and the failed requests of the app.
 
 ```mermaid
 flowchart TB
   start(["npx bughunters patrol"]) --> pull["Pull main and start the app"]
-  pull --> explorer
-
-  subgraph explore ["1 · Explore"]
-    direction LR
-    explorer{{"LLM · Explorer<br/>uses the app"}} -->|"each screen"| checks["Automatic checks"]
-    checks -->|"each finding"| jev[["Jev · Decider<br/>drops the noise"]]
-  end
-
+  pull --> explorer{{"1 · Explore<br/>LLM · Explorer uses the app"}}
   explorer -->|"bug reports"| judge
-  jev -->|"real findings"| judge
 
   judge["2 · Judge<br/>LLM · Judge files the issues"] --> fixer["3 · Fix<br/>LLM · Fixer writes a fix"]
   fixer --> retest["4 · Retest<br/>LLM · Explorer + Judge check the fix"]
@@ -52,26 +44,23 @@ flowchart TB
 
   subgraph legend ["Legend"]
     direction LR
-    l1["LLM agent"] ~~~ l2[["Jev"]] ~~~ l3["Code, no model"] ~~~ l4["Off by default"]
+    l1["LLM agent"] ~~~ l3["Code, no model"] ~~~ l4["Off by default"]
   end
   wait ~~~ legend
 
   classDef llm fill:#312e81,stroke:#a5b4fc,color:#ffffff
-  classDef jevc fill:#365314,stroke:#bef264,color:#ffffff
   classDef code fill:#1e293b,stroke:#64748b,color:#e2e8f0
   classDef opt fill:#312e81,stroke:#a5b4fc,color:#ffffff,stroke-width:2px,stroke-dasharray:6 4
   class explorer,judge,l1 llm
-  class jev,l2 jevc
-  class start,pull,checks,wait,l3 code
+  class start,pull,wait,l3 code
   class fixer,retest,publish,l4 opt
-  style explore fill:transparent,stroke:#bef264,stroke-width:2px,stroke-dasharray:6 4
   style legend fill:transparent,stroke:#64748b
 ```
 
 [How it works](docs/how-it-works.md#the-explore-loop) shows each step of the explore loop.
 
 - The patrol does not stop by itself. Every 30 minutes, it pulls the latest `origin/main`.
-- The patrol runs a full cycle only when `main` has new commits. If the commit did not change, the patrol only syncs the state of GitHub issues and PRs, and waits again. So a patrol that runs all day costs little when nobody merges code.
+- The patrol explores and judges only when `main` has new commits. On the same commit, it skips these two steps, but it still finishes the open work: fixes, retests, publish, CI checks, and the GitHub sync. So a patrol that runs all day costs little when nobody merges code, and a fix never waits for the next merge.
 - Bughunters keeps the last tested commit in `.bughunters/runs/`, so a restart also skips a commit that it tested before. To test again with no new commit, for example after a config change, use `patrol --force`.
 - You can change the wait with `agents.patrol.intervalMinutes`. To stop after a number of cycles, set `agents.patrol.cycles`. To run one cycle only, use `patrol --once`.
 - You can also run `patrol --once` from cron, for example every 30 minutes. Each run tests only a new commit. If the last patrol still runs, the new run does not start.
@@ -155,16 +144,38 @@ npx bughunters publish        # open the PRs and issues
 
 The fixer and GitHub are off until you turn them on. [Getting started](docs/getting-started.md) shows each step in full, with Electron and mobile examples.
 
-## LLMs and Jev
+## The dashboard
 
-Bughunters uses LLM agents for the work that needs reasoning, and Jev for the fast, repeated triage. This split lets it run all day on your app at a low cost.
+<img src="assets/dashboard.png" alt="The Bughunters dashboard: the agent cards, the issues that need attention, the live screen, the coverage, and the token usage." width="100%">
 
-| Part | Model | What it does |
-| --- | --- | --- |
-| Explorer | LLM | Uses the app, maps its screens, and reports what looks wrong |
-| Judge | LLM | Decides which findings are real bugs, writes the issues, and checks each fix |
-| Fixer | LLM | Writes a fix in its own git worktree |
-| Decider | [Jev](https://typesafe.ai) | Screens each finding from the automatic checks in one fast, low-cost call, so the judge gets only the findings that need it |
+The dashboard shows what the agents do, live. Start it in the repo that has `.bughunters/`:
+
+```bash
+npx bughunters dashboard              # http://127.0.0.1:4311
+npx bughunters dashboard --port 5000  # use a different port
+```
+
+The dashboard reads the files in `.bughunters/runs/`, so it works during a patrol and after it. It has these pages:
+
+| Page | What it shows |
+| --- | --- |
+| Overview | Each agent and its task now, the issues that need attention, the live screen, the screens found, and the token usage |
+| Issues | Each issue with its screenshots and steps, the judge's reason, the fix and its diff, the retest, and the PR or issue on GitHub |
+| Activity | Each session as a timeline, with one line for each action |
+| Screens | A graph of how the screens connect, or a grid of the latest screenshots |
+| Memory | The lessons that the agents learned |
+
+[The dashboard](docs/dashboard.md) tells more.
+
+## LLMs
+
+Bughunters has three LLM agents:
+
+| Agent | What it does |
+| --- | --- |
+| Explorer | Uses the app, maps its screens, and reports what looks wrong |
+| Judge | Decides which findings are real bugs, writes the issues, and checks each fix |
+| Fixer | Writes a fix in its own git worktree |
 
 Each agent can use a different LLM:
 
@@ -181,7 +192,7 @@ Give the judge your strongest model, and give the explorer a fast, low-cost mode
 
 [Which model for each agent](docs/models.md#which-model-for-each-agent) gives the `use:` config for each model.
 
-Jev needs a TypeSafe, OpenRouter, or Vercel AI Gateway key. We recommend a Jev key: without it, a general model or the judge does the triage, at a higher cost. [LLMs and Jev](docs/models.md) tells more, and shows how to configure each agent.
+[LLMs](docs/models.md) tells more, and shows how to configure each agent.
 
 ## What is supported
 
@@ -190,7 +201,6 @@ Jev needs a TypeSafe, OpenRouter, or Vercel AI Gateway key. We recommend a Jev k
 | Platforms | Web (Playwright), Electron (CDP), iOS simulator and Android emulator (Maestro) |
 | Login | Any auth system: your own setup commands plus plain-English instructions |
 | Agent LLMs | Claude Code, Codex, Kimi CLI, pi, or any CLI agent; or an API key for OpenRouter, Vercel AI Gateway, OpenAI, Anthropic, or a custom endpoint |
-| Triage | Jev, through TypeSafe, OpenRouter, or Vercel AI Gateway |
 | GitHub | PRs, issues, and state sync through the `gh` CLI |
 | Output | A local dashboard, GitHub PRs and issues, and JSON files under `.bughunters/runs/` |
 
@@ -199,7 +209,7 @@ Jev needs a TypeSafe, OpenRouter, or Vercel AI Gateway key. We recommend a Jev k
 | Page | What it covers |
 | --- | --- |
 | [Getting started](docs/getting-started.md) | Add Bughunters to your repo, step by step |
-| [LLMs and Jev](docs/models.md) | What each model does, and the providers for each agent |
+| [LLMs](docs/models.md) | What each agent does, and the providers for each agent |
 | [Configuration](docs/configuration.md) | All the settings in `.bughunters/bughunters.yml` |
 | [Commands](docs/commands.md) | All the CLI commands |
 | [GitHub](docs/github.md) | Set up the PRs and issues, look at the reports first, and sync the state back |

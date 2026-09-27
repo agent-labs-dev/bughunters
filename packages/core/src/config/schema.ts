@@ -80,8 +80,6 @@ export const toleranceSchema = z
 
 export const decisionsSchema = z
   .object({
-    decider: z.enum(['jev', 'model']).default('jev'),
-    jev: z.object({ via: z.enum(['auto', 'typesafe', 'openrouter', 'vercel']).default('auto') }).default({}),
     model: z.object({
       via: z.enum(['auto', 'openrouter', 'vercel', 'openai', 'anthropic', 'custom']).default('auto'),
       name: z.string().default(''),
@@ -241,20 +239,49 @@ function runtimeFor(role: AgentRole, fallback: z.input<typeof modelRuntimeSchema
 const roleBase = {
   enabled: z.boolean().default(true),
   maxSteps: z.number().int().positive().default(60),
-  budgetUsd: z.number().nonnegative().default(0.5),
+  /** A cost limit for one session, in USD. No default: the team decides. */
+  budgetUsd: z.number().nonnegative().optional(),
   timeoutMs: z.number().int().positive().default(20 * 60 * 1000),
 };
 
+/**
+ * The automatic checks that the agents can run on each recorded screen. They
+ * are off by default: the explorer finds most real bugs, and each check
+ * finding costs a judge step with screenshots.
+ */
+export const AGENT_CHECKS = [
+  'usability/contrast',
+  'usability/tap-target',
+  'layout/overlap',
+  'layout/overflow',
+  'layout/occlusion',
+  'layout/zero-size-interactive',
+  'layout/off-viewport',
+  'layout/horizontal-scroll',
+  'layout/shift-versus-baseline',
+  'rendering/broken-imagery',
+  'rendering/unstyled-content',
+  'pixel-diff',
+] as const;
+export type AgentCheck = typeof AGENT_CHECKS[number];
+
 export const agentsSchema = z
   .object({
+    /** Automatic checks on each recorded screen, for example [usability/contrast, usability/tap-target]. */
+    checks: z.array(z.enum(AGENT_CHECKS)).default([]),
     memory: z.object({
       enabled: z.boolean().default(true),
       maxPerSession: z.number().int().positive().default(5),
       reflectMaxSteps: z.number().int().positive().default(10),
-      reflectBudgetUsd: z.number().nonnegative().default(0.05),
+      reflectBudgetUsd: z.number().nonnegative().optional(),
     }).default({}),
     explorer: z
-      .object({ ...roleBase, use: runtimeFor('explorer', { runtime: 'model' }) })
+      .object({
+        ...roleBase,
+        use: runtimeFor('explorer', { runtime: 'model' }),
+        /** Full coverage needs many actions: one step is one tool call. */
+        maxSteps: z.number().int().positive().default(150),
+      })
       .default({}),
     judge: z
       .object({
@@ -278,7 +305,7 @@ export const agentsSchema = z
           /** Fix attempts in total; each attempt after the first gets the last verdict as feedback. */
           attempts: z.number().int().positive().default(2),
           maxSteps: z.number().int().positive().default(30),
-          budgetUsd: z.number().nonnegative().default(0.2),
+          budgetUsd: z.number().nonnegative().optional(),
         }).default({}),
         minSeverity: z.enum(['cosmetic', 'minor', 'major', 'critical']).default('minor'),
         /**
@@ -299,6 +326,14 @@ export const agentsSchema = z
       labels: z.array(z.string()).default(['bughunters']),
   /** The scope in PR titles, e.g. 'app'. Default: the scope in fixer.commitMessage. */
   prScope: z.string().optional(),
+      /** After a PR opens, wait for its CI checks, and let the fixer fix a failed check. */
+      ci: z.object({
+        enabled: z.boolean().default(true),
+        /** Fixer attempts for each PR before Bughunters gives up and tells the team. */
+        attempts: z.number().int().nonnegative().default(2),
+        /** How long one cycle waits for pending checks. */
+        waitMinutes: z.number().nonnegative().default(20),
+      }).default({}),
     }).default({}),
     patrol: z
       .object({

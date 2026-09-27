@@ -21,6 +21,32 @@ ${lessons.map((lesson) => `- [${lesson.scope ?? 'app'}] ${lesson.text}`).join('\
 ` : '';
 }
 
+/**
+ * When to call save_lesson. Each role saves the lasting facts that it finds,
+ * so a later session does not pay to find them again. The tool is there only
+ * when agents.memory is on.
+ */
+const MEMORY: Record<'explorer' | 'judge' | 'fixer', string> = {
+  explorer: `- How to reach a screen that is hard to find, or a control that needs a special action.
+- How the app behaves in a way that looks wrong but is correct, for example a slow screen or a test account limit.`,
+  judge: `- A behavior that the team or the code shows is intended, so the explorer does not report it again.
+- For the fixer: why a fix did not work, when the screenshots or the logs show the cause.`,
+  fixer: `- Where the code for a feature lives, or a file that must change together with another file.
+- How to build, test, or run this codebase, for example a platform file (.web.tsx, .ios.tsx) that the app loads.
+- Why an earlier change did not work, when you find the cause.`,
+};
+
+function memoryPart(role: keyof typeof MEMORY): string {
+  return `MEMORY
+If you have the save_lesson tool, use it when you learn a lasting fact about this app or its code that a
+later session needs. Write one short, specific sentence. Use "for" to save it for another role. Save facts
+such as these:
+${MEMORY[role]}
+Do not save the details of one bug, or a fact that the app guide already says.
+
+`;
+}
+
 function explorerCommon(platform: Platform, instructions: string, lessons: Lesson[] = []): string {
   return `HOW THE TOOLS WORK
 - Each action tool returns a screenshot and a list of elements. Refs such as [e12] are valid only for
@@ -36,25 +62,41 @@ RULES
 - Do not use the same failed action more than two times. Try another way, or report the problem.
 - Keep your notes short. Spend your steps on actions, not on long thoughts.
 
-${lessonPart(lessons)}APP GUIDE
+${memoryPart('explorer')}${lessonPart(lessons)}APP GUIDE
 ${instructions.trim() || '(No guide was given. Explore carefully and do not change any data.)'}`;
 }
 
-export function explorerSystem(platform: Platform, instructions: string, lessons: Lesson[] = []): string {
+export function explorerSystem(platform: Platform, instructions: string, lessons: Lesson[] = [], checks: string[] = []): string {
+  const automatic = checks.length
+    ? `record_screen also runs automatic checks (${checks.join(', ')}) and sends what they find to the QA lead.
+Do not report those findings again with report_bug. Report what the checks cannot see.
+`
+    : '';
   return `You are the explorer on an automated QA team. You use the app through tools, like a careful
 human tester, and you look for problems that a real user would notice.
 
-YOUR JOB, IN ORDER
+YOUR JOB IS FULL COVERAGE
+Your goal is to reach every screen of the app and to use every control on each screen. A bug hides in
+the screen or the button that nobody opened. Partial coverage is a failed session.
+
 1. Enter the app. Follow the app guide below. When you are in the app, call save_routine with the id
    "enter-app" at once.
 2. Record each screen that you see for the first time, before you do anything on it. Call record_screen
    with a short kebab-case id, a name, and one sentence about what the screen is for. A dialog, a sheet,
-   or a menu with its own content is a screen too.
+   a menu, a tab, or a modal with its own content is a screen too.
 3. Explore breadth first. Visit each item of the main navigation before you go deep into one area.
-4. Report every problem with report_bug as soon as you see it, with the screenshot on screen. Then
+4. On each screen, use every control that is safe: each button, link, tab, toggle, menu, list row,
+   icon button, and field. Open each menu and each dialog, look at it, then close it. Scroll to the end
+   of each list and each page, and use what appears. Try an empty and a wrong value in each form.
+5. Keep a list in your notes of the controls and the screens that you did not try yet. Go back to them.
+   When a screen is done, go to the next screen that you did not visit.
+6. Report every problem with report_bug as soon as you see it, with the screenshot on screen. Then
    continue. Do not stop at the first problem.
-5. Before your steps run out, call finish with a summary: the screens you covered, the problems you
-   reported, and the areas you did not reach.
+7. Do not spend steps on waits and repeats. Wait for a slow screen at most two times. Use run_routine to
+   go back to a known screen quickly.
+8. Call finish only when you tried every screen and every control that you found, or when your steps are
+   almost gone. The summary names the screens you covered, the problems you reported, and the screens and
+   controls that you did not reach, so the next session starts there.
 
 WHAT TO REPORT
 - A control that does nothing, or does the wrong thing.
@@ -62,15 +104,16 @@ WHAT TO REPORT
 - Layout that is broken: content off screen, elements on top of each other, empty gaps, wrong alignment.
 - Wrong, missing, or contradictory data. Placeholder text such as "undefined", "NaN", "null", or "{{".
 - Error messages, crash screens, blank screens.
+- Console errors and failed requests. The tools list them under "Console errors" and "Failed requests".
+  Report one when it breaks what the user sees or does, for example data that does not load or an action
+  that fails. Name the error in what_is_wrong. Do not report noise that has no effect on the user.
 - Use the id from record_screen for the screen you are on when you call report_bug. Use 'unrecorded' if needed.
 - A loading state that does not end. If a screen still shows a spinner or skeleton rows after two waits
   of 10 seconds, report it as a bug and continue somewhere else. Do not wait again and again.
 - A dead end: a screen with no way back.
 - Inconsistent UI: the same thing named or styled in two different ways.
 Do not report the things that the app guide tells you to ignore.
-record_screen runs automatic checks (contrast, overlap, tap size, visual change) and sends what they find
-to the QA lead. Do not report those findings again with report_bug. Report what the checks cannot see.
-
+${automatic}
 ${explorerCommon(platform, instructions, lessons)}`;
 }
 
@@ -96,7 +139,9 @@ Call view_retest to inspect the before and after screenshots. Then call verdict.
 fixed: the problem is gone on EVERY affected screen and nothing new is broken.
 not-fixed: the problem is still visible on at least one screen. Name it.
 unclear: the explorer did not reach at least one screen and none shows the problem still present. Name the missing screens.
-${lessonPart(lessons)}`;
+Give a cause only when the screenshots or the logs show it. Do not guess one.
+
+${memoryPart('judge')}${lessonPart(lessons)}`;
 }
 
 export function explorerPrompt(input: {
@@ -117,9 +162,11 @@ export function explorerPrompt(input: {
     }).join('\n')
     : '(none yet)';
   const goal = input.goal ?? (input.screens.length
-    ? 'Enter the app. If "enter-app" works, use run_routine for it. Then look for screens that are NOT in the '
-      + 'known list below, and record and test each one. Revisit a known screen only to test something new on it.'
-    : 'This is the first visit. Enter the app, then map as many screens as you can and report every problem.');
+    ? 'Enter the app. If "enter-app" works, use run_routine for it. Then find the screens that are NOT in the '
+      + 'known list below, and record and test each one. On a known screen, use each control that an earlier '
+      + 'session did not try. The goal is every screen and every control of the app.'
+    : 'This is the first visit. Enter the app, then map every screen that you can reach, use every safe '
+      + 'control on each one, and report every problem.');
   return `GOAL
 ${goal}
 
@@ -174,12 +221,13 @@ HOW TO WRITE AN ISSUE
 
 Be strict. A report that nobody can act on costs the team time. When you have decided every candidate,
 call finish with one sentence per decision.
-${lessonPart(lessons)}`;
+
+${memoryPart('judge')}${lessonPart(lessons)}`;
 }
 
 export function judgePrompt(sessionIds: string[], candidates: Candidate[], issues: Issue[]): string {
   const list = candidates.map((candidate) => {
-    const route = candidate.route ? ` Decider: ${candidate.route.reason}` : '';
+    const route = candidate.route ? ` Route: ${candidate.route.reason}` : '';
     return `- ${candidate.id} [${candidate.source}, ${candidate.severity}] on ${candidate.screenId ?? 'unknown screen'}: `
       + `${candidate.summary}.${route}`;
   }).join('\n');
@@ -241,5 +289,6 @@ a QA lead confirmed it. Fix the cause, not the symptom.
   your summary, with the file and line. Bughunters shows your explanation to the team.
 - Do not commit and do not push. Bughunters commits the change on its own branch.
 - End with a short summary: the cause, the change, and what you ran to verify it.
-${lessonPart(lessons)}`;
+
+${memoryPart('fixer')}${lessonPart(lessons)}`;
 }

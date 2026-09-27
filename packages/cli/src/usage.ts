@@ -23,6 +23,7 @@ Agents
   bughunters fix [--issue <id>...]
   bughunters retest --issue <id>
   bughunters publish [--issue <id>] [--dry-run]
+  bughunters ci [--issue <id>] [--wait]
   bughunters github sync
   bughunters worktrees clean
   bughunters patrol [--once] [--force]
@@ -74,7 +75,6 @@ export const COMMAND_HELP: Record<string, string> = {
   --app-id <id>          ios, android: the bundle ID or the package name
   --agent <a>            the LLM for all agents: claude | codex | kimi | pi | openrouter | vercel | openai | anthropic
   --explorer, --judge, --fixer <a>   the LLM for one agent
-  --jev <route>          auto | typesafe | openrouter | vercel
   --gate                 write a starter config for the deterministic web gate
 `,
   explore: `bughunters explore [--goal "..."] [--steps N]
@@ -103,12 +103,20 @@ export const COMMAND_HELP: Record<string, string> = {
   --dry-run       write the reports to .bughunters/runs/publish/, and open nothing
   --issue <id>    publish this issue only
 `,
+  ci: `bughunters ci [--issue <id>]... [--wait]
+  Read the CI checks of each open Bughunters PR. When a check fails, the fixer gets its log,
+  and Bughunters pushes the new commit to the PR branch. After agents.github.ci.attempts tries, it stops.
+  The patrol runs this step after publish.
+  --wait          wait for the running checks, up to agents.github.ci.waitMinutes
+  --issue <id>    only the PR of this issue
+`,
   patrol: `bughunters patrol [--once] [--force]
   Run the full cycle again and again: setup, explore, judge, teardown, fix, retest, publish.
   The fixer and GitHub steps run only when you turn them on.
-  A cycle runs only when the commit changed since the last full cycle. Otherwise it only syncs GitHub.
+  Explore and judge run only when the commit changed since the last full cycle. The fixes, retests,
+  publish, and CI checks run in each cycle.
   --once          run one cycle, then stop
-  --force         run the first cycle also when the commit did not change
+  --force         explore and judge in the first cycle also when the commit did not change
 `,
   github: `bughunters github sync
   Read the state of each PR and issue from GitHub. A closed PR becomes a lesson. An issue closed as not planned becomes a dismissal.

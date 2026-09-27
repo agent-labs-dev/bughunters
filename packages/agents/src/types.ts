@@ -39,7 +39,8 @@ export type RoleTask = {
   prompt: string;
   tools: Tool[];
   maxSteps: number;
-  budgetUsd: number;
+  /** No limit when it is not set. */
+  budgetUsd?: number;
   timeoutMs: number;
   /** The working directory for a CLI runtime. Default: the workspace root. */
   workdir?: string;

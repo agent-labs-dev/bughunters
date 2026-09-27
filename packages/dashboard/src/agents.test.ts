@@ -57,6 +57,21 @@ describe('AgentReader', () => {
     expect(result.edges.some((edge) => edge.from === 'projects')).toBe(false);
   });
 
+  it('links App start to the enter-app screen when every screen has an edge in', () => {
+    const dir = join(root, '.bughunters', 'runs');
+    mkdirSync(join(dir, 'routines'), { recursive: true });
+    const screen = (id: string, to: string) => ({ id, name: id, routineId: `screen-${id}`, links: [],
+      transitions: [{ to, kind: 'tap', via: to, count: 1, steps: 1 }], lastSeenAt: '', firstSeenAt: '' });
+    writeFileSync(join(dir, 'appmap.json'), JSON.stringify({ version: 1, platform: 'web', updatedAt: '',
+      screens: [screen('chat', 'home'), screen('home', 'chat')] }));
+    for (const [id, requires] of [['enter-app', ['screen-home']], ['screen-home', []], ['screen-chat', []]] as const) {
+      writeFileSync(join(dir, 'routines', `${id}.json`), JSON.stringify({ id, requires, screenId: null, steps: [] }));
+    }
+    const result = new AgentReader(root).screens();
+    expect(result.edges.filter((edge) => edge.from === '__start').map((edge) => edge.to)).toEqual(['home']);
+    expect(layoutGraph(result.screens, result.edges, result.entryId).unlinkedY).toBeNull();
+  });
+
   it('connects screens through routineId when routines have no screenId', () => {
     const dir = join(root, '.bughunters', 'runs');
     mkdirSync(join(dir, 'routines'), { recursive: true });
@@ -80,6 +95,21 @@ describe('AgentReader', () => {
     }
     expect(reached.size).toBe(result.screens.length);
     expect(layoutGraph(result.screens, result.edges, result.entryId).unlinkedY).toBeNull();
+  });
+
+  it('shows a role that has not run yet from the config, not as off', () => {
+    mkdirSync(join(root, '.bughunters'), { recursive: true });
+    writeFileSync(join(root, '.bughunters', 'bughunters.yml'), [
+      'version: 1', 'app:', '  connect: { url: "http://localhost:3000" }', 'agents:',
+      '  explorer: { use: { runtime: model, via: openrouter, model: z-ai/glm-5.3-flash } }',
+      '  judge: { use: claude }', '',
+    ].join('\n'));
+    const agents = (new AgentReader(root).overview() as { agents: { role: string; state: string; runtime: string }[] }).agents;
+    expect(agents).toMatchObject([
+      { role: 'explorer', state: 'idle', runtime: 'model:openrouter/z-ai/glm-5.3-flash' },
+      { role: 'judge', state: 'idle', runtime: 'cli:claude' },
+      { role: 'fixer', state: 'off', runtime: 'cli:claude' },
+    ]);
   });
 
   it('tolerates missing and corrupt state and fills all three roles', () => {
@@ -113,6 +143,12 @@ describe('AgentReader', () => {
     expect(overview.attention.find((issue) => issue.id === 'iss-settings')?.fix?.status).toBe('proposed');
     expect(overview.agents).toHaveLength(3);
     expect(overview.counts.issuesOpen).toBe(3);
+    // An issue that the fixer works on stays in the list, so the list matches the count.
+    const profile = join(root, '.bughunters', 'runs', 'issues', 'iss-profile.json');
+    writeFileSync(profile, JSON.stringify({ ...JSON.parse(readFileSync(profile, 'utf8')), status: 'fixing' }));
+    const fixing = new AgentReader(root).overview() as { attention: { id: string }[]; counts: { issuesOpen: number } };
+    expect(fixing.attention.map((issue) => issue.id)).toContain('iss-profile');
+    expect(fixing.attention).toHaveLength(fixing.counts.issuesOpen);
     expect(overview.live.events.length).toBeGreaterThan(0);
     expect(overview.live.events.length).toBeLessThanOrEqual(12);
     expect(overview.live.events.every((event) => event.kind !== 'thought' && event.kind !== 'tool-call')).toBe(true);
@@ -222,7 +258,7 @@ describe('usageReport', () => {
       tokensByModel: byModel,
     });
     const report = usageReport([
-      session('a', 'explorer', at(26, 10), { glm: { input: 1000, output: 100 }, 'jev-latest': { input: 300, output: 0 } }),
+      session('a', 'explorer', at(26, 10), { glm: { input: 1000, output: 100 }, 'gpt-mini': { input: 300, output: 0 } }),
       session('b', 'explorer', at(24, 10), { glm: { input: 3000, output: 300 } }),
       session('c', 'judge', at(26, 11), { 'claude-sonnet-5': { input: 500, output: 50 } }),
       session('old', 'judge', at(1, 11), { 'claude-sonnet-5': { input: 9999, output: 9 } }),
@@ -230,7 +266,7 @@ describe('usageReport', () => {
     expect(report.todayByRole.explorer).toEqual({ input: 1300, output: 100 });
     expect(report.todayByRole.judge).toEqual({ input: 500, output: 50 });
     expect(report.week.map((row) => [row.role, row.model, row.sessions, row.tokens.input])).toEqual([
-      ['explorer', 'glm', 2, 4000], ['explorer', 'jev-latest', 1, 300], ['judge', 'claude-sonnet-5', 1, 500],
+      ['explorer', 'glm', 2, 4000], ['explorer', 'gpt-mini', 1, 300], ['judge', 'claude-sonnet-5', 1, 500],
     ]);
     expect(report.weekTotal).toEqual({ input: 4800, output: 450 });
   });

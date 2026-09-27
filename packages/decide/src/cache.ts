@@ -1,4 +1,4 @@
-import type { Answer, DeciderName, DecisionRecord } from '@bughunters/core';
+import type { Answer, DecisionRecord } from '@bughunters/core';
 
 /**
  * Keyed on the state hash. This is the single largest cost and latency saving
@@ -58,19 +58,13 @@ export class Budget {
   }
 }
 
-/** Jev pricing: $0.042 per million input tokens, output free (spec 4.2). */
-export const JEV_USD_PER_INPUT_TOKEN = 0.042 / 1_000_000;
-
 /**
- * What one decision on a state of this size costs with a given decider.
- *
- * Jev uses its published input rate. The general model estimate assumes the
+ * What one decision on a state of this size costs. The estimate assumes the
  * spec 4.8 mid-tier frontier rate ($3/M input, $15/M output), including prompt
  * and output tokens.
  */
-export function estimateDecisionCost(stateChars: number, decider: DeciderName = 'jev'): number {
+export function estimateDecisionCost(stateChars: number): number {
   // ~4 chars per token is close enough for a budget guard.
-  if (decider === 'jev') return (stateChars / 4) * JEV_USD_PER_INPUT_TOKEN;
   return ((stateChars / 4 + 1500) * 3 + 900 * 15) / 1_000_000;
 }
 

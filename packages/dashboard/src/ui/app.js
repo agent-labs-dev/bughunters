@@ -487,7 +487,7 @@ function renderUsage(usage) {
         el('td', { text: count(Math.round((row.tokens.input + row.tokens.output) / Math.max(1, row.sessions))) }),
         el('td', { text: row.tokens.listCostUsd ? money(row.tokens.listCostUsd) : '—' }),
       ])),
-    ]) : el('p', { class: 'empty', text: 'No token usage yet. The API agents, Jev, claude (--output-format json), and codex (--json) report their tokens.' }),
+    ]) : el('p', { class: 'empty', text: 'No token usage yet. The API agents, claude (--output-format json), and codex (--json) report their tokens.' }),
   ]);
 }
 
@@ -508,11 +508,15 @@ function title(text, aside) {
   ]);
 }
 
-function githubChip({ kind, number, url, state, draft }) {
+const CI_WORDS = { pending: 'CI running', passed: 'CI green', failed: 'CI failed, fixing', 'gave-up': 'CI red' };
+
+function githubChip({ kind, number, url, state, draft, ci }) {
   const label = kind === 'pr' ? 'PR' : 'Issue';
   const shown = state === 'open' && draft ? 'draft' : state;
+  const checks = state === 'open' || !state ? CI_WORDS[ci] : undefined;
   return el('a', { href: url, target: '_blank', rel: 'noopener noreferrer',
-    class: `gh-chip gh-${shown || 'unknown'}`, text: `${label} #${number}${shown ? ` · ${shown}` : ''}`,
+    class: `gh-chip gh-${shown || 'unknown'}${checks ? ` ci-${ci}` : ''}`,
+    text: `${label} #${number}${shown ? ` · ${shown}` : ''}${checks ? ` · ${checks}` : ''}`,
     onclick: (event) => event.stopPropagation() });
 }
 

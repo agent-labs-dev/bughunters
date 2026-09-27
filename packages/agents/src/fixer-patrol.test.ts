@@ -234,7 +234,8 @@ describe('fix cycle', () => {
           if (task.role === 'fixer') {
             fixes++;
             if (fixes === 2) {
-              expect(task.prompt).toContain('Your last change did not fix the issue. The QA lead said: Still broken.');
+              expect(task.prompt).toContain('Your last change did not fix the issue in the running app. The QA lead said: Still broken.');
+              expect(task.prompt).toContain('call save_lesson');
               expect(task.prompt).toContain('retest-after-1.png');
             }
             await writeFile(join(task.workdir!, 'app.txt'), `fix ${fixes}\n`);
@@ -473,16 +474,16 @@ describe('patrol', () => {
     }
   });
 
-  it('tears down when explorer throws', async () => {
+  it('tears down when explorer throws, and reports the problem without a crash', async () => {
     const root = await mkdtemp(join(tmpdir(), 'bughunters-patrol-'));
     const driver = new FakeDriver({ home: { elements: [] } });
     const withTeardown = parseConfig({ version: 1,
       app: { connect: { url: 'fake://home' }, teardown: [{ run: 'touch stopped.txt' }] },
       agents: { fixer: { enabled: false }, patrol: { cycles: 1 } } });
     try {
-      await expect(runPatrol({ root, config: withTeardown, once: true, createDriver: () => driver,
-        createRuntime: () => ({ label: 'scripted', async run() { throw new Error('boom'); } }) }))
-        .rejects.toThrow('boom');
+      const result = await runPatrol({ root, config: withTeardown, once: true, createDriver: () => driver,
+        createRuntime: () => ({ label: 'scripted', async run() { throw new Error('boom'); } }) });
+      expect(result.problems).toEqual([expect.stringContaining('boom')]);
       expect(driver.closed).toBe(true);
       expect(await readFile(join(root, 'stopped.txt'), 'utf8')).toBe('');
     } finally {
@@ -594,6 +595,30 @@ describe('patrol pull', () => {
       expect(logs.some((message) => message.startsWith('No new commit'))).toBe(true);
       const head = (await git(f.source, 'rev-parse', 'HEAD')).stdout.trim();
       expect((await new Workspace(f.root).readAgents()).patrol?.commit).toBe(head);
+    } finally { await rm(f.root, { recursive: true, force: true }); }
+  });
+
+  it('still fixes on a tested commit, with no new explore', async () => {
+    const f = await repoFixture();
+    try {
+      const second = { ...(await f.workspace.readIssue('iss_1'))!, id: 'iss_2', fingerprint: 'fp2', title: 'Other screen is broken' };
+      await f.workspace.saveIssue(second);
+      const config = parseConfig({ version: 1, app: { source: 'source', connect: { url: 'fake://home' } },
+        agents: { judge: { enabled: false }, patrol: { pull: false, cycles: 2, intervalMinutes: 0.0001 },
+          fixer: { enabled: true, maxPerCycle: 1, use: { runtime: 'cli', command: 'fake' }, verify: 'test -f app.txt' } } });
+      const runs: string[] = [];
+      const logs: string[] = [];
+      await runPatrol({ root: f.root, config, onLog: (message) => logs.push(message),
+        createDriver: () => new FakeDriver({ home: { elements: [] } }),
+        createRuntime: () => ({ label: 'scripted', async run(task) {
+          runs.push(task.role);
+          if (task.role === 'fixer') await writeFile(join(task.workdir!, 'app.txt'), `fixed ${runs.length}\n`);
+          return { stop: 'done', steps: 0, costUsd: 0, summary: 'Done' };
+        } }) });
+      // Cycle 1 explores and fixes one issue. Cycle 2 has the same commit: no explore, but the second fix.
+      expect(runs.filter((role) => role === 'explorer')).toHaveLength(1);
+      expect(runs.filter((role) => role === 'fixer')).toHaveLength(2);
+      expect(logs.some((message) => message.includes('skipped explore and judge'))).toBe(true);
     } finally { await rm(f.root, { recursive: true, force: true }); }
   });
 

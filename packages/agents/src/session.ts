@@ -18,7 +18,6 @@ export class AgentSession {
   lastScreenTrailIndex = 0;
   /** Where the app was when lastScreenId was recorded. */
   lastScreenLocation?: string;
-  decisionSpentUsd = 0;
   /** Issues already counted as seen again in this session. */
   readonly seenIssues = new Set<string>();
   cancelled = false;

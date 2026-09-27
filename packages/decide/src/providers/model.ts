@@ -1,6 +1,6 @@
 import type { Answer, Decider, Question, TokenUsage } from '@bughunters/core';
 import { InfrastructureError, usageFrom } from '@bughunters/core';
-import { normalizeAnswers } from './jev.js';
+import { normalizeAnswers } from '../answers.js';
 
 export const MODEL_ROUTES = {
   openrouter: {
@@ -136,7 +136,7 @@ function anthropicBody(model: string, user: string, schema: ReturnType<typeof an
   };
 }
 
-// LLM output is less constrained than Jev, so every required field must be present.
+// LLM output is loosely constrained, so every required field must be present.
 function enforceModelContract(
   answers: Record<string, Answer>,
   raw: Record<string, unknown>,
@@ -183,9 +183,7 @@ function enforceModelContract(
 }
 
 /**
- * A general model prompted into the same typed contract. This fallback makes
- * the Jev dependency non-structural: Jev is early access, waitlisted, and
- * rate-limited, so a production tool cannot hard-depend on it (spec 4.6).
+ * A general model prompted into a typed contract (spec 4.6).
  *
  * The contract is the interface, not the prompt. Swapping deciders is a config
  * change; the caller receives the same typed answers from either provider.

@@ -68,10 +68,8 @@ determinism:
   failOnFontFallback: true
   blockThirdPartyRequests: true
 
+# The web gate only: an optional general model reviews the gate findings.
 decisions:
-  decider: jev              # jev | model
-  jev:
-    via: auto               # auto | typesafe | openrouter | vercel
   model:
     via: auto               # auto | openrouter | vercel | openai | anthropic | custom
     name: ""                # optional model id override
