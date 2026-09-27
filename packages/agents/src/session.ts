@@ -21,9 +21,15 @@ export class AgentSession {
   /** Issues already counted as seen again in this session. */
   readonly seenIssues = new Set<string>();
   private readonly cancellation = new AbortController();
-  get signal(): AbortSignal { return this.cancellation.signal; }
-  get cancelled(): boolean { return this.signal.aborted; }
-  set cancelled(value: boolean) { if (value) this.cancellation.abort(new Error('Session cancelled')); }
+  get signal(): AbortSignal {
+    return this.cancellation.signal;
+  }
+  get cancelled(): boolean {
+    return this.signal.aborted;
+  }
+  set cancelled(value: boolean) {
+    if (value) this.cancellation.abort(new Error('Session cancelled'));
+  }
   private spentUsd = 0;
   private runtimeLabel = '';
   private statusQueue: Promise<unknown> = Promise.resolve();
@@ -44,11 +50,15 @@ export class AgentSession {
       onEvent?.(vars.redact(event.summary) as string);
       if (event.costUsd) {
         this.spentUsd += event.costUsd;
-        this.statusQueue = this.statusQueue.then(() => this.workspace.setAgentStatus(role, {
-          state: 'working',
-          sessionId,
-          spentUsd: this.spentUsd,
-        })).catch(() => undefined);
+        this.statusQueue = this.statusQueue
+          .then(() =>
+            this.workspace.setAgentStatus(role, {
+              state: 'working',
+              sessionId,
+              spentUsd: this.spentUsd,
+            }),
+          )
+          .catch(() => undefined);
       }
     };
   }
@@ -79,12 +89,19 @@ export class AgentSession {
     try {
       await this.workspace.setAgentStatus(this.role, patch);
     } catch (error) {
-      this.emit({ kind: 'error', summary: `Could not update the agent status: ${String(error).slice(0, 120)}` });
+      this.emit({
+        kind: 'error',
+        summary: `Could not update the agent status: ${String(error).slice(0, 120)}`,
+      });
     }
   }
 
   async capture(observation: Observation, label: string): Promise<string> {
-    const screenshot = await this.workspace.saveScreenshot(this.sessionId, observation.screenshot, label);
+    const screenshot = await this.workspace.saveScreenshot(
+      this.sessionId,
+      observation.screenshot,
+      label,
+    );
     if (this.lastObservation !== observation) this.previousObservation = this.lastObservation;
     this.lastObservation = observation;
     this.lastScreenshot = screenshot;

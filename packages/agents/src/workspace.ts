@@ -80,7 +80,9 @@ export class Workspace {
     return (await readJson<MemoryFile>(paths.memory(this.root))) ?? { version: 1, lessons: [] };
   }
 
-  upsertLessons(lessons: Omit<Lesson, 'id' | 'hits' | 'createdAt' | 'lastSeenAt'>[]): Promise<Lesson[]> {
+  upsertLessons(
+    lessons: Omit<Lesson, 'id' | 'hits' | 'createdAt' | 'lastSeenAt'>[],
+  ): Promise<Lesson[]> {
     return serialized(paths.memory(this.root), async () => {
       const memory = await this.readMemory();
       const now = new Date().toISOString();
@@ -90,14 +92,21 @@ export class Workspace {
         if (!text) continue;
         const id = `les_${shortHash(`${lesson.role}:${text.toLowerCase().replace(/\s+/g, ' ')}`)}`;
         const previous = memory.lessons.find((item) => item.id === id);
-        const next: Lesson = { ...lesson, id, text, hits: (previous?.hits ?? 0) + 1,
-          createdAt: previous?.createdAt ?? now, lastSeenAt: now };
+        const next: Lesson = {
+          ...lesson,
+          id,
+          text,
+          hits: (previous?.hits ?? 0) + 1,
+          createdAt: previous?.createdAt ?? now,
+          lastSeenAt: now,
+        };
         if (previous) memory.lessons.splice(memory.lessons.indexOf(previous), 1, next);
         else memory.lessons.push(next);
         saved.push(next);
       }
       for (const role of ['explorer', 'judge', 'fixer'] as LessonRole[]) {
-        const active = memory.lessons.filter((item) => item.role === role && !item.retired)
+        const active = memory.lessons
+          .filter((item) => item.role === role && !item.retired)
           .sort((a, b) => a.lastSeenAt.localeCompare(b.lastSeenAt));
         for (const lesson of active.slice(0, Math.max(0, active.length - 40))) {
           lesson.retired = { at: now, reason: 'Pruned: not seen recently' };
@@ -132,7 +141,11 @@ export class Workspace {
     try {
       const raw = await readFile(join(paths.session(this.root, sessionId), 'events.jsonl'), 'utf8');
       return raw.split('\n').flatMap((line) => {
-        try { return line.trim() ? [JSON.parse(line) as AgentEvent] : []; } catch { return []; }
+        try {
+          return line.trim() ? [JSON.parse(line) as AgentEvent] : [];
+        } catch {
+          return [];
+        }
       });
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') return [];
@@ -144,18 +157,24 @@ export class Workspace {
     return readJson(paths.appMap(this.root));
   }
 
-  async upsertScreen(screen: Partial<AppMapScreen> & Pick<AppMapScreen, 'id'>): Promise<AppMapScreen> {
+  async upsertScreen(
+    screen: Partial<AppMapScreen> & Pick<AppMapScreen, 'id'>,
+  ): Promise<AppMapScreen> {
     const now = new Date().toISOString();
     const map = await this.readAppMap();
     const previous = map?.screens.find((item) => item.id === screen.id);
     const transitions = [...(previous?.transitions ?? [])];
     for (const incoming of screen.transitions ?? []) {
-      const found = transitions.find((item) => item.to === incoming.to && item.kind === incoming.kind && item.via === incoming.via);
+      const found = transitions.find(
+        (item) =>
+          item.to === incoming.to && item.kind === incoming.kind && item.via === incoming.via,
+      );
       if (found) {
         found.count += 1;
         found.steps = Math.min(found.steps, incoming.steps);
         found.lastSeenAt = now;
-      } else transitions.push({ ...incoming, count: 1, lastSeenAt: now } satisfies ScreenTransition);
+      } else
+        transitions.push({ ...incoming, count: 1, lastSeenAt: now } satisfies ScreenTransition);
     }
     const merged: AppMapScreen = {
       name: screen.name ?? previous?.name ?? screen.id,
@@ -214,7 +233,10 @@ export class Workspace {
 
   async startSession(role: AgentRole): Promise<SessionSummary> {
     const now = new Date();
-    const id = `ses_${now.toISOString().replace(/[-:TZ.]/g, '').slice(0, 14)}_${randomBytes(2).toString('hex')}`;
+    const id = `ses_${now
+      .toISOString()
+      .replace(/[-:TZ.]/g, '')
+      .slice(0, 14)}_${randomBytes(2).toString('hex')}`;
     const session: SessionSummary = {
       version: 1,
       id,
@@ -235,7 +257,10 @@ export class Workspace {
   async appendEvent(sessionId: string, event: Omit<AgentEvent, 'at'>): Promise<void> {
     const dir = paths.session(this.root, sessionId);
     await mkdir(dir, { recursive: true });
-    await appendFile(join(dir, 'events.jsonl'), JSON.stringify({ ...event, at: new Date().toISOString() }) + '\n');
+    await appendFile(
+      join(dir, 'events.jsonl'),
+      JSON.stringify({ ...event, at: new Date().toISOString() }) + '\n',
+    );
   }
 
   async saveScreenshot(sessionId: string, png: Buffer, label: string): Promise<string> {
@@ -243,7 +268,10 @@ export class Workspace {
     await mkdir(dir, { recursive: true });
     const files = await readdir(dir);
     const number = files.filter((file) => /^\d{3}-.*\.png$/.test(file)).length + 1;
-    const file = join(dir, `${String(number).padStart(3, '0')}-${basename(label).replace(/[^a-zA-Z0-9_-]/g, '-')}.png`);
+    const file = join(
+      dir,
+      `${String(number).padStart(3, '0')}-${basename(label).replace(/[^a-zA-Z0-9_-]/g, '-')}.png`,
+    );
     await writeFile(file, png, { mode: 0o600 });
     return relative(this.root, file);
   }
@@ -256,7 +284,9 @@ export class Workspace {
 
   async readCandidates(sessionId: string): Promise<Candidate[]> {
     try {
-      const lines = (await readFile(join(paths.session(this.root, sessionId), 'candidates.jsonl'), 'utf8')).trim();
+      const lines = (
+        await readFile(join(paths.session(this.root, sessionId), 'candidates.jsonl'), 'utf8')
+      ).trim();
       return lines ? lines.split('\n').map((line) => JSON.parse(line) as Candidate) : [];
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
@@ -278,8 +308,12 @@ export class Workspace {
   }
 
   async endSession(id: string, patch: Partial<SessionSummary> = {}): Promise<SessionSummary> {
-    return this.updateSession(id, { status: 'finished', endedAt: new Date().toISOString(),
-      ...usageOf(await this.readEvents(id)), ...patch });
+    return this.updateSession(id, {
+      status: 'finished',
+      endedAt: new Date().toISOString(),
+      ...usageOf(await this.readEvents(id)),
+      ...patch,
+    });
   }
 
   async listSessions(limit = 20): Promise<SessionSummary[]> {
@@ -292,8 +326,9 @@ export class Workspace {
       }
       throw error;
     }
-    const sessions = await Promise.all(ids.map((id) =>
-      readJson<SessionSummary>(join(paths.session(this.root, id), 'session.json'))));
+    const sessions = await Promise.all(
+      ids.map((id) => readJson<SessionSummary>(join(paths.session(this.root, id), 'session.json'))),
+    );
     const valid = sessions.filter((session): session is SessionSummary => Boolean(session));
     return valid.sort((a, b) => b.startedAt.localeCompare(a.startedAt)).slice(0, limit);
   }
@@ -311,7 +346,10 @@ export class Workspace {
     return serialized(paths.agents(this.root), () => this.writeAgentStatus(role, patch));
   }
 
-  private async writeAgentStatus(role: AgentRole, patch: Partial<AgentStatus>): Promise<AgentStatus> {
+  private async writeAgentStatus(
+    role: AgentRole,
+    patch: Partial<AgentStatus>,
+  ): Promise<AgentStatus> {
     const file = await this.readAgents();
     const previous = file.agents.find((agent) => agent.role === role);
     const next: AgentStatus = {
@@ -348,7 +386,9 @@ export class Workspace {
 
   async readTriage(): Promise<TriageFile> {
     try {
-      return (await readJson<TriageFile>(paths.triage(this.root))) ?? { version: 1, fingerprints: {} };
+      return (
+        (await readJson<TriageFile>(paths.triage(this.root))) ?? { version: 1, fingerprints: {} }
+      );
     } catch {
       return { version: 1, fingerprints: {} };
     }
@@ -366,8 +406,12 @@ export class Workspace {
     return (event) => {
       const file = join(paths.session(this.root, sessionId), 'events.jsonl');
       const previous = eventWrites.get(file) ?? Promise.resolve();
-      const next = previous.then(() => this.appendEvent(sessionId,
-        vars.redact({ ...event, sessionId, role }) as Omit<AgentEvent, 'at'>));
+      const next = previous.then(() =>
+        this.appendEvent(
+          sessionId,
+          vars.redact({ ...event, sessionId, role }) as Omit<AgentEvent, 'at'>,
+        ),
+      );
       eventWrites.set(file, next);
       void next.catch(() => undefined);
     };
@@ -375,14 +419,24 @@ export class Workspace {
 }
 
 export function lessonsFor(memory: MemoryFile, role: LessonRole, limit = 15): Lesson[] {
-  return memory.lessons.filter((lesson) => lesson.role === role && !lesson.retired)
-    .sort((a, b) => Number(b.source === 'human') - Number(a.source === 'human')
-      || b.hits - a.hits || b.lastSeenAt.localeCompare(a.lastSeenAt))
+  return memory.lessons
+    .filter((lesson) => lesson.role === role && !lesson.retired)
+    .sort(
+      (a, b) =>
+        Number(b.source === 'human') - Number(a.source === 'human') ||
+        b.hits - a.hits ||
+        b.lastSeenAt.localeCompare(a.lastSeenAt),
+    )
     .slice(0, limit);
 }
 
 /** The issue's own fingerprint and every candidate it collected. */
-export async function dismissedFingerprints(workspace: Workspace, issue: Issue, reason: string, at: string): Promise<TriageFile['fingerprints']> {
+export async function dismissedFingerprints(
+  workspace: Workspace,
+  issue: Issue,
+  reason: string,
+  at: string,
+): Promise<TriageFile['fingerprints']> {
   const entries: TriageFile['fingerprints'] = {
     [issue.fingerprint]: { decision: 'dismissed', issueId: issue.id, reason, at },
   };
@@ -390,7 +444,8 @@ export async function dismissedFingerprints(workspace: Workspace, issue: Issue, 
   if (!ids.size) return entries;
   for (const session of await workspace.listSessions(Infinity)) {
     for (const candidate of await workspace.readCandidates(session.id)) {
-      if (ids.has(candidate.id)) entries[candidate.fingerprint] = { decision: 'dismissed', issueId: issue.id, reason, at };
+      if (ids.has(candidate.id))
+        entries[candidate.fingerprint] = { decision: 'dismissed', issueId: issue.id, reason, at };
     }
   }
   return entries;

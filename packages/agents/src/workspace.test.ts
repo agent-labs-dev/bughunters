@@ -11,15 +11,29 @@ describe('Workspace', () => {
     const root = await mkdtemp(join(tmpdir(), 'bughunters-work-'));
     const workspace = new Workspace(root);
     try {
-      await workspace.upsertScreen({ id: 'home', links: ['settings'], lastScreenshot: 'first.png' });
+      await workspace.upsertScreen({
+        id: 'home',
+        links: ['settings'],
+        lastScreenshot: 'first.png',
+      });
       const screen = await workspace.upsertScreen({ id: 'home', links: ['profile'], visits: 2 });
       expect(screen.links).toEqual(['settings', 'profile']);
       expect(screen.visits).toBe(3);
       expect(screen.lastScreenshot).toBe('first.png');
-      const transition = { to: 'settings', kind: 'tap' as const, via: 'Settings',
-        steps: 3, count: 1, lastSeenAt: 'old' };
+      const transition = {
+        to: 'settings',
+        kind: 'tap' as const,
+        via: 'Settings',
+        steps: 3,
+        count: 1,
+        lastSeenAt: 'old',
+      };
       await workspace.upsertScreen({ id: 'home', transitions: [transition], visits: 0 });
-      const repeated = await workspace.upsertScreen({ id: 'home', transitions: [{ ...transition, steps: 1 }], visits: 0 });
+      const repeated = await workspace.upsertScreen({
+        id: 'home',
+        transitions: [{ ...transition, steps: 1 }],
+        visits: 0,
+      });
       expect(repeated.transitions).toMatchObject([{ to: 'settings', count: 2, steps: 1 }]);
       expect(repeated.transitions?.[0]?.lastSeenAt).not.toBe('old');
       expect((await readdir(paths.data(root))).some((name) => name.includes('.tmp-'))).toBe(false);
@@ -82,9 +96,17 @@ describe('agent status under concurrency', () => {
     const root = mkdtempSync(join(tmpdir(), 'bughunters-status-'));
     const one = new Workspace(root);
     const two = new Workspace(root);
-    await Promise.all(Array.from({ length: 40 }, (_, index) =>
-      (index % 2 ? one : two).setAgentStatus(index % 3 ? 'explorer' : 'judge', { activity: `step ${index}` })));
+    await Promise.all(
+      Array.from({ length: 40 }, (_, index) =>
+        (index % 2 ? one : two).setAgentStatus(index % 3 ? 'explorer' : 'judge', {
+          activity: `step ${index}`,
+        }),
+      ),
+    );
     const file = JSON.parse(readFileSync(join(root, '.bughunters', 'runs', 'agents.json'), 'utf8'));
-    expect(file.agents.map((agent: { role: string }) => agent.role).sort()).toEqual(['explorer', 'judge']);
+    expect(file.agents.map((agent: { role: string }) => agent.role).sort()).toEqual([
+      'explorer',
+      'judge',
+    ]);
   });
 });

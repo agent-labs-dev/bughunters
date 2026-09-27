@@ -19,7 +19,7 @@ export async function runJudge(
     const task = {
       role: 'judge' as const,
       sessionId: session.sessionId,
-    signal: session.signal,
+      signal: session.signal,
       system: judgeSystem(lessonsFor(await session.workspace.readMemory(), 'judge')),
       prompt: judgePrompt(opts.sessionIds, candidates, issues),
       tools: judgeTools(session, opts.sessionIds, runtime.label),
@@ -32,25 +32,37 @@ export async function runJudge(
     const outcome = candidates.length
       ? await runtime.run(task, session.emit)
       : {
-        stop: 'done' as const,
-        steps: 0,
-        costUsd: 0,
-        summary: 'No candidates to judge',
-      };
+          stop: 'done' as const,
+          steps: 0,
+          costUsd: 0,
+          summary: 'No candidates to judge',
+        };
     const after = await session.workspace.listIssues();
     const newIssues = after.filter((item) => !issues.some((before) => before.id === item.id));
     await session.workspace.endSession(session.sessionId, {
-      status: session.cancelled ? 'cancelled' : outcome.stop === 'error' ? 'failed' : outcome.stop === 'done' ? 'finished' : 'incomplete',
+      status: session.cancelled
+        ? 'cancelled'
+        : outcome.stop === 'error'
+          ? 'failed'
+          : outcome.stop === 'done'
+            ? 'finished'
+            : 'incomplete',
       steps: outcome.steps,
       costUsd: outcome.costUsd,
       summary: outcome.summary,
       issues: newIssues.map((item) => item.id),
     });
-    session.emit({ kind: 'session-end', summary: outcome.summary ?? `Judge stopped: ${outcome.stop}` });
+    session.emit({
+      kind: 'session-end',
+      summary: outcome.summary ?? `Judge stopped: ${outcome.stop}`,
+    });
     await session.idle(outcome.costUsd);
     return outcome;
   } catch (error) {
-    await session.workspace.endSession(session.sessionId, { status: 'failed', summary: String(error) });
+    await session.workspace.endSession(session.sessionId, {
+      status: 'failed',
+      summary: String(error),
+    });
     await session.idle();
     throw error;
   }
