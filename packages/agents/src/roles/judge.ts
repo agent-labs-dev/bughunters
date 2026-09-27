@@ -39,7 +39,7 @@ export async function runJudge(
     const after = await session.workspace.listIssues();
     const newIssues = after.filter((item) => !issues.some((before) => before.id === item.id));
     await session.workspace.endSession(session.sessionId, {
-      status: outcome.stop === 'error' ? 'failed' : 'finished',
+      status: session.cancelled ? 'cancelled' : outcome.stop === 'error' ? 'failed' : outcome.stop === 'done' ? 'finished' : 'incomplete',
       steps: outcome.steps,
       costUsd: outcome.costUsd,
       summary: outcome.summary,

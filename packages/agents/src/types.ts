@@ -1,3 +1,4 @@
+import { InfrastructureError } from '@bughunters/core';
 import type { AgentEvent, AgentRole, RoleRuntime } from '@bughunters/core';
 
 /**
@@ -65,3 +66,8 @@ export interface Runtime {
 }
 
 export type RuntimeFactory = (use: RoleRuntime) => Runtime;
+
+/** Keep provider failure and budget exhaustion out of the successful-run cache. */
+export function requireCompleted(outcome: RoleOutcome, role: string): void {
+  if (outcome.stop !== 'done') throw new InfrastructureError(`${role} did not complete (${outcome.stop}): ${outcome.error ?? outcome.summary ?? 'no result'}`);
+}

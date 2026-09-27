@@ -73,7 +73,7 @@ export async function runExplorer(
     const screens = (await session.workspace.readAppMap())?.screens ?? [];
     outcome.summary = sessionSummary(outcome, screens.length, candidates.length);
     await session.workspace.endSession(session.sessionId, {
-      status: outcome.stop === 'error' ? 'failed' : 'finished',
+      status: session.cancelled ? 'cancelled' : outcome.stop === 'error' ? 'failed' : outcome.stop === 'done' ? 'finished' : 'incomplete',
       steps: outcome.steps,
       costUsd: outcome.costUsd,
       summary: outcome.summary,

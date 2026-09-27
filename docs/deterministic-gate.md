@@ -31,7 +31,7 @@ npx bughunters run --no-models       # exit 1, with a diff image
 | 1 | A tier-1 regression: **the only code that blocks a merge** |
 | 2 | A configuration or usage error |
 | 3 | Recon is required, or the app model is not approved |
-| 4 | An infrastructure error: Bughunters could not test |
+| 4 | Testing was incomplete: infrastructure, missing evidence, zero coverage, or exhausted decision budget |
 
 ## Tiers
 

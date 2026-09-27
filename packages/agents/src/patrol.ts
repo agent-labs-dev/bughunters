@@ -4,6 +4,7 @@ import { promisify } from 'node:util';
 import { type BughuntersConfig } from '@bughunters/core';
 import { createDriver as makeDriver, type Driver } from '@bughunters/drivers';
 import { createRuntime } from './runtime/index.js';
+import { requireCompleted } from './types.js';
 import { Workspace } from './workspace.js';
 import { Vars } from './vars.js';
 import { startApp } from './lifecycle.js';
@@ -167,7 +168,7 @@ export async function runPatrol(options: PatrolOptions): Promise<PatrolResult> {
             const session = new AgentSession(root, config, vars, record.id, 'explorer', driver, options.onLog);
             activeSession = session;
             if (!interrupted) {
-              await runExplorer(session, runtime(config.agents.explorer.use));
+              requireCompleted(await runExplorer(session, runtime(config.agents.explorer.use)), 'Explorer');
             } else {
               await workspace.endSession(record.id, { summary: 'Interrupted' });
             }
@@ -177,7 +178,7 @@ export async function runPatrol(options: PatrolOptions): Promise<PatrolResult> {
             const record = await workspace.startSession('judge');
             const session = new AgentSession(root, config, vars, record.id, 'judge', undefined, options.onLog);
             activeSession = session;
-            await runJudge(session, runtime(config.agents.judge.use), { sessionIds: [explorerId] });
+            requireCompleted(await runJudge(session, runtime(config.agents.judge.use), { sessionIds: [explorerId] }), 'Judge');
           }
         } catch (error) {
           activeSession = undefined;
@@ -220,7 +221,7 @@ export async function runPatrol(options: PatrolOptions): Promise<PatrolResult> {
       }
       if (!interrupted && config.agents.github.enabled) await syncGitHub(root, config, { onLog: options.onLog });
       // A cycle with a problem tests the commit again next time.
-      if (!interrupted && fresh && commit && !cycleFailed) {
+      if (!interrupted && fresh && commit && !cycleFailed && config.agents.explorer.enabled) {
         tested = commit;
         await workspace.setPatrol({ commit });
       }

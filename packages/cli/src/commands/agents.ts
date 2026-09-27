@@ -1,3 +1,4 @@
+import { requireCompleted } from '@bughunters/agents';
 import { ConfigError, InfrastructureError, formatUsage, type AgentRole, type BughuntersConfig } from '@bughunters/core';
 import { createDriver } from '@bughunters/drivers';
 import { AgentSession, Vars, Workspace, createRuntime, pendingCandidates, replayRoutine, runExplorer, runJudge, runtimeProblem,
@@ -109,7 +110,7 @@ export async function runAgentCommand(
     const { problems } = await runPatrol({ root, config, once: Boolean(flags.once), force: Boolean(flags.force), onLog: log });
     if (problems.length) {
       log(`The patrol had ${problems.length} problem(s):\n${problems.map((problem) => `- ${problem.split('\n')[0]}`).join('\n')}`);
-      process.exitCode = 1;
+      process.exitCode = 4;
     }
     return;
   }
@@ -123,7 +124,7 @@ export async function runAgentCommand(
       && (!flags.issue || (flags.issue as string[]).includes(fix.issueId)));
     if (!fixes.length) log('No open Bughunters PR has CI checks yet.');
     for (const fix of fixes) log(`  PR #${fix.pr!.number}  ${fix.ci!.state.padEnd(8)} ${fix.issueId}  ${fix.pr!.url}`);
-    if (problems.length) process.exitCode = 1;
+    if (problems.length) process.exitCode = 4;
     return;
   }
   if (command === 'publish') {
@@ -162,7 +163,7 @@ export async function runAgentCommand(
     const session = new AgentSession(root, config, vars, record.id, 'judge', undefined, log);
     const pending = await pendingCandidates(session, ids);
     log(`Judging ${pending.length} new candidate(s) from ${ids.length} session(s): ${ids.join(', ')}`);
-    await runJudge(session, createRuntime(config.agents.judge.use), { sessionIds: ids });
+    requireCompleted(await runJudge(session, createRuntime(config.agents.judge.use), { sessionIds: ids }), 'Judge');
     // The session-end event already printed the summary.
     await logUsage(workspace, record.id, log);
     return;
@@ -227,10 +228,11 @@ export async function runAgentCommand(
     const record = await workspace.startSession('explorer');
     const session = new AgentSession(root, config, vars, record.id, 'explorer', driver, log);
     activeSession = session;
-    await runExplorer(session, createRuntime(config.agents.explorer.use), {
+    const outcome = await runExplorer(session, createRuntime(config.agents.explorer.use), {
       goal: flags.goal as string | undefined,
       maxSteps: flags.steps as number | undefined,
     });
+    requireCompleted(outcome, 'Explorer');
     // The session-end event already printed the summary.
     await logUsage(workspace, record.id, log);
     log('Next: run `bughunters judge` to file the real bugs as issues, or open `bughunters dashboard`.');

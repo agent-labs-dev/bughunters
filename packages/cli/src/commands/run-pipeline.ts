@@ -115,7 +115,8 @@ export async function executeRun(options: PipelineOptions): Promise<RunResult> {
   notes.push(resolution.reason);
   let suppressed = 0;
   let decisionUsd = 0;
-  let incomplete = false;
+  let incomplete = options.screens.length === 0;
+  if (incomplete) notes.push('No screens were selected: nothing was verified.');
 
   const screenTraces: ScreenTrace[] = [];
   const findingTraces: FindingTrace[] = [];
@@ -123,6 +124,7 @@ export async function executeRun(options: PipelineOptions): Promise<RunResult> {
 
   const seenDegradations = new Set<string>();
   for (const screen of options.screens) {
+    if (!screen.baselineCreated && !screen.comparison) incomplete = true;
     const violations = evaluateAll(screen.snapshot, { baseline: screen.baselineSnapshot, disabled });
     const visual = visualViolations(screen, config);
     const all = [...visual, ...violations];
@@ -274,7 +276,7 @@ export async function executeRun(options: PipelineOptions): Promise<RunResult> {
   const groups = await cluster(findings);
   const noise = applyNoiseControls(groups, { isFirstRun: options.isFirstRun });
   notes.push(...noise.notes);
-  if (incomplete) notes.push('Budget exhausted before every screen was decided: this run is INCOMPLETE, not clean.');
+  if (incomplete) notes.push('This run is INCOMPLETE: coverage, baseline evidence, or decision budget was unavailable.');
 
   const created = options.screens.filter((s) => s.baselineCreated).length;
   if (created > 0) {
@@ -297,7 +299,7 @@ export async function executeRun(options: PipelineOptions): Promise<RunResult> {
     notes.push('First run: regressions are reported but do not block.');
   }
 
-  const exitCode: ExitCodeValue = blocking.length > 0 ? ExitCode.Regression : ExitCode.Clean;
+  const exitCode: ExitCodeValue = blocking.length > 0 ? ExitCode.Regression : incomplete ? ExitCode.Infrastructure : ExitCode.Clean;
   const selected = new Set(options.screens.map((s) => s.screenId));
 
   const run: Run = {

@@ -318,7 +318,7 @@ export type SessionSummary = {
   pid?: number;
   startedAt: string;
   endedAt?: string;
-  status: 'running' | 'finished' | 'failed';
+  status: 'running' | 'finished' | 'failed' | 'incomplete' | 'cancelled';
   summary?: string;
   steps: number;
   costUsd: number;

@@ -76,6 +76,25 @@ const base = {
 };
 
 describe('executeRun', () => {
+  it('returns an infrastructure result when no screens were tested', async () => {
+    const result = await executeRun({ ...base, root, isFirstRun: false, screens: [] });
+    expect(result.run.status).toBe('incomplete');
+    expect(result.exitCode).toBe(ExitCode.Infrastructure);
+  });
+
+  it('does not return success when the decision budget is exhausted', async () => {
+    vi.stubEnv('OPENROUTER_API_KEY', 'synthetic');
+    const fetch = vi.fn(); vi.stubGlobal('fetch', fetch);
+    try {
+      const result = await executeRun({ ...base, root, noModels: false, isFirstRun: false,
+        config: parseConfig({ version: 1, run: { command: 'noop', url: 'http://localhost:3000' }, decisions: { budget: { perRunUsd: 0 } } }),
+        screens: [screen({ comparison: comparison(0, { maskedFraction: 0.9, maskedRegionCount: 1 }) })] });
+      expect(result.run.status).toBe('incomplete');
+      expect(result.exitCode).toBe(ExitCode.Infrastructure);
+      expect(fetch).not.toHaveBeenCalled();
+    } finally { vi.unstubAllEnvs(); vi.unstubAllGlobals(); }
+  });
+
   it('passes cleanly when the capture matches its baseline', async () => {
     const result = await executeRun({ ...base, root, isFirstRun: false, screens: [screen()] });
     expect(result.exitCode).toBe(ExitCode.Clean);
