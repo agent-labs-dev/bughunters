@@ -1,3 +1,5 @@
+import { randomBytes } from 'node:crypto';
+import { AjvJsonSchemaValidator } from '@modelcontextprotocol/sdk/validation/ajv-provider.js';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
@@ -21,18 +23,40 @@ type McpContent =
  */
 export async function serveTools(tools: Tool[], opts: Options = {}): Promise<{ url: string; close(): Promise<void> }> {
   const budget = { calls: 0 };
+  // A per-session capability URL works with every supported CLI MCP client.
+  // It is written only to the private temporary config, never to the activity feed.
+  const endpoint = `/mcp/${randomBytes(32).toString('base64url')}`;
+  const validator = new AjvJsonSchemaValidator();
+  const validatedTools = tools.map((tool) => {
+    const validate = validator.getValidator<Record<string, unknown>>(tool.inputSchema);
+    return { ...tool, async run(input: Record<string, unknown>) {
+      const checked = validate(input);
+      if (!checked.valid) return { content: [{ type: 'text' as const, text: `Invalid arguments: ${checked.errorMessage}` }], isError: true };
+      return tool.run(checked.data);
+    } };
+  });
 
   const http = createServer((request, response) => {
-    if (request.url !== '/mcp') {
+    if (request.url !== endpoint) {
       response.writeHead(404).end();
       return;
     }
-    void handle(request, response, tools, opts, budget).catch((error) => {
+    const address = http.address();
+    const authority = address && typeof address !== 'string' ? `127.0.0.1:${address.port}` : '';
+    if (request.headers.host !== authority || (request.headers.origin && request.headers.origin !== `http://${authority}`)) {
+      response.writeHead(403).end('Forbidden');
+      return;
+    }
+    void handle(request, response, validatedTools, opts, budget).catch((error) => {
       if (!response.headersSent) {
         response.writeHead(500).end(String(error));
       }
     });
   });
+
+  http.requestTimeout = 30_000;
+  http.headersTimeout = 10_000;
+  http.setTimeout(30_000, (socket) => socket.destroy());
 
   await new Promise<void>((done, reject) => {
     http.once('error', reject);
@@ -48,7 +72,7 @@ export async function serveTools(tools: Tool[], opts: Options = {}): Promise<{ u
   }
 
   return {
-    url: `http://127.0.0.1:${address.port}/mcp`,
+    url: `http://127.0.0.1:${address.port}${endpoint}`,
     async close() {
       http.closeAllConnections();
       await new Promise<void>((done) => http.close(() => done()));
@@ -63,6 +87,14 @@ async function handle(
   opts: Options,
   budget: { calls: number },
 ): Promise<void> {
+  let body: unknown;
+  if (request.method === 'POST') {
+    try { body = await readBody(request); }
+    catch (error) {
+      response.writeHead(error instanceof RangeError ? 413 : 400).end('Invalid request body');
+      return;
+    }
+  }
   const server = buildServer(tools, opts, budget);
   const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true });
   response.on('close', () => {
@@ -70,7 +102,7 @@ async function handle(
     void server.close();
   });
   await server.connect(transport);
-  await transport.handleRequest(request, response);
+  await transport.handleRequest(request, response, body);
 }
 
 function buildServer(tools: Tool[], opts: Options, budget: { calls: number }): Server {
@@ -126,4 +158,26 @@ async function callTool(
 function toMcp(part: ToolResult['content'][number]): McpContent {
   if (part.type === 'text') return { type: 'text', text: part.text };
   return { type: 'image', data: part.png.toString('base64'), mimeType: 'image/png' };
+}
+
+/** Bound memory before the transport parses attacker-controlled JSON. */
+function readBody(request: IncomingMessage): Promise<unknown> {
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    let bytes = 0;
+    const cleanup = () => { request.off('data', data); request.off('end', end); request.off('error', fail); request.off('aborted', aborted); };
+    const fail = (error: Error) => { cleanup(); request.resume(); reject(error); };
+    const aborted = () => fail(new Error('Request aborted'));
+    const data = (chunk: Buffer) => {
+      bytes += chunk.length;
+      if (bytes > 1_048_576) { fail(new RangeError('Request too large')); return; }
+      chunks.push(chunk);
+    };
+    const end = () => {
+      cleanup();
+      try { resolve(JSON.parse(Buffer.concat(chunks).toString('utf8'))); }
+      catch (error) { reject(error); }
+    };
+    request.on('data', data).once('end', end).once('error', fail).once('aborted', aborted);
+  });
 }

@@ -132,8 +132,8 @@ export class CliRuntime implements Runtime {
       const promptFile = join(temp, 'prompt.md');
       const mcpFile = join(temp, 'mcp.json');
       const prompt = `${task.system}\n\n${task.prompt}`;
-      await writeFile(promptFile, prompt);
-      await writeFile(mcpFile, JSON.stringify({ mcpServers: { bughunters: { type: 'http', url: mcp.url } } }));
+      await writeFile(promptFile, prompt, { mode: 0o600 });
+      await writeFile(mcpFile, JSON.stringify({ mcpServers: { bughunters: { type: 'http', url: mcp.url } } }), { mode: 0o600 });
       const workdir = task.workdir ?? process.cwd();
       const replacements = {
         prompt: promptFile,
