@@ -15,7 +15,7 @@ import { cleanWorktrees } from './worktrees.js';
 const roots: string[] = [];
 afterEach(async () => { await Promise.all(roots.map((root) => rm(root, { recursive: true, force: true }))); roots.length = 0; });
 const git = (cwd: string, ...args: string[]) =>
-  execFileSync('git', ['-C', cwd, ...args], { encoding: 'utf8', stdio: 'pipe' }).trim();
+  execFileSync('git', args, { cwd, encoding: 'utf8', stdio: 'pipe' }).trim();
 
 async function fixture(status: FixProposal['status'] = 'declined') {
   const root = await mkdtemp(join(tmpdir(), 'bughunters-worktrees-'));
@@ -83,10 +83,24 @@ describe('cleanWorktrees', () => {
     git(f.worktree, 'add', '.');
     git(f.worktree, '-c', 'commit.gpgsign=false', 'commit', '-qm', 'fix');
     git(f.worktree, 'push', '-q', '-u', 'origin', f.branch);
+    git(f.repo, 'update-ref', '-d', `refs/remotes/origin/${f.branch}`);
+    git(f.repo, 'config', 'remote.origin.fetch', '+refs/heads/main:refs/remotes/origin/main');
     await f.workspace.saveFix({ ...f.fix, pr: { number: 7, url: 'https://github.com/o/r/pull/7',
       draft: false, state: 'closed' } });
     expect((await cleanWorktrees(f.root, f.config)).removed).toEqual([f.fix.id]);
     expect(git(f.repo, 'branch', '--list', f.branch)).toBe('');
+  });
+
+  it('keeps unpublished commits even when a stale tracking ref matches', async () => {
+    const f = await fixture('verified');
+    await writeFile(join(f.worktree, 'app.txt'), 'unpublished\n');
+    git(f.worktree, 'add', '.');
+    git(f.worktree, 'commit', '-qm', 'local fix');
+    git(f.repo, 'update-ref', `refs/remotes/origin/${f.branch}`, git(f.worktree, 'rev-parse', 'HEAD'));
+    await f.workspace.saveFix({ ...f.fix, pr: { number: 7, url: 'https://github.com/o/r/pull/7',
+      draft: false, state: 'closed' } });
+    await cleanWorktrees(f.root, f.config);
+    expect(git(f.repo, 'branch', '--list', f.branch)).toBe(f.branch);
   });
 
   it('removes an unchanged declined fix and its empty branch', async () => {
