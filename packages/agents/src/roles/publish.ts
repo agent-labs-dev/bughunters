@@ -1,7 +1,7 @@
 import { readEvidence } from '../evidence.js';
 import { createHash } from 'node:crypto';
 import { withWorkspaceLock } from '../lock.js';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { paths, type BughuntersConfig, type Candidate, type FixProposal, type Issue } from '@bughunters/core';
 import { createIssue, createPr, defaultGh, ensureAssetsBranch, ensureLabels, ghReady,

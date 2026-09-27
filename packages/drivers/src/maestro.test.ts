@@ -70,9 +70,9 @@ describe('Maestro data conversion', () => {
     expect(tapCommand({ point: { x: 24.8, y: 100.2 } })).toContain('point: "25,100"');
     expect(yamlString('say "yes":\nnext')).toBe('"say \\"yes\\":\\nnext"');
     expect(buildFlow('com.example.app', [
-      `inputText: ${yamlString('say \"yes\":\nnext')}`,
+      `inputText: ${yamlString('say "yes":\nnext')}`,
       'pressKey: Enter',
-    ])).toContain('- inputText: \"say');
+    ])).toContain('- inputText: "say');
   });
 
   it('clears native text by default and preserves it when appending', () => {

@@ -276,7 +276,6 @@ export async function retestFix(root: string, config: BughuntersConfig, issue: I
   let judged: { outcome: RetestOutcome; reason: string } | undefined;
   let cost = 0;
   let steps = 0;
-  let stop = 'error';
   try {
     const judgeRuntime = runtime(config.agents.judge.use);
     await session.activity(`Judging retest for ${issue.title}`, 0, judgeRuntime.label);
@@ -310,7 +309,7 @@ export async function retestFix(root: string, config: BughuntersConfig, issue: I
       timeoutMs: config.agents.judge.timeoutMs }, session.emit);
     cost = result.costUsd;
     steps = result.steps;
-    stop = result.stop;
+    const stop = result.stop;
     retest.outcome = judged?.outcome ?? 'unclear';
     retest.reason = judged?.reason ?? `The judge gave no verdict (${stop})`;
   } catch (error) {

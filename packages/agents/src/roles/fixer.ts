@@ -304,7 +304,7 @@ export async function runFixer(
           const last = (output.stderr || output.stdout || output.message).trim().split('\n').at(-1) ?? 'unknown error';
           await session.workspace.upsertLessons([{ role: 'fixer', source: 'verify',
             text: `The verify command failed with: ${last}. Run it before you finish.`.slice(0, 200) }]);
-          throw new Error(`Verification failed: ${(output.stderr || output.stdout || output.message).slice(-4000)}`);
+          throw new Error(`Verification failed: ${(output.stderr || output.stdout || output.message).slice(-4000)}`, { cause: error });
         }
       }
       proposal.status = 'proposed';

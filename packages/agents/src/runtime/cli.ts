@@ -87,8 +87,6 @@ export class CliRuntime implements Runtime {
     const temp = await mkdtemp(join(tmpdir(), 'bughunters-agent-'));
     let summary = '';
     let steps = 0;
-    let stderr = '';
-    let stdout = '';
     let lastThought = 0;
     let pending = '';
     let partial = '';
@@ -154,7 +152,7 @@ export class CliRuntime implements Runtime {
       const processResult = await runProcess('/bin/sh', ['-c', command], {
         cwd: workdir, env: workerEnvironment(this.use.env), timeoutMs: task.timeoutMs, signal, input: prompt, onOutput: onText,
       });
-      stdout = processResult.stdout; stderr = processResult.stderr;
+      const { stdout, stderr } = processResult;
       const { code } = processResult;
       const timedOut = processResult.timedOut || (signal.aborted && signal.reason?.name === 'TimeoutError');
       if (processResult.cancelled && !timedOut) return { stop: 'error', steps, costUsd: 0, costKnown: false, error: 'Session cancelled' };

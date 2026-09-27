@@ -57,7 +57,7 @@ export async function pruneArtifacts(root: string, options: { olderThanDays: num
         try { candidates = await readFile(join(path, 'candidates.jsonl'), 'utf8'); } catch (error) {
           if ((error as NodeJS.ErrnoException).code !== 'ENOENT') continue;
         }
-        let referenced = false;
+        let referenced: boolean;
         try { referenced = candidates.split('\n').filter(Boolean).some(line => {
           const item = JSON.parse(line) as { id?: string };
           return item.id ? protectedText.includes(item.id) : true;

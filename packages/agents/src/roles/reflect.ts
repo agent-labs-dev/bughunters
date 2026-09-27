@@ -1,3 +1,4 @@
+import { stripVTControlCharacters } from 'node:util';
 import { readFile } from 'node:fs/promises';
 import { instructionsPath, type AgentEvent, type BughuntersConfig, type Lesson } from '@bughunters/core';
 import { createRuntime as makeRuntime } from '../runtime/index.js';
@@ -36,7 +37,7 @@ export function troubleLog(events: AgentEvent[], summary = ''): string[] {
     } else {
       // Playwright call logs carry terminal colour codes and many lines; the
       // first line says what failed.
-      const output = String(event.output ?? '').replace(/\u001b\[[0-9;]*m/g, '').split('\n')[0]!;
+      const output = stripVTControlCharacters(String(event.output ?? '')).split('\n')[0]!;
       if (event.summary.endsWith(': failed') || /Error:|failed at step|failed at \d+|timed out/i.test(output)) {
         lines.push(`Failed ${event.tool ?? call?.tool}: ${JSON.stringify(call?.input ?? {})} — ${output || event.summary}`);
       }
