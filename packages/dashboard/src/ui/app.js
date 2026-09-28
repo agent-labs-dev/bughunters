@@ -913,7 +913,8 @@ function issueStatus(issue, fix) {
   if (issue.status === 'new' && issue.regression) return 'Regression';
   if (fix?.status === 'verified') return 'Fix verified in the app';
   if (fix?.status === 'retesting') return 'Retesting the fix';
-  if (fix?.status === 'proposed' && fix.retests?.at(-1)?.outcome === 'not-fixed') return 'Fix not verified';
+  if (fix?.status === 'proposed' && ['not-fixed', 'unclear'].includes(fix.retests?.at(-1)?.outcome))
+    return 'Fix not verified';
   if (fix && ['proposed', 'verified', 'opened'].includes(fix.status)) return 'Fix proposed';
   // The fixer read the code and found nothing to fix: a human should look.
   if (fix && fix.status === 'declined') return 'Fixer: not a bug?';

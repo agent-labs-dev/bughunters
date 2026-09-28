@@ -305,6 +305,12 @@ error text, data that never loads, every request refused) almost always share on
 - If no PR fixes it, publish ONE issue for the cause. Name the shared symptom in the title and list every affected
   screen in the summary. Skip the others. Reason: "Same cause as <published item id>".
 Ten GitHub issues for one cause are noise for the team.
+
+SKIP WHAT IS ALREADY ON GITHUB
+list_items also shows the Bugpatrol PRs and issues on GitHub. Other machines and earlier runs filed some of them.
+- If one of them already covers an item (the same problem, or a PR that changes the same code for it), skip the
+  item. Reason: "Duplicate of #<number>".
+- If a closed PR made the same change, skip the item. Reason: "Repeats the rejected PR #<number>".
 Write a plain, short summary of 2–5 sentences: what is wrong, for whom, and for a PR what changed and how Bugpatrol checked it.
 Do not repeat the full report. Bugpatrol adds screenshots, steps, the fix, and verification. Call finish when done.
 ${lessonPart(lessons)}`;

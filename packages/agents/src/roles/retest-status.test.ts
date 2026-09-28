@@ -33,6 +33,14 @@ describe('applyRetest', () => {
     expect(item.retests).toHaveLength(7);
   });
 
+  it('retests an unclear fix again, and keeps it unpublished after the last attempt', () => {
+    const item = fix();
+    applyRetest(config, item, retest('unclear'));
+    expect(item.status).toBe('retesting');
+    applyRetest(config, item, retest('unclear'));
+    expect(item.status).toBe('proposed');
+  });
+
   it('marks a fix verified when the judge says fixed', () => {
     const item = fix();
     applyRetest(config, item, retest('fixed'));

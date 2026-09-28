@@ -46,7 +46,7 @@ agents:
     retest:
       enabled: true
       prepare: pnpm install     # runs in the worktree before the app starts
-      attempts: 2               # fix attempts in total
+      attempts: 2               # retest verdicts in total: not fixed gets a new fix, unclear a new retest
     use: claude
   github:
     enabled: false

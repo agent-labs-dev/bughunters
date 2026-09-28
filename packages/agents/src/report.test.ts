@@ -63,6 +63,12 @@ describe('buildReport', () => {
     expect(body).not.toContain('SECRET');
     expect(body).toContain('{{TOKEN}}');
   });
+  it('names the verify command that passed, or says that no checks ran', () => {
+    expect(buildReport({ ...base, kind: 'pr', fix: { ...fix, checks: 'pnpm test' } })).toContain(
+      '**Checks:** Bugpatrol ran `pnpm test` on this change, and it passed.',
+    );
+    expect(buildReport({ ...base, kind: 'pr' })).toContain('**Checks:** Bugpatrol ran no checks on this change.');
+  });
   it('describes a declined attempt without a verified section', () => {
     const body = buildReport({ ...base, kind: 'issue', fix: { ...fix, status: 'declined' } });
     expect(body).toContain('## Fix attempt');
