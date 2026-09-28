@@ -39,6 +39,17 @@ export function layout(root: string): { dir: string; config: string } {
 const dir = (root: string) => join(root, layout(root).dir);
 const data = (root: string, ...parts: string[]) => join(dir(root), DATA_DIR, ...parts);
 
+/**
+ * A file-backed id is one path segment. Agents choose some ids (a screen id,
+ * a routine id), so an id such as "../x" must not reach a path outside its folder.
+ */
+export function recordId(value: string): string {
+  if (!value || value.length > 200 || value === '.' || value === '..' || /[/\\\0]/.test(value)) {
+    throw new Error(`Invalid workspace record identifier: ${JSON.stringify(value.slice(0, 80))}`);
+  }
+  return value;
+}
+
 export const paths = {
   dir,
   /** Gitignored. All local output: nothing under it is committed. */
@@ -55,7 +66,7 @@ export const paths = {
   baselines: (root: string) => data(root, 'baselines'),
   /** Gate run output. */
   runs: (root: string) => data(root, 'gate'),
-  run: (root: string, runId: string) => data(root, 'gate', runId),
+  run: (root: string, runId: string) => data(root, 'gate', recordId(runId)),
   /** Progress for the gate run currently in flight. Rewritten per screen. */
   live: (root: string) => data(root, 'gate', 'live.json'),
   appMap: (root: string) => data(root, 'appmap.json'),
@@ -63,18 +74,18 @@ export const paths = {
   triage: (root: string) => data(root, 'triage.json'),
   memory: (root: string) => data(root, 'memory.json'),
   agentBaselines: (root: string) => data(root, 'agent-baselines'),
-  agentBaseline: (root: string, id: string) => data(root, 'agent-baselines', `${id}.png`),
-  agentBaselineSnapshot: (root: string, id: string) => data(root, 'agent-baselines', `${id}.snapshot.json`),
+  agentBaseline: (root: string, id: string) => data(root, 'agent-baselines', `${recordId(id)}.png`),
+  agentBaselineSnapshot: (root: string, id: string) => data(root, 'agent-baselines', `${recordId(id)}.snapshot.json`),
   worktrees: (root: string) => data(root, 'worktrees'),
   routines: (root: string) => data(root, 'routines'),
-  routine: (root: string, id: string) => data(root, 'routines', `${id}.json`),
+  routine: (root: string, id: string) => data(root, 'routines', `${recordId(id)}.json`),
   issues: (root: string) => data(root, 'issues'),
-  issue: (root: string, id: string) => data(root, 'issues', `${id}.json`),
+  issue: (root: string, id: string) => data(root, 'issues', `${recordId(id)}.json`),
   fixes: (root: string) => data(root, 'fixes'),
-  fix: (root: string, id: string) => data(root, 'fixes', `${id}.json`),
+  fix: (root: string, id: string) => data(root, 'fixes', `${recordId(id)}.json`),
   publish: (root: string) => data(root, 'publish'),
   sessions: (root: string) => data(root, 'sessions'),
-  session: (root: string, id: string) => data(root, 'sessions', id),
+  session: (root: string, id: string) => data(root, 'sessions', recordId(id)),
   agents: (root: string) => data(root, 'agents.json'),
 } as const;
 

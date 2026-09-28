@@ -76,3 +76,14 @@ describe('legacyLayout', () => {
     expect(() => loadConfig(root)).toThrow(/now keeps its config in \.bugpatrol/);
   });
 });
+
+it('rejects an id that is not one path segment at each file-backed record', () => {
+  const readers = [paths.run, paths.session, paths.routine, paths.issue, paths.fix, paths.agentBaseline,
+    paths.agentBaselineSnapshot];
+  for (const reader of readers) {
+    for (const value of ['../private', '/absolute', '..', '.', 'x/y', 'x\\y', 'x\0y', '']) {
+      expect(() => reader('/project', value)).toThrow('Invalid workspace record');
+    }
+    for (const value of ['ses_20260927_ab12', '__start', 'settings.usage']) expect(reader('/project', value)).toContain(value);
+  }
+});
