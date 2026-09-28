@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import type { RecipeResolution, StackProfile } from '@bugpatrol/core';
 
@@ -105,7 +105,6 @@ function listWorkflows(root: string): string[] {
   if (!existsSync(dir)) return [];
   try {
     // Intentionally shallow: CI workflows are not nested.
-    const { readdirSync } = require('node:fs') as typeof import('node:fs');
     return readdirSync(dir)
       .filter((f) => f.endsWith('.yml') || f.endsWith('.yaml'))
       .map((f) => join(dir, f));

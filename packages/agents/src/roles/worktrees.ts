@@ -99,12 +99,13 @@ async function deleteBranch(fix: FixProposal, onLog?: (message: string) => void)
   try {
     await git(fix.repo, 'branch', '-d', fix.branch);
   } catch (error) {
+    let failure = error;
     // A squash merge leaves the branch "not fully merged" for git, but the PR
     // is merged: the change is on the default branch, so nothing is lost.
     if (sameRemote || fix.pr?.state === 'merged') {
       try { await git(fix.repo, 'branch', '-D', fix.branch); return; }
-      catch (forceError) { error = forceError; }
+      catch (forceError) { failure = forceError; }
     }
-    onLog?.(`Kept branch ${fix.branch}: ${message(error)}`);
+    onLog?.(`Kept branch ${fix.branch}: ${message(failure)}`);
   }
 }
