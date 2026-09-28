@@ -20,7 +20,7 @@ import { captureScreen, openSession, watchConsole } from '@bugpatrol/capture';
 import { startApp } from '@bugpatrol/capture';
 import { diff } from '@bugpatrol/diff';
 import type { ScreenSnapshot } from '@bugpatrol/invariants';
-import { executeRun, type CapturedScreen, type RunResult } from './run-pipeline.js';
+import { executeRun, newRunId, type CapturedScreen, type RunResult } from './run-pipeline.js';
 
 export { executeRun } from './run-pipeline.js';
 export type { CapturedScreen, RunResult } from './run-pipeline.js';
@@ -78,7 +78,9 @@ export async function runCommand(options: RunCommandOptions): Promise<RunResult>
   if (server.external) log(`Using the app already serving at ${requireRun(config).url}`);
 
   const captured: CapturedScreen[] = [];
-  const runDir = join(paths.runs(root), 'latest');
+  // Each run keeps its own screenshots, so a later run cannot overwrite the evidence of an earlier report.
+  const runId = newRunId();
+  const runDir = paths.run(root, runId);
   mkdirSync(runDir, { recursive: true });
 
   // Progress is published per screen so the dashboard can show the app being
@@ -118,6 +120,7 @@ export async function runCommand(options: RunCommandOptions): Promise<RunResult>
 
   const result = await executeRun({
     root,
+    runId,
     config,
     mode: options.mode,
     trigger: 'manual',

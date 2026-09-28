@@ -53,6 +53,8 @@ export type CapturedScreen = {
 };
 
 export type PipelineOptions = {
+  /** The id of the run folder that holds the screenshots of this run. */
+  runId?: Run['id'];
   root: string;
   config: BugpatrolConfig;
   mode: RunMode;
@@ -88,6 +90,8 @@ const ALL_RULE_IDS: string[] = [
 export const PIXEL_DIFF_RULE = 'visual/pixel-diff';
 export const BASELINE_MISSING_RULE = 'visual/baseline-missing';
 
+export const newRunId = (): Run['id'] => id.run(`run_${Date.now().toString(36)}`);
+
 /**
  * Tier 1 runs first and for free, the decision layer only sees screens that are
  * already non-clean, then triage, then the report surfaces.
@@ -99,7 +103,7 @@ export const BASELINE_MISSING_RULE = 'visual/baseline-missing';
  */
 export async function executeRun(options: PipelineOptions): Promise<RunResult> {
   const { config, root } = options;
-  const runId = id.run(`run_${Date.now().toString(36)}`);
+  const runId = options.runId ?? newRunId();
   const startedAt = new Date();
 
   const ledger = IntentLedger.load(root);
@@ -223,6 +227,7 @@ export async function executeRun(options: PipelineOptions): Promise<RunResult> {
         runId,
         fingerprint: fp,
         screenId: id.screen(screen.screenId),
+        viewport: screen.viewport,
         ruleId: violation.ruleId,
         tier: 'tier1',
         classification: classify(violation.ruleId),
@@ -312,7 +317,7 @@ export async function executeRun(options: PipelineOptions): Promise<RunResult> {
     changedFiles: [],
     plan: {
       items: options.screens.map((s) => ({
-        target: { screenId: id.screen(`${s.screenId} @${s.viewport}`) },
+        target: { screenId: id.screen(s.screenId), viewport: s.viewport },
         reason: s.planReason,
       })),
       mappingConfidence: 1,

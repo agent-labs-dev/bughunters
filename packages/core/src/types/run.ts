@@ -8,7 +8,7 @@ export type TestPlanReason =
   | 'always-on';
 
 export type TestPlanItem = {
-  target: { screenId?: ScreenId; flowId?: FlowId; invariant?: string };
+  target: { screenId?: ScreenId; viewport?: string; flowId?: FlowId; invariant?: string };
   /** Printed in the report. A QA tool that hides what it tested cannot be trusted. */
   reason: TestPlanReason;
   viaFile?: FileRef;
