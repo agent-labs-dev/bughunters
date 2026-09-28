@@ -110,4 +110,18 @@ describe('watchCi', () => {
       await rm(f.root, { recursive: true, force: true });
     }
   });
+
+  it('does not run the fixer on a failed check when the fixer is off', async () => {
+    const f = await fixture();
+    try {
+      f.config.agents.fixer.enabled = false;
+      const logs: string[] = [];
+      await watchCi(f.root, f.config, { gh: fakeGh([[failed]]), onLog: (line) => logs.push(line),
+        createRuntime: () => { throw new Error('must not run'); } });
+      expect(logs.join('\n')).toContain('The fixer is off');
+      expect((await new Workspace(f.root).listFixes())[0]?.ci).toMatchObject({ state: 'failed', attempts: 0 });
+    } finally {
+      await rm(f.root, { recursive: true, force: true });
+    }
+  });
 });
