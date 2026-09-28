@@ -3,13 +3,13 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { parseConfig, type FixProposal, type Issue } from '@bughunters/core';
+import { parseConfig, type FixProposal, type Issue } from '@bugpatrol/core';
 import { createIssue, createPr, ensureAssetsBranch, syncGitHub, uploadImage, type Gh } from './github.js';
 import { Workspace } from './workspace.js';
 
 let dirs: string[] = [];
 afterEach(async () => { await Promise.all(dirs.map((dir) => rm(dir, { recursive: true, force: true }))); dirs = []; });
-const temp = async () => { const dir = await mkdtemp(join(tmpdir(), 'bughunters-gh-test-')); dirs.push(dir); return dir; };
+const temp = async () => { const dir = await mkdtemp(join(tmpdir(), 'bugpatrol-gh-test-')); dirs.push(dir); return dir; };
 const git = (cwd: string, ...args: string[]) => execFileSync('git', args, { cwd, encoding: 'utf8' }).trim();
 
 describe('GitHub client', () => {
@@ -43,8 +43,8 @@ describe('GitHub client', () => {
   it('passes labels and a temporary body file to issue create', async () => {
     let body = '';
     const gh: Gh = async (args) => { body = await readFile(args[args.indexOf('--body-file') + 1]!, 'utf8');
-      expect(args).toContain('--label'); expect(args).toContain('bughunters'); return 'https://github.com/o/r/issues/8'; };
-    expect(await createIssue(gh, { repo: 'o/r', title: 'Broken', body: 'Full report', labels: ['bughunters'] }))
+      expect(args).toContain('--label'); expect(args).toContain('bugpatrol'); return 'https://github.com/o/r/issues/8'; };
+    expect(await createIssue(gh, { repo: 'o/r', title: 'Broken', body: 'Full report', labels: ['bugpatrol'] }))
       .toEqual({ number: 8, url: 'https://github.com/o/r/issues/8' });
     expect(body).toBe('Full report');
   });

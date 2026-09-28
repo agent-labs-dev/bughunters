@@ -2,9 +2,9 @@ import { execFile } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { promisify } from 'node:util';
-import { judgedRetests, type BughuntersConfig, type Candidate, type FixProposal, type Issue, type Retest, type RetestOutcome,
-  type RetestShot, type RoutineStep } from '@bughunters/core';
-import { createDriver as makeDriver, type Driver } from '@bughunters/drivers';
+import { judgedRetests, type BugpatrolConfig, type Candidate, type FixProposal, type Issue, type Retest, type RetestOutcome,
+  type RetestShot, type RoutineStep } from '@bugpatrol/core';
+import { createDriver as makeDriver, type Driver } from '@bugpatrol/drivers';
 import { startApp } from '../lifecycle.js';
 import { explorerRetestSystem, judgeRetestSystem } from '../prompts.js';
 import { replayRoutine, replaySteps } from '../replay.js';
@@ -16,7 +16,7 @@ import { Vars } from '../vars.js';
 import { lessonsFor, Workspace } from '../workspace.js';
 import { reflectOnSession } from './reflect.js';
 import { stopOnCancellation } from './explorer.js';
-import { overlayBughunters } from './overlay.js';
+import { overlayBugpatrol } from './overlay.js';
 import { lessonTools } from '../tools/memory.js';
 import { linkEnvFiles, runFixer, stepWords } from './fixer.js';
 import { closeOnGitHub } from '../github.js';
@@ -86,7 +86,7 @@ export async function retestTargets(workspace: Workspace, issue: Issue): Promise
 }
 
 /** The explorer repeats the flow; only the judge decides whether the fix worked. */
-export async function retestFix(root: string, config: BughuntersConfig, issue: Issue,
+export async function retestFix(root: string, config: BugpatrolConfig, issue: Issue,
   fix: FixProposal, attempt: number, deps: Deps, options: { build?: 'main' } = {}): Promise<Retest> {
   const workspace = new Workspace(root);
   const targets = await loadRetestTargets(workspace, issue);
@@ -106,7 +106,7 @@ export async function retestFix(root: string, config: BughuntersConfig, issue: I
   try {
     // A worktree made before this rule existed has no .env links yet.
     if (!options.build) await linkEnvFiles(fix.repo, fix.worktree);
-    if (!options.build) restore = await overlayBughunters(root, fix.repo, fix.worktree);
+    if (!options.build) restore = await overlayBugpatrol(root, fix.repo, fix.worktree);
     if (!options.build && config.agents.fixer.retest.prepare) {
       await exec('/bin/sh', ['-c', config.agents.fixer.retest.prepare],
         { cwd: fix.worktree, timeout: 600_000, maxBuffer: 4 * 1024 * 1024 });
@@ -326,7 +326,7 @@ function needsRetest(fix: FixProposal): boolean {
  * as an attempt: a retest that stopped on an error keeps the fix in
  * 'retesting', so the next cycle tries again.
  */
-export function applyRetest(config: BughuntersConfig, fix: FixProposal, result: Retest): void {
+export function applyRetest(config: BugpatrolConfig, fix: FixProposal, result: Retest): void {
   fix.retests = [...(fix.retests ?? []), result];
   const attemptsLeft = judgedRetests(fix.retests).length < config.agents.fixer.retest.attempts;
   if (result.outcome === 'fixed') fix.status = 'verified';
@@ -362,7 +362,7 @@ async function merged(fix: FixProposal, branch: string): Promise<boolean> {
 }
 
 /** Recheck merged fixes against the main checkout; return issue ids for later GitHub sync. */
-export async function recheckMerged(root: string, config: BughuntersConfig, deps: Deps = {}): Promise<{ closed: string[] }> {
+export async function recheckMerged(root: string, config: BugpatrolConfig, deps: Deps = {}): Promise<{ closed: string[] }> {
   const workspace = new Workspace(root);
   const closed: string[] = [];
   if (!config.agents.explorer.enabled || !config.agents.judge.enabled) return { closed };
@@ -380,7 +380,7 @@ export async function recheckMerged(root: string, config: BughuntersConfig, deps
     if (result.outcome === 'fixed') {
       const at = new Date().toISOString();
       const fixedIssue: Issue = { ...issue, status: 'fixed',
-        closedBy: { by: 'Bughunters', reason: `The fix merged, and a recheck on ${branch} did not find the problem.`, at } };
+        closedBy: { by: 'Bugpatrol', reason: `The fix merged, and a recheck on ${branch} did not find the problem.`, at } };
       await workspace.saveIssue(fixedIssue);
       await closeOnGitHub(root, config, fixedIssue, undefined, deps.onLog);
       closed.push(issue.id);
@@ -396,7 +396,7 @@ export async function recheckMerged(root: string, config: BughuntersConfig, deps
 }
 
 /** Run fix attempts and app retests until each issue has a verdict or exhausts its budget. */
-export async function runFixCycle(root: string, config: BughuntersConfig, deps: Deps & { issueIds?: string[] } = {}): Promise<FixProposal[]> {
+export async function runFixCycle(root: string, config: BugpatrolConfig, deps: Deps & { issueIds?: string[] } = {}): Promise<FixProposal[]> {
   const workspace = new Workspace(root);
   const changed = new Map<string, FixProposal>();
   // The first pass takes new issues; later passes only refix what the judge

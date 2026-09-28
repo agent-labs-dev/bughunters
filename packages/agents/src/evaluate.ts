@@ -1,11 +1,11 @@
 import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
-import { fingerprint, paths, shortHash, type Candidate, type Issue, type RoutineStep } from '@bughunters/core';
+import { fingerprint, paths, shortHash, type Candidate, type Issue, type RoutineStep } from '@bugpatrol/core';
 import { closeOnGitHub } from './github.js';
-import { diff } from '@bughunters/diff';
-import type { Observation } from '@bughunters/drivers';
-import { evaluateAll, RULES, type InvariantViolation, type ScreenSnapshot } from '@bughunters/invariants';
+import { diff } from '@bugpatrol/diff';
+import type { Observation } from '@bugpatrol/drivers';
+import { evaluateAll, RULES, type InvariantViolation, type ScreenSnapshot } from '@bugpatrol/invariants';
 import type { AgentSession } from './session.js';
 
 const NATIVE_DISABLED = [
@@ -240,7 +240,7 @@ export async function closeAbsentChecks(session: AgentSession, screenId: string,
     const fixed = notSeen >= 3;
     const updated: Issue = { ...issue, notSeen,
       status: fixed ? 'fixed' : issue.status,
-      closedBy: fixed ? { by: 'Bughunters', reason: `The automatic checks did not find it on ${screenId} in 3 visits.`,
+      closedBy: fixed ? { by: 'Bugpatrol', reason: `The automatic checks did not find it on ${screenId} in 3 visits.`,
         at: new Date().toISOString() } : issue.closedBy };
     await session.workspace.saveIssue(updated);
     if (fixed) {

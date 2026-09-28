@@ -17,7 +17,7 @@ await build({
   format: 'esm',
   target: 'node22',
   external: Object.keys(pkg.dependencies),
-  define: { __BUGHUNTERS_VERSION__: JSON.stringify(pkg.version) },
+  define: { __BUGPATROL_VERSION__: JSON.stringify(pkg.version) },
   banner: { js: "import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);" },
 });
 

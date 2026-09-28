@@ -1,11 +1,11 @@
 # The dashboard
 
 ```bash
-npx bughunters dashboard            # http://127.0.0.1:4311
-npx bughunters dashboard --port 5000
+npx bugpatrol dashboard            # http://127.0.0.1:4311
+npx bugpatrol dashboard --port 5000
 ```
 
-The dashboard is the bird's-eye view of the agents. It reads the files under `.bughunters/runs/` and updates live. You can keep it open while a patrol runs.
+The dashboard is the bird's-eye view of the agents. It reads the files under `.bugpatrol/runs/` and updates live. You can keep it open while a patrol runs.
 
 ## Token usage
 
@@ -26,7 +26,7 @@ The dashboard shows the tokens that each agent used, so that you can control the
 
 To compare two models, run the same goal with each one, for example `explore --goal "Test the checkout flow"`, and compare the tokens per session.
 
-The cost on the dashboard counts only the API calls that Bughunters makes: the agents on an API key. A local agent CLI (`claude`, `codex`, `kimi`, `pi`) uses your own plan, and Bughunters does not see its cost.
+The cost on the dashboard counts only the API calls that Bugpatrol makes: the agents on an API key. A local agent CLI (`claude`, `codex`, `kimi`, `pi`) uses your own plan, and Bugpatrol does not see its cost.
 
 ## Pages
 
@@ -35,7 +35,7 @@ The cost on the dashboard counts only the API calls that Bughunters makes: the a
 - **Activity**: each session as a timeline, one line for each action.
 - **Screens**: a graph shows how screens connect. Switch to the grid to see each latest screenshot.
 - **Memory**: the lessons that the agents learned.
-- **Checks**: the results of `bughunters run` (shown only when there are runs).
+- **Checks**: the results of `bugpatrol run` (shown only when there are runs).
 
 The dashboard listens on 127.0.0.1 only, because the screenshots can show real data. It is read-only.
 
@@ -45,11 +45,11 @@ The dashboard shows the files that the agents write. You can also read them dire
 
 | Path | What it holds |
 | --- | --- |
-| `.bughunters/runs/issues/<id>.json` | One issue: title, severity, status, the judge's report and reason, and the evidence |
-| `.bughunters/runs/fixes/<id>.json` | One fix: branch, diff, retests, and PR |
-| `.bughunters/runs/sessions/<id>/` | One explorer session: its actions and screenshots |
-| `.bughunters/runs/appmap.json` | The screens and how they connect |
-| `.bughunters/runs/routines/` | The learned routines |
-| `.bughunters/runs/memory.json` | The lessons |
-| `.bughunters/runs/agents.json` | What each agent does now |
-| `.bughunters/runs/publish/` | The reports from `publish --dry-run` |
+| `.bugpatrol/runs/issues/<id>.json` | One issue: title, severity, status, the judge's report and reason, and the evidence |
+| `.bugpatrol/runs/fixes/<id>.json` | One fix: branch, diff, retests, and PR |
+| `.bugpatrol/runs/sessions/<id>/` | One explorer session: its actions and screenshots |
+| `.bugpatrol/runs/appmap.json` | The screens and how they connect |
+| `.bugpatrol/runs/routines/` | The learned routines |
+| `.bugpatrol/runs/memory.json` | The lessons |
+| `.bugpatrol/runs/agents.json` | What each agent does now |
+| `.bugpatrol/runs/publish/` | The reports from `publish --dry-run` |

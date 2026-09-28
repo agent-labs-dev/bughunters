@@ -16,10 +16,10 @@ GitHub Actions artifacts are not a baseline store: short default retention and a
 Three small files are **committed** and reviewable in the PR:
 
 ```
-.bughunters/appmodel.json             # the AppModel
-.bughunters/baselines.manifest.json   # hashes + image digest, NOT the pixels
-.bughunters/intents.json              # the Intent Ledger
-.bughunters/runs/                     # gitignored, local run output
+.bugpatrol/appmodel.json             # the AppModel
+.bugpatrol/baselines.manifest.json   # hashes + image digest, NOT the pixels
+.bugpatrol/intents.json              # the Intent Ledger
+.bugpatrol/runs/                     # gitignored, local run output
 ```
 
 Screenshots and videos live in content-addressed object storage. A baseline is addressed by `hash(content) + imageDigest`.

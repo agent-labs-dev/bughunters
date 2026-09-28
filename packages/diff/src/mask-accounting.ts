@@ -1,4 +1,4 @@
-import type { RegionBox } from '@bughunters/core';
+import type { RegionBox } from '@bugpatrol/core';
 import type { MaskRegion } from './types.js';
 
 export function isMasked(x: number, y: number, masks: MaskRegion[]): boolean {

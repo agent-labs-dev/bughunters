@@ -1,4 +1,4 @@
-import type { Decider, DecisionsConfig } from '@bughunters/core';
+import type { Decider, DecisionsConfig } from '@bugpatrol/core';
 import { MODEL_ROUTES, ModelDecider, type ModelVia } from './providers/model.js';
 
 export * from './questions.js';
@@ -14,9 +14,9 @@ export type DeciderEnv = {
   AI_GATEWAY_API_KEY?: string;
   OPENAI_API_KEY?: string;
   ANTHROPIC_API_KEY?: string;
-  BUGHUNTERS_MODEL_ENDPOINT?: string;
-  BUGHUNTERS_MODEL_API_KEY?: string;
-  BUGHUNTERS_MODEL_NAME?: string;
+  BUGPATROL_MODEL_ENDPOINT?: string;
+  BUGPATROL_MODEL_API_KEY?: string;
+  BUGPATROL_MODEL_NAME?: string;
 };
 
 export const MODEL_KEYS = {
@@ -24,7 +24,7 @@ export const MODEL_KEYS = {
   vercel: 'AI_GATEWAY_API_KEY',
   openai: 'OPENAI_API_KEY',
   anthropic: 'ANTHROPIC_API_KEY',
-  custom: 'BUGHUNTERS_MODEL_API_KEY',
+  custom: 'BUGPATROL_MODEL_API_KEY',
 } as const;
 const modelOrder = ['openrouter', 'vercel', 'openai', 'anthropic', 'custom'] as const;
 
@@ -40,9 +40,9 @@ export function resolveDecider(config: DecisionsConfig, env: DeciderEnv): Resolu
   const routes = config.model.via === 'auto' ? modelOrder : [config.model.via];
   for (const via of routes) {
     const key = env[MODEL_KEYS[via]];
-    if (!key || (via === 'custom' && !env.BUGHUNTERS_MODEL_ENDPOINT)) continue;
-    const name = config.model.name || env.BUGHUNTERS_MODEL_NAME || MODEL_ROUTES[via].model;
-    const endpoint = via === 'custom' ? env.BUGHUNTERS_MODEL_ENDPOINT : MODEL_ROUTES[via].endpoint;
+    if (!key || (via === 'custom' && !env.BUGPATROL_MODEL_ENDPOINT)) continue;
+    const name = config.model.name || env.BUGPATROL_MODEL_NAME || MODEL_ROUTES[via].model;
+    const endpoint = via === 'custom' ? env.BUGPATROL_MODEL_ENDPOINT : MODEL_ROUTES[via].endpoint;
     return {
       decider: new ModelDecider({ via: via as ModelVia, apiKey: key, endpoint, model: name }),
       via: `model:${via}`,
@@ -51,7 +51,7 @@ export function resolveDecider(config: DecisionsConfig, env: DeciderEnv): Resolu
   }
 
   const missing = routes
-    .map((via) => via === 'custom' ? 'BUGHUNTERS_MODEL_ENDPOINT and BUGHUNTERS_MODEL_API_KEY' : MODEL_KEYS[via])
+    .map((via) => via === 'custom' ? 'BUGPATROL_MODEL_ENDPOINT and BUGPATROL_MODEL_API_KEY' : MODEL_KEYS[via])
     .join(', ')
     .replace(/, ([^,]*)$/, ' or $1');
   return { via: 'none', reason: `Decider: none, because no ${missing} is set.` };

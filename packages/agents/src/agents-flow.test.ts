@@ -2,7 +2,7 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { AGENT_CHECKS, parseConfig, paths } from '@bughunters/core';
+import { AGENT_CHECKS, parseConfig, paths } from '@bugpatrol/core';
 import { AgentSession } from './session.js';
 import { Vars } from './vars.js';
 import { Workspace } from './workspace.js';
@@ -23,7 +23,7 @@ const run = async (tools: ReturnType<typeof explorerTools> | ReturnType<typeof j
 };
 
 async function fixture(options: { config?: typeof config } = {}) {
-  const root = await mkdtemp(join(tmpdir(), 'bughunters-flow-'));
+  const root = await mkdtemp(join(tmpdir(), 'bugpatrol-flow-'));
   const screens: Record<string, FakeScreen> = {
     home: { elements: [element('e1', 'Settings')], next: { e1: 'settings' }, color: 20 },
     settings: { elements: [element('e2', 'Save')], color: 70 },

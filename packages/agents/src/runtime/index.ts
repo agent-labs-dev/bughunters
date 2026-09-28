@@ -1,7 +1,7 @@
 import { accessSync, constants } from 'node:fs';
 import { delimiter, join } from 'node:path';
-import type { AgentRole, RoleRuntime } from '@bughunters/core';
-import { MODEL_KEYS } from '@bughunters/decide';
+import type { AgentRole, RoleRuntime } from '@bugpatrol/core';
+import { MODEL_KEYS } from '@bugpatrol/decide';
 import type { Runtime } from '../types.js';
 import { CliRuntime } from './cli.js';
 import { ModelRuntime } from './model.js';

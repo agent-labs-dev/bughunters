@@ -1,11 +1,11 @@
-import { ConfigError, type BughuntersConfig } from '@bughunters/core';
+import { ConfigError, type BugpatrolConfig } from '@bugpatrol/core';
 import type { Driver } from './types.js';
 import { WebDriver } from './web.js';
 import { ElectronDriver } from './electron.js';
 import { MaestroDriver } from './maestro.js';
 
 /** Pick the transport configured for the app while resolving captured endpoints. */
-export function createDriver(config: BughuntersConfig, vars: (value: string) => string): Driver {
+export function createDriver(config: BugpatrolConfig, vars: (value: string) => string): Driver {
   const { platform, connect } = config.app;
   if (platform === 'web') {
     const url = connect.url ?? config.run?.url;

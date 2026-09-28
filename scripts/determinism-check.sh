@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Bughunters's own must-pass test.
+# Bugpatrol's own must-pass test.
 #
 # M3's acceptance criterion: three consecutive runs against an UNCHANGED commit
 # must produce zero diffs across every screen and every viewport. It is the
@@ -15,8 +15,8 @@ CLI="$(cd "$(dirname "$0")/.." && pwd)/packages/cli/dist/bin.js"
 APP="$(cd "$(dirname "$0")/.." && pwd)/examples/fixture-app"
 
 cd "$APP"
-# Keep the config in .bughunters/; start from no baselines and no local data.
-rm -rf .bughunters/runs .bughunters/appmodel.json .bughunters/baselines.manifest.json .bughunters/intents.json
+# Keep the config in .bugpatrol/; start from no baselines and no local data.
+rm -rf .bugpatrol/runs .bugpatrol/appmodel.json .bugpatrol/baselines.manifest.json .bugpatrol/intents.json
 
 echo "== capturing baselines =="
 node "$CLI" run --no-models >/dev/null

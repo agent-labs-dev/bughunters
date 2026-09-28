@@ -11,7 +11,7 @@ import { startDashboard, watchProject, type Dashboard } from './server.js';
 let root: string;
 let dashboard: Dashboard | undefined;
 
-beforeEach(() => { root = mkdtempSync(join(tmpdir(), 'bughunters-agents-')); });
+beforeEach(() => { root = mkdtempSync(join(tmpdir(), 'bugpatrol-agents-')); });
 afterEach(async () => {
   await dashboard?.close();
   dashboard = undefined;
@@ -21,7 +21,7 @@ afterEach(async () => {
 describe('AgentReader', () => {
   it('prefers transitions and replay prerequisites over visit-order links', () => {
     writeAgentFixture(root);
-    const file = join(root, '.bughunters', 'runs', 'appmap.json');
+    const file = join(root, '.bugpatrol', 'runs', 'appmap.json');
     const map = JSON.parse(readFileSync(file, 'utf8'));
     map.screens[0].transitions = [
       { to: 'settings', kind: 'tap', via: 'Settings', count: 3, steps: 1 },
@@ -33,13 +33,13 @@ describe('AgentReader', () => {
     writeFileSync(file, JSON.stringify(map));
     const routine = { version: 1, id: 'enter-app', description: 'Enter', platform: 'electron',
       screenId: null, steps: [], createdAt: '', updatedAt: '' };
-    mkdirSync(join(root, '.bughunters', 'runs', 'routines'), { recursive: true });
-    writeFileSync(join(root, '.bughunters', 'runs', 'routines', 'enter-app.json'), JSON.stringify(routine));
+    mkdirSync(join(root, '.bugpatrol', 'runs', 'routines'), { recursive: true });
+    writeFileSync(join(root, '.bugpatrol', 'runs', 'routines', 'enter-app.json'), JSON.stringify(routine));
     for (const [id, screenId, requires] of [
       ['screen-settings', 'settings', ['screen-home']],
       ['screen-billing', 'billing', ['enter-app']],
       ['screen-projects', 'projects', ['missing']],
-    ] as const) writeFileSync(join(root, '.bughunters', 'runs', 'routines', `${id}.json`),
+    ] as const) writeFileSync(join(root, '.bugpatrol', 'runs', 'routines', `${id}.json`),
       JSON.stringify({ ...routine, id, screenId, requires }));
     const result = new AgentReader(root).screens();
     expect(result.entryId).toBe('__start');
@@ -58,7 +58,7 @@ describe('AgentReader', () => {
   });
 
   it('links App start to the enter-app screen when every screen has an edge in', () => {
-    const dir = join(root, '.bughunters', 'runs');
+    const dir = join(root, '.bugpatrol', 'runs');
     mkdirSync(join(dir, 'routines'), { recursive: true });
     const screen = (id: string, to: string) => ({ id, name: id, routineId: `screen-${id}`, links: [],
       transitions: [{ to, kind: 'tap', via: to, count: 1, steps: 1 }], lastSeenAt: '', firstSeenAt: '' });
@@ -73,7 +73,7 @@ describe('AgentReader', () => {
   });
 
   it('connects screens through routineId when routines have no screenId', () => {
-    const dir = join(root, '.bughunters', 'runs');
+    const dir = join(root, '.bugpatrol', 'runs');
     mkdirSync(join(dir, 'routines'), { recursive: true });
     const ids = ['signin', 'home', 'settings', 'browse'];
     writeFileSync(join(dir, 'appmap.json'), JSON.stringify({ version: 1, platform: 'web', updatedAt: '',
@@ -98,8 +98,8 @@ describe('AgentReader', () => {
   });
 
   it('shows a role that has not run yet from the config, not as off', () => {
-    mkdirSync(join(root, '.bughunters'), { recursive: true });
-    writeFileSync(join(root, '.bughunters', 'bughunters.yml'), [
+    mkdirSync(join(root, '.bugpatrol'), { recursive: true });
+    writeFileSync(join(root, '.bugpatrol', 'bugpatrol.yml'), [
       'version: 1', 'app:', '  connect: { url: "http://localhost:3000" }', 'agents:',
       '  explorer: { use: { runtime: model, via: openrouter, model: z-ai/glm-5.3-flash } }',
       '  judge: { use: claude }', '',
@@ -119,16 +119,16 @@ describe('AgentReader', () => {
     expect(reader.appmap().screens).toEqual([]);
     expect((reader.overview() as { agents: { state: string }[] }).agents.map((agent) => agent.state))
       .toEqual(['off', 'off', 'off']);
-    mkdirSync(join(root, '.bughunters', 'runs', 'issues'), { recursive: true });
-    writeFileSync(join(root, '.bughunters', 'runs', 'agents.json'), '{');
-    writeFileSync(join(root, '.bughunters', 'runs', 'issues', 'broken.json'), '{');
+    mkdirSync(join(root, '.bugpatrol', 'runs', 'issues'), { recursive: true });
+    writeFileSync(join(root, '.bugpatrol', 'runs', 'agents.json'), '{');
+    writeFileSync(join(root, '.bugpatrol', 'runs', 'issues', 'broken.json'), '{');
     expect(reader.issues()).toEqual([]);
     expect(reader.agents()).toBeUndefined();
   });
 
   it('skips a torn last event line and sorts attention by severity then recency', () => {
     writeAgentFixture(root);
-    const file = join(root, '.bughunters', 'runs', 'sessions', 'ses_live', 'events.jsonl');
+    const file = join(root, '.bugpatrol', 'runs', 'sessions', 'ses_live', 'events.jsonl');
     appendFileSync(file, '{"at":');
     const reader = new AgentReader(root);
     expect(reader.session('ses_live')?.events).toHaveLength(25);
@@ -144,7 +144,7 @@ describe('AgentReader', () => {
     expect(overview.agents).toHaveLength(3);
     expect(overview.counts.issuesOpen).toBe(3);
     // An issue that the fixer works on stays in the list, so the list matches the count.
-    const profile = join(root, '.bughunters', 'runs', 'issues', 'iss-profile.json');
+    const profile = join(root, '.bugpatrol', 'runs', 'issues', 'iss-profile.json');
     writeFileSync(profile, JSON.stringify({ ...JSON.parse(readFileSync(profile, 'utf8')), status: 'fixing' }));
     const fixing = new AgentReader(root).overview() as { attention: { id: string }[]; counts: { issuesOpen: number } };
     expect(fixing.attention.map((issue) => issue.id)).toContain('iss-profile');
@@ -152,7 +152,7 @@ describe('AgentReader', () => {
     expect(overview.live.events.length).toBeGreaterThan(0);
     expect(overview.live.events.length).toBeLessThanOrEqual(12);
     expect(overview.live.events.every((event) => event.kind !== 'thought' && event.kind !== 'tool-call')).toBe(true);
-    expect(overview.live.screenshot).toContain('.bughunters/runs/sessions/ses_live/');
+    expect(overview.live.screenshot).toContain('.bugpatrol/runs/sessions/ses_live/');
   });
 
   it('joins an issue to its proposal and candidates', () => {
@@ -169,9 +169,9 @@ describe('AgentReader', () => {
     const reader = new AgentReader(root);
     const issue = reader.issues().find((item) => item.id === 'iss-settings')!;
     const fix = reader.issue(issue.id)!.fix!;
-    writeFileSync(join(root, '.bughunters', 'runs', 'issues', `${issue.id}.json`), JSON.stringify({ ...issue,
+    writeFileSync(join(root, '.bugpatrol', 'runs', 'issues', `${issue.id}.json`), JSON.stringify({ ...issue,
       github: { number: 8, url: 'https://github.com/o/r/issues/8', at: 'now', state: 'open' } }));
-    writeFileSync(join(root, '.bughunters', 'runs', 'fixes', `${fix.id}.json`), JSON.stringify({ ...fix,
+    writeFileSync(join(root, '.bugpatrol', 'runs', 'fixes', `${fix.id}.json`), JSON.stringify({ ...fix,
       pr: { number: 7, url: 'https://github.com/o/r/pull/7', draft: false, state: 'merged' } }));
     expect(reader.issues().find((item) => item.id === issue.id)).toMatchObject({
       github: { state: 'open' }, pr: { state: 'merged' },
@@ -206,12 +206,12 @@ describe.skipIf(!canBind)('agent API', () => {
 
 
 describe('watchProject', () => {
-  it('picks up .bughunters created after start', async () => {
+  it('picks up .bugpatrol created after start', async () => {
     let changes = 0;
     const watcher = watchProject(root, () => { changes += 1; });
     expect(watcher).toBeDefined();
     try {
-      mkdirSync(join(root, '.bughunters'));
+      mkdirSync(join(root, '.bugpatrol'));
       await new Promise((done) => setTimeout(done, 700));
       expect(changes).toBeGreaterThan(0);
     } finally {
@@ -222,18 +222,18 @@ describe('watchProject', () => {
 
 describe('stale status', () => {
   it('shows work from a dead process as stopped', () => {
-    const root = mkdtempSync(join(tmpdir(), 'bughunters-stale-'));
+    const root = mkdtempSync(join(tmpdir(), 'bugpatrol-stale-'));
     try {
       // A pid far above any real one: the process cannot exist.
       const dead = 2 ** 22 + 12345;
-      mkdirSync(join(root, '.bughunters', 'runs', 'sessions', 'ses_1'), { recursive: true });
-      writeFileSync(join(root, '.bughunters', 'runs', 'agents.json'), JSON.stringify({
+      mkdirSync(join(root, '.bugpatrol', 'runs', 'sessions', 'ses_1'), { recursive: true });
+      writeFileSync(join(root, '.bugpatrol', 'runs', 'agents.json'), JSON.stringify({
         version: 1,
         patrol: { cycle: 1, state: 'running', startedAt: '2026-01-01T00:00:00.000Z', pid: dead },
         agents: [{ role: 'fixer', state: 'working', activity: 'Fixing 9 issues', runtime: 'cli:claude',
           updatedAt: '2026-01-01T00:00:00.000Z', spentUsd: 0, pid: dead }],
       }));
-      writeFileSync(join(root, '.bughunters', 'runs', 'sessions', 'ses_1', 'session.json'), JSON.stringify({
+      writeFileSync(join(root, '.bugpatrol', 'runs', 'sessions', 'ses_1', 'session.json'), JSON.stringify({
         version: 1, id: 'ses_1', role: 'fixer', pid: dead, startedAt: '2026-01-01T00:00:00.000Z',
         status: 'running', steps: 0, costUsd: 0, screensFound: [], candidates: 0, issues: [],
       }));

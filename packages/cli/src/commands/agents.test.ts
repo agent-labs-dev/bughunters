@@ -2,11 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { chmodSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { parseConfig } from '@bughunters/core';
+import { parseConfig } from '@bugpatrol/core';
 import { parseAgentFlags, preflight } from './agents.js';
 
 describe('preflight', () => {
-  const bin = mkdtempSync(join(tmpdir(), 'bughunters-bin-'));
+  const bin = mkdtempSync(join(tmpdir(), 'bugpatrol-bin-'));
   writeFileSync(join(bin, 'claude'), '#!/bin/sh\n');
   chmodSync(join(bin, 'claude'), 0o755);
   const config = (agents: Record<string, unknown>) => parseConfig({ version: 1, app: { connect: { url: 'http://x' } }, agents });

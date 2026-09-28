@@ -7,7 +7,7 @@ export type SlashCommand =
   | { kind: 'baseline-update' };
 
 /**
- * `/bughunters accept` is the most important command in the product: the one-action
+ * `/bugpatrol accept` is the most important command in the product: the one-action
  * escape hatch that converts a false positive into permanent context instead of
  * a grudge (spec 5.2).
  */
@@ -15,7 +15,7 @@ export function parseSlashCommand(body: string): SlashCommand | undefined {
   const line = body
     .split('\n')
     .map((l) => l.trim())
-    .find((l) => l.startsWith('/bughunters'));
+    .find((l) => l.startsWith('/bugpatrol'));
   if (!line) return undefined;
 
   const [, verb, ...rest] = line.split(/\s+/);

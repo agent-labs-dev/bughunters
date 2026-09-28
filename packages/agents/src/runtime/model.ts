@@ -1,5 +1,5 @@
-import { ConfigError, usageFrom, type AgentEvent, type RoleRuntime } from '@bughunters/core';
-import { MODEL_KEYS, MODEL_ROUTES } from '@bughunters/decide';
+import { ConfigError, usageFrom, type AgentEvent, type RoleRuntime } from '@bugpatrol/core';
+import { MODEL_KEYS, MODEL_ROUTES } from '@bugpatrol/decide';
 import type { EventSink, RoleOutcome, RoleTask, Runtime, ToolResult } from '../types.js';
 
 type ModelUse = Extract<RoleRuntime, { runtime: 'model' }>;

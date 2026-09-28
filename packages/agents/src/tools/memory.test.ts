@@ -2,14 +2,14 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { parseConfig } from '@bughunters/core';
+import { parseConfig } from '@bugpatrol/core';
 import { AgentSession } from '../session.js';
 import { Vars } from '../vars.js';
 import { Workspace } from '../workspace.js';
 import { lessonTools, similarLesson } from './memory.js';
 
 async function session(memory: Record<string, unknown> = {}) {
-  const root = await mkdtemp(join(tmpdir(), 'bughunters-memory-'));
+  const root = await mkdtemp(join(tmpdir(), 'bugpatrol-memory-'));
   const config = parseConfig({ version: 1, app: { connect: { url: 'http://x' } }, agents: { memory } });
   const workspace = new Workspace(root);
   const record = await workspace.startSession('judge');
@@ -39,7 +39,7 @@ describe('save_lesson', () => {
     const f = await session();
     try {
       const [tool] = lessonTools(f.session, 'judge');
-      await tool!.run({ text: 'Bughunters drives the Expo web target with mouse clicks, so a View with onTouchEnd '
+      await tool!.run({ text: 'Bugpatrol drives the Expo web target with mouse clicks, so a View with onTouchEnd '
         + 'never fires there; use Pressable onPress instead.', for: 'fixer' });
       const again = 'On the web target, a View with onTouchEnd gets no mouse click, so use Pressable with onPress for tap targets.';
       const shown = JSON.stringify(await tool!.run({ text: again, for: 'fixer' }));

@@ -1,5 +1,5 @@
-import type { Answer, Decider, Question, TokenUsage } from '@bughunters/core';
-import { InfrastructureError, usageFrom } from '@bughunters/core';
+import type { Answer, Decider, Question, TokenUsage } from '@bugpatrol/core';
+import { InfrastructureError, usageFrom } from '@bugpatrol/core';
 import { normalizeAnswers } from '../answers.js';
 
 export const MODEL_ROUTES = {
@@ -107,7 +107,7 @@ function openAiBody(model: string, user: string, schema: ReturnType<typeof answe
     response_format: {
       type: 'json_schema',
       json_schema: {
-        name: 'bughunters_answers',
+        name: 'bugpatrol_answers',
         strict: true,
         schema,
       },

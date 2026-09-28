@@ -17,9 +17,9 @@ A patrol cycle has these steps:
 3. The **explorer** enters the app (with the `enter-app` routine when it can), records screens, and reports problems. With each screen, it also gets the console errors and the failed requests of the app.
 4. The **judge** looks at each finding with its screenshot. It files an issue, adds the finding to an issue that is already open, or dismisses it with a reason.
 5. **Teardown** stops the app.
-6. The **fixer** fixes the worst issues. Each fix gets a **retest**: Bughunters starts the app from the fix worktree, the explorer repeats the flow on each affected screen, and the judge compares before and after.
+6. The **fixer** fixes the worst issues. Each fix gets a **retest**: Bugpatrol starts the app from the fix worktree, the explorer repeats the flow on each affected screen, and the judge compares before and after.
 7. The judge **publishes**. A fix becomes a PR. A major bug with no fix becomes an issue.
-8. Bughunters watches the **CI** checks of each PR. When a check fails, the fixer fixes it and pushes a new commit, until the checks are green.
+8. Bugpatrol watches the **CI** checks of each PR. When a check fails, the fixer fixes it and pushes a new commit, until the checks are green.
 
 ## The explore loop
 
@@ -27,7 +27,7 @@ The explorer uses the app one step at a time. In each step, it looks at the scre
 
 ```mermaid
 flowchart TD
-  start(["npx bughunters explore"]) --> setup["Start the app and connect the driver"]
+  start(["npx bugpatrol explore"]) --> setup["Start the app and connect the driver"]
   setup --> look
 
   subgraph loop ["The explore loop: one tool call in each step"]
@@ -43,7 +43,7 @@ flowchart TD
   end
 
   act -->|"finish, or the step or budget limit"| reflect["LLM · Reflect<br/>writes lessons for the next run"]
-  reflect -->|"bughunters judge<br/>(patrol runs it for you)"| judge["LLM · Judge<br/>files, merges, or dismisses<br/>each candidate"]
+  reflect -->|"bugpatrol judge<br/>(patrol runs it for you)"| judge["LLM · Judge<br/>files, merges, or dismisses<br/>each candidate"]
   judge --> issues[("Issues")]
 
   subgraph legend ["Legend"]
@@ -67,7 +67,7 @@ The automatic checks (contrast, tap size, overlap, and more) are off by default.
 
 ## Noise control
 
-Bughunters keeps the list of issues short:
+Bugpatrol keeps the list of issues short:
 
 - With the automatic checks on, one rule on one screen gives one finding, not one finding for each element.
 - Each finding has a fingerprint. A finding that the judge filed or dismissed before does not go to the judge again. A filed finding adds one more occurrence to its issue.
@@ -78,17 +78,17 @@ Bughunters keeps the list of issues short:
 
 ## Memory
 
-Bughunters learns in three ways, and it writes each lesson to `.bughunters/runs/memory.json`:
+Bugpatrol learns in three ways, and it writes each lesson to `.bugpatrol/runs/memory.json`:
 
 - **The agents save lessons while they work.** The explorer, the judge, and the fixer each have a `save_lesson` tool. They save a lasting fact that a later session needs, for example "a component with a `.web.tsx` file needs the change there too". A role can save a lesson for another role: the judge can save one for the fixer.
-- **After each explorer session,** Bughunters reads what went wrong: failed taps, retyped fields, broken routines. Then it writes short lessons for the explorer.
+- **After each explorer session,** Bugpatrol reads what went wrong: failed taps, retyped fields, broken routines. Then it writes short lessons for the explorer.
 - **Events become lessons:** human dismissals, fixer declines, rejected PRs, commit hook errors, and failed verify commands.
 
-When a fix does not work in the running app, the fixer's next attempt must first find why, and save that cause as a lesson. Each role gets its lessons in its prompt, so the next run does not repeat the same mistakes. You do not have to add a lesson by hand, but you can, with `bughunters memory add`. Set `agents.memory.enabled: false` to turn all of this off.
+When a fix does not work in the running app, the fixer's next attempt must first find why, and save that cause as a lesson. Each role gets its lessons in its prompt, so the next run does not repeat the same mistakes. You do not have to add a lesson by hand, but you can, with `bugpatrol memory add`. Set `agents.memory.enabled: false` to turn all of this off.
 
 ## GitHub
 
-The judge writes a short summary. Bughunters adds the full report: the steps, the screenshots, the fix, and the before and after table. It uploads the images to the orphan `bughunters-assets` branch, so the images never enter the PR diff. PR titles use the Conventional Commits form, for example `fix(app): expand the sidebar in a narrow window`. When the team closes a PR without a merge, Bughunters does not propose that change again. Bughunters never force-pushes and never uses `--no-verify`.
+The judge writes a short summary. Bugpatrol adds the full report: the steps, the screenshots, the fix, and the before and after table. It uploads the images to the orphan `bugpatrol-assets` branch, so the images never enter the PR diff. PR titles use the Conventional Commits form, for example `fix(app): expand the sidebar in a narrow window`. When the team closes a PR without a merge, Bugpatrol does not propose that change again. Bugpatrol never force-pushes and never uses `--no-verify`.
 
 ## Safety
 

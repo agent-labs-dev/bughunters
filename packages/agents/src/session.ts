@@ -1,5 +1,5 @@
-import type { AgentRole, AgentStatus, BughuntersConfig, RoutineStep } from '@bughunters/core';
-import type { Driver, Observation } from '@bughunters/drivers';
+import type { AgentRole, AgentStatus, BugpatrolConfig, RoutineStep } from '@bugpatrol/core';
+import type { Driver, Observation } from '@bugpatrol/drivers';
 import type { EventSink } from './types.js';
 import { Vars } from './vars.js';
 import { Workspace } from './workspace.js';
@@ -27,7 +27,7 @@ export class AgentSession {
 
   constructor(
     readonly root: string,
-    readonly config: BughuntersConfig,
+    readonly config: BugpatrolConfig,
     readonly vars: Vars,
     readonly sessionId: string,
     readonly role: AgentRole,

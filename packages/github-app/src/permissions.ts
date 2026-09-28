@@ -9,7 +9,7 @@ export type PermissionSpec = {
 };
 
 /**
- * Most tools in this category request a broad, fixed permission set. Bughunters
+ * Most tools in this category request a broad, fixed permission set. Bugpatrol
  * requests the minimum for the mode actually in use, and asks for more only
  * when the feature that needs it is enabled (spec 10.1).
  *
@@ -46,13 +46,13 @@ export const SUBSCRIBED_EVENTS = [
 ] as const;
 
 export const LABELS = {
-  root: 'bughunters',
-  bug: 'bughunters:bug',
-  question: 'bughunters:question',
-  regression: 'bughunters:regression',
-  a11y: 'bughunters:a11y',
-  content: 'bughunters:content',
-  flow: 'bughunters:flow',
-  fix: 'bughunters-fix',
+  root: 'bugpatrol',
+  bug: 'bugpatrol:bug',
+  question: 'bugpatrol:question',
+  regression: 'bugpatrol:regression',
+  a11y: 'bugpatrol:a11y',
+  content: 'bugpatrol:content',
+  flow: 'bugpatrol:flow',
+  fix: 'bugpatrol-fix',
   needsDecision: 'needs-decision',
 } as const;

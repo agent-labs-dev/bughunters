@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { applyNoiseControls, isQuarantined, flakeRate, DEFAULT_NOISE } from './noise.js';
 import type { RootCauseGroup } from './cluster.js';
-import { id } from '@bughunters/core';
-import type { Finding, Severity } from '@bughunters/core';
+import { id } from '@bugpatrol/core';
+import type { Finding, Severity } from '@bugpatrol/core';
 
 function group(n: number, severity: Severity = 'minor'): RootCauseGroup {
   const finding = {

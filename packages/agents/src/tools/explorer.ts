@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
-import { fingerprint, shortHash, type Candidate, type Locator, type Routine, type RoutineStep, type ScreenTransition } from '@bughunters/core';
-import type { DriverAction, Observation, UiElement } from '@bughunters/drivers';
+import { fingerprint, shortHash, type Candidate, type Locator, type Routine, type RoutineStep, type ScreenTransition } from '@bugpatrol/core';
+import type { DriverAction, Observation, UiElement } from '@bugpatrol/drivers';
 import { addOccurrence, evaluateScreen } from '../evaluate.js';
 import { lessonTools } from './memory.js';
 import { replayRoutine } from '../replay.js';

@@ -19,7 +19,7 @@ export function baselineKeyFor(screenId: string, viewport: string): BaselineKey 
 /**
  * The committed manifest holds hashes and the image digest; the pixels live
  * beside it as content-addressed objects (spec 12.1). In local mode the object
- * directory is on disk under `.bughunters/runs/baselines/`; in CI it is backed by object
+ * directory is on disk under `.bugpatrol/runs/baselines/`; in CI it is backed by object
  * storage, which is why nothing here assumes a path shape beyond the hash.
  */
 export class BaselineStore {

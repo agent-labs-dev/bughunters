@@ -2,13 +2,13 @@ import { mkdtemp, readFile, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { appSchema, InfrastructureError } from '@bughunters/core';
+import { appSchema, InfrastructureError } from '@bugpatrol/core';
 import { startApp } from './lifecycle.js';
 import { Vars } from './vars.js';
 
 describe('startApp', () => {
   it('captures values for later commands and keeps a ready background process', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'bughunters-life-'));
+    const root = await mkdtemp(join(tmpdir(), 'bugpatrol-life-'));
     const vars = new Vars();
     const emitted: string[] = [];
     try {
@@ -39,7 +39,7 @@ describe('startApp', () => {
   });
 
   it('runs the teardown when a setup command fails', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'bughunters-teardown-'));
+    const root = await mkdtemp(join(tmpdir(), 'bugpatrol-teardown-'));
     try {
       const app = appSchema.parse({
         setup: [{ run: 'echo up > state' }, { run: 'exit 2' }],
@@ -52,8 +52,8 @@ describe('startApp', () => {
     }
   });
 
-  it('swaps only source commands into the worktree and sets BUGHUNTERS_SOURCE for every command', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'bughunters-source-'));
+  it('swaps only source commands into the worktree and sets BUGPATROL_SOURCE for every command', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'bugpatrol-source-'));
     const source = join(root, 'source');
     const worktree = join(root, 'fix');
     const other = join(root, 'other');
@@ -61,8 +61,8 @@ describe('startApp', () => {
     try {
       await Promise.all([mkdir(source), mkdir(worktree), mkdir(other)]);
       const app = appSchema.parse({ source: 'source', setup: [
-        { run: 'pwd > source-cwd; echo "$BUGHUNTERS_SOURCE" > source-env', cwd: './source' },
-        { run: 'pwd > other-cwd; echo "$BUGHUNTERS_SOURCE" > other-env', cwd: 'other' },
+        { run: 'pwd > source-cwd; echo "$BUGPATROL_SOURCE" > source-env', cwd: './source' },
+        { run: 'pwd > other-cwd; echo "$BUGPATROL_SOURCE" > other-env', cwd: 'other' },
       ] });
       await (await startApp(app, { root, vars: new Vars(), source: worktree })).stop();
       expect((await readFile(join(worktree, 'source-cwd'), 'utf8')).trim()).toBe(await realpath(worktree));

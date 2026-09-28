@@ -4,7 +4,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { parseConfig, type FixProposal, type Issue } from '@bughunters/core';
+import { parseConfig, type FixProposal, type Issue } from '@bugpatrol/core';
 import { AgentSession } from '../session.js';
 import { Vars } from '../vars.js';
 import { Workspace } from '../workspace.js';
@@ -18,12 +18,12 @@ const git = (cwd: string, ...args: string[]) =>
   execFileSync('git', ['-C', cwd, ...args], { encoding: 'utf8', stdio: 'pipe' }).trim();
 
 async function fixture(status: FixProposal['status'] = 'declined') {
-  const root = await mkdtemp(join(tmpdir(), 'bughunters-worktrees-'));
+  const root = await mkdtemp(join(tmpdir(), 'bugpatrol-worktrees-'));
   roots.push(root);
   const repo = join(root, 'source');
   const remote = join(root, 'remote.git');
-  const worktree = join(root, '.bughunters', 'runs', 'worktrees', 'iss_1');
-  const branch = 'bughunters/fix-iss_1';
+  const worktree = join(root, '.bugpatrol', 'runs', 'worktrees', 'iss_1');
+  const branch = 'bugpatrol/fix-iss_1';
   await mkdir(repo);
   execFileSync('git', ['init', '--bare', '-q', remote], { stdio: 'pipe' });
   git(repo, 'init', '-q');
@@ -36,7 +36,7 @@ async function fixture(status: FixProposal['status'] = 'declined') {
   git(repo, 'branch', '-M', 'main');
   git(repo, 'remote', 'add', 'origin', remote);
   git(repo, 'push', '-q', '-u', 'origin', 'main');
-  await mkdir(join(root, '.bughunters', 'runs', 'worktrees'), { recursive: true });
+  await mkdir(join(root, '.bugpatrol', 'runs', 'worktrees'), { recursive: true });
   git(repo, 'worktree', 'add', '-q', '-b', branch, worktree, 'HEAD');
   const workspace = new Workspace(root);
   const issue: Issue = { version: 1, id: 'iss_1', fingerprint: 'fp', title: 'Broken screen', body: 'Broken',
@@ -129,7 +129,7 @@ describe('cleanWorktrees', () => {
       return { stop: 'done', steps: 0, costUsd: 0, summary: 'No change needed' };
     } };
     const [proposal] = await runFixer(session, runtime, { issueIds: [f.issue.id] });
-    expect(proposal?.branch).toBe('bughunters/fix-iss_1-2');
+    expect(proposal?.branch).toBe('bugpatrol/fix-iss_1-2');
     expect(proposal?.worktree).toBe(f.worktree);
     expect(proposal?.worktreeRemovedAt).toBeUndefined();
     expect(git(f.worktree, 'rev-parse', 'HEAD')).toBe(git(f.repo, 'rev-parse', 'HEAD'));

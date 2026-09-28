@@ -1,5 +1,5 @@
-import type { Decider } from '@bughunters/core';
-import { IS_DESTRUCTIVE } from '@bughunters/decide';
+import type { Decider } from '@bugpatrol/core';
+import { IS_DESTRUCTIVE } from '@bugpatrol/decide';
 
 export type ActionClass = 'navigation' | 'safe-action' | 'destructive' | 'external' | 'auth-gated';
 
@@ -23,10 +23,13 @@ export async function classifyAction(
   candidate: ElementCandidate,
   options: { origin: string; decider?: Decider } = { origin: '' },
 ): Promise<{ class: ActionClass; reason: string }> {
-  if (candidate.dataAttributes?.['bughuntersSafe'] === 'true') {
+  // data-bughunters-* is the name of the same marks before the rename to Bugpatrol.
+  const mark = (name: string) => candidate.dataAttributes?.[`bugpatrol${name}`] === 'true'
+    || candidate.dataAttributes?.[`bughunters${name}`] === 'true';
+  if (mark('Safe')) {
     return { class: 'safe-action', reason: 'Explicitly marked safe by the repo.' };
   }
-  if (candidate.dataAttributes?.['bughuntersDestructive'] === 'true') {
+  if (mark('Destructive')) {
     return { class: 'destructive', reason: 'Explicitly marked destructive by the repo.' };
   }
 

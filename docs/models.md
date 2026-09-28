@@ -1,6 +1,6 @@
 # LLMs
 
-Bughunters has three LLM agents. They use the app, decide which reports are real bugs, and write the fixes.
+Bugpatrol has three LLM agents. They use the app, decide which reports are real bugs, and write the fixes.
 
 ## What each agent does
 
@@ -64,7 +64,7 @@ Each agent (explorer, judge, fixer) needs an LLM. Each agent can use a different
 
 ### A local agent CLI
 
-A local agent CLI uses your existing login, so you do not need an API key. Bughunters has presets for these CLIs:
+A local agent CLI uses your existing login, so you do not need an API key. Bugpatrol has presets for these CLIs:
 
 | `use:` | CLI | Notes |
 | --- | --- | --- |
@@ -80,7 +80,7 @@ agents:
   fixer: { use: codex }
 ```
 
-The preset gives each role the correct flags. The explorer and the judge act only through the Bughunters tools, which Bughunters gives to the CLI over MCP. The fixer can edit files, but only in its own worktree.
+The preset gives each role the correct flags. The explorer and the judge act only through the Bugpatrol tools, which Bugpatrol gives to the CLI over MCP. The fixer can edit files, but only in its own worktree.
 
 To add flags, write the full command. A command gets the prompt on stdin and in `{prompt}` (a file). It gets the tools in `{mcp}` (an MCP config file) or `{mcpUrl}`, and the worktree in `{workdir}`:
 
@@ -89,7 +89,7 @@ agents:
   judge:
     use:
       runtime: cli
-      command: claude -p --output-format json --model sonnet --mcp-config {mcp} --strict-mcp-config --allowedTools mcp__bughunters
+      command: claude -p --output-format json --model sonnet --mcp-config {mcp} --strict-mcp-config --allowedTools mcp__bugpatrol
 ```
 
 Keep `--output-format json` for `claude` and `--json` for `codex`. With these flags, the CLI reports its token usage, and the dashboard shows it. Without them, the dashboard shows no tokens for that agent.
@@ -104,7 +104,7 @@ The built-in model loop calls a provider directly:
 | `vercel` | `AI_GATEWAY_API_KEY` | https://vercel.com/ai-gateway | set `model` |
 | `openai` | `OPENAI_API_KEY` | https://platform.openai.com/api-keys | set `model` |
 | `anthropic` | `ANTHROPIC_API_KEY` | https://console.anthropic.com/settings/keys | set `model` |
-| `custom` | `BUGHUNTERS_MODEL_API_KEY` | your provider | set `model` and `endpoint` |
+| `custom` | `BUGPATROL_MODEL_API_KEY` | your provider | set `model` and `endpoint` |
 
 ```yaml
 agents:
@@ -114,8 +114,8 @@ agents:
     use: { runtime: model, via: anthropic, model: claude-opus-5-5 }
 ```
 
-`bughunters init` writes a default model for each provider. We recommend OpenRouter or Vercel AI Gateway: one key gives you many models.
+`bugpatrol init` writes a default model for each provider. We recommend OpenRouter or Vercel AI Gateway: one key gives you many models.
 
 ## Check the setup
 
-Before an agent command starts the app, Bughunters checks each agent that the command uses. If a key is not set, or a CLI is not on `PATH`, the command stops and tells you what to do.
+Before an agent command starts the app, Bugpatrol checks each agent that the command uses. If a key is not set, or a CLI is not on `PATH`, the command stops and tells you what to do.

@@ -1,5 +1,5 @@
-import type { DriverAction, Driver } from '@bughunters/drivers';
-import type { RoutineStep } from '@bughunters/core';
+import type { DriverAction, Driver } from '@bugpatrol/drivers';
+import type { RoutineStep } from '@bugpatrol/core';
 import type { AgentSession } from './session.js';
 
 /** Carries a replay failure back to the explorer without creating a finding. */

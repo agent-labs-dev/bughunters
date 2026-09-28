@@ -61,9 +61,9 @@
   </g>
 </g>
   <g font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif">
-    <text x="460" y="290" fill="#f8fafc" font-size="100" font-weight="800" letter-spacing="-2">bug<tspan fill="#bef264">hunters</tspan></text>
+    <text x="460" y="290" fill="#f8fafc" font-size="100" font-weight="800" letter-spacing="-2">bug<tspan fill="#bef264">patrol</tspan></text>
     <text x="464" y="352.0" fill="#cbd5e1" font-size="28.999999999999996" font-weight="500">AI agents that explore your app, find bugs, and fix them.</text>
-    <rect x="460" y="382.0" width="462.00" height="62.0" rx="14.000000000000002" fill="#0b0f1f" stroke="#bef264" stroke-opacity="0.5" stroke-width="2"/>
-    <text x="482.0" y="423.0" fill="#bef264" font-size="30.0" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">$ <tspan fill="#f8fafc">npx bughunters patrol</tspan></text>
+    <rect x="460" y="382.0" width="318.00" height="62.0" rx="14.000000000000002" fill="#0b0f1f" stroke="#bef264" stroke-opacity="0.5" stroke-width="2"/>
+    <text x="482.0" y="423.0" fill="#bef264" font-size="30.0" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">$ <tspan fill="#f8fafc">npx bugpatrol</tspan></text>
   </g>
 </svg>

@@ -24,7 +24,7 @@ export type FileRef = Brand<string, 'FileRef'>;
 export type ArtifactRef = Brand<string, 'ArtifactRef'>;
 
 /**
- * A reference to a secret in the user's own secret store. Bughunters stores these;
+ * A reference to a secret in the user's own secret store. Bugpatrol stores these;
  * it never stores the credential itself, in the repo, in artifacts, or in the
  * AppModel (spec 1.2, 11.4).
  */

@@ -7,7 +7,7 @@ import { linkEnvFiles } from './fixer.js';
 
 let root: string;
 beforeEach(async () => {
-  root = await mkdtemp(join(tmpdir(), 'bughunters-env-'));
+  root = await mkdtemp(join(tmpdir(), 'bugpatrol-env-'));
 });
 afterEach(async () => {
   await rm(root, { recursive: true, force: true });

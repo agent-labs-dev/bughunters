@@ -5,7 +5,7 @@ import {
   fingerprint as makeFingerprint,
   id,
   paths,
-  type BughuntersConfig,
+  type BugpatrolConfig,
   type ExitCodeValue,
   type Finding,
   type Run,
@@ -17,9 +17,9 @@ import {
   type ScreenTrace,
   type FindingTrace,
   type CheckOutcome,
-} from '@bughunters/core';
-import { RULES, evaluateAll, type InvariantViolation, type ScreenSnapshot } from '@bughunters/invariants';
-import { evaluate as evaluateTolerance, type CrossCheckResult } from '@bughunters/diff';
+} from '@bugpatrol/core';
+import { RULES, evaluateAll, type InvariantViolation, type ScreenSnapshot } from '@bugpatrol/invariants';
+import { evaluate as evaluateTolerance, type CrossCheckResult } from '@bugpatrol/diff';
 import {
   Budget,
   SCREEN_QUESTIONS,
@@ -30,9 +30,9 @@ import {
   route as routeDecision,
   severityFrom,
   violationsToAssertions,
-} from '@bughunters/decide';
-import { IntentLedger, applyNoiseControls, cluster } from '@bughunters/triage';
-import { renderHtml, toJUnit, toSarif } from '@bughunters/report';
+} from '@bugpatrol/decide';
+import { IntentLedger, applyNoiseControls, cluster } from '@bugpatrol/triage';
+import { renderHtml, toJUnit, toSarif } from '@bugpatrol/report';
 
 /** One screen, in one viewport, after capture and comparison. */
 export type CapturedScreen = {
@@ -54,7 +54,7 @@ export type CapturedScreen = {
 
 export type PipelineOptions = {
   root: string;
-  config: BughuntersConfig;
+  config: BugpatrolConfig;
   mode: RunMode;
   trigger: RunTrigger;
   commit: string;
@@ -342,7 +342,7 @@ export async function executeRun(options: PipelineOptions): Promise<RunResult> {
  * the pass/fail call, so the hollow-test and masked-and-relaxed flags it raises
  * travel with the finding instead of being dropped on the floor.
  */
-function visualViolations(screen: CapturedScreen, config: BughuntersConfig): InvariantViolation[] {
+function visualViolations(screen: CapturedScreen, config: BugpatrolConfig): InvariantViolation[] {
   if (screen.baselineCreated) return [];
   if (!screen.comparison) {
     return [

@@ -205,11 +205,11 @@ const modelRuntimeSchema = z.object({
 
 const cliRuntimeSchema = z.object({
   runtime: z.literal('cli'),
-  /** A local agent CLI. Bughunters fills in the command for the role. */
+  /** A local agent CLI. Bugpatrol fills in the command for the role. */
   agent: z.enum(CLI_AGENTS).optional(),
   /**
    * A shell command. Placeholders: {prompt} (a file holding the prompt),
-   * {mcp} (an MCP config file for the Bughunters tools), {mcpUrl}, {workdir}.
+   * {mcp} (an MCP config file for the Bugpatrol tools), {mcpUrl}, {workdir}.
    * The prompt also goes to stdin. Wins over `agent`.
    */
   command: z.string().optional(),
@@ -322,14 +322,14 @@ export const agentsSchema = z
       repo: z.string().optional(),
       pullRequests: z.enum(['draft', 'ready']).default('draft'),
       issueMinSeverity: z.enum(['cosmetic', 'minor', 'major', 'critical']).default('major'),
-      assetsBranch: z.string().default('bughunters-assets'),
-      labels: z.array(z.string()).default(['bughunters']),
+      assetsBranch: z.string().default('bugpatrol-assets'),
+      labels: z.array(z.string()).default(['bugpatrol']),
   /** The scope in PR titles, e.g. 'app'. Default: the scope in fixer.commitMessage. */
   prScope: z.string().optional(),
       /** After a PR opens, wait for its CI checks, and let the fixer fix a failed check. */
       ci: z.object({
         enabled: z.boolean().default(true),
-        /** Fixer attempts for each PR before Bughunters gives up and tells the team. */
+        /** Fixer attempts for each PR before Bugpatrol gives up and tells the team. */
         attempts: z.number().int().nonnegative().default(2),
         /** How long one cycle waits for pending checks. */
         waitMinutes: z.number().nonnegative().default(20),
@@ -351,7 +351,7 @@ export const agentsSchema = z
   })
   .default({});
 
-export const bughuntersConfigSchema = z.object({
+export const bugpatrolConfigSchema = z.object({
   version: z.literal(1),
   /** Web only: how to start and reach the app. Other platforms use `app`. */
   run: runSchema.optional(),
@@ -384,7 +384,7 @@ export const bughuntersConfigSchema = z.object({
   }
 });
 
-export type BughuntersConfig = z.infer<typeof bughuntersConfigSchema>;
+export type BugpatrolConfig = z.infer<typeof bugpatrolConfigSchema>;
 export type AppConfig = z.infer<typeof appSchema>;
 export type AppCommand = z.infer<typeof appCommandSchema>;
 export type AgentsConfig = z.infer<typeof agentsSchema>;

@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises';
-import { instructionsPath, type AgentEvent, type BughuntersConfig, type Lesson } from '@bughunters/core';
+import { instructionsPath, type AgentEvent, type BugpatrolConfig, type Lesson } from '@bugpatrol/core';
 import { createRuntime as makeRuntime } from '../runtime/index.js';
 import type { Tool } from '../types.js';
 import { Vars } from '../vars.js';
@@ -50,7 +50,7 @@ export function troubleLog(events: AgentEvent[], summary = ''): string[] {
   return lines.slice(0, 150).map((line) => line.slice(0, 500));
 }
 
-export async function reflectOnSession(root: string, config: BughuntersConfig, sessionId: string,
+export async function reflectOnSession(root: string, config: BugpatrolConfig, sessionId: string,
   deps: { createRuntime?: typeof makeRuntime; onLog?: (message: string) => void; vars?: Vars } = {}): Promise<number> {
   if (!config.agents.memory.enabled) return 0;
   const workspace = new Workspace(root);

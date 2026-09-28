@@ -1,5 +1,5 @@
 {
-  "name": "@bughunters/recon",
+  "name": "@bugpatrol/recon",
   "version": "0.0.0",
   "private": true,
   "license": "Apache-2.0",
@@ -10,8 +10,8 @@
   "files": ["dist"],
   "scripts": { "build": "tsc --build" },
   "dependencies": {
-    "@bughunters/core": "workspace:*",
-    "@bughunters/capture": "workspace:*",
-    "@bughunters/decide": "workspace:*"
+    "@bugpatrol/core": "workspace:*",
+    "@bugpatrol/capture": "workspace:*",
+    "@bugpatrol/decide": "workspace:*"
   }
 }

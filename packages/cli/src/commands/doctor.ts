@@ -1,17 +1,17 @@
 import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { ExitCode, legacyLayout, paths, type BughuntersConfig, type ExitCodeValue } from '@bughunters/core';
-import { runtimeProblem } from '@bughunters/agents';
+import { ExitCode, legacyLayout, paths, type BugpatrolConfig, type ExitCodeValue } from '@bugpatrol/core';
+import { runtimeProblem } from '@bugpatrol/agents';
 
 export type DoctorCheck = { name: string; ok: boolean; detail: string; fatal: boolean };
 
 /**
- * `bughunters doctor` verifies the determinism contract can actually be honoured
+ * `bugpatrol doctor` verifies the determinism contract can actually be honoured
  * here. It runs before anything else because a baseline captured outside the
  * pinned image is worse than no baseline: it will diff against CI forever and
  * nobody will know why.
  */
-export function runChecks(root: string, config: BughuntersConfig | undefined): DoctorCheck[] {
+export function runChecks(root: string, config: BugpatrolConfig | undefined): DoctorCheck[] {
   const checks: DoctorCheck[] = [];
 
   checks.push({
@@ -19,7 +19,7 @@ export function runChecks(root: string, config: BughuntersConfig | undefined): D
     ok: existsSync(paths.config(root)),
     detail: existsSync(paths.config(root))
       ? `${paths.config(root)} found`
-      : legacyLayout(root) ?? 'No .bughunters/bughunters.yml. Run `bughunters init`.',
+      : legacyLayout(root) ?? 'No .bugpatrol/bugpatrol.yml. Run `bugpatrol init`.',
     fatal: true,
   });
 
@@ -33,7 +33,7 @@ export function runChecks(root: string, config: BughuntersConfig | undefined): D
 
   if (config) checks.push(...agentChecks(config));
   // The pinned image and the AppModel belong to the deterministic web gate
-  // (`bughunters run`). They do not apply to the agents.
+  // (`bugpatrol run`). They do not apply to the agents.
   if (config && !config.run) return checks;
 
   const image = config?.determinism.image ?? '';
@@ -52,7 +52,7 @@ export function runChecks(root: string, config: BughuntersConfig | undefined): D
   checks.push({
     name: 'app-model',
     ok: existsSync(paths.appModel(root)),
-    detail: existsSync(paths.appModel(root)) ? 'AppModel present' : 'No AppModel. Run `bughunters recon`.',
+    detail: existsSync(paths.appModel(root)) ? 'AppModel present' : 'No AppModel. Run `bugpatrol recon`.',
     fatal: false,
   });
 
@@ -67,7 +67,7 @@ export function runChecks(root: string, config: BughuntersConfig | undefined): D
 }
 
 /** The checks that the agent commands need: an LLM for each agent, and gh for GitHub. */
-function agentChecks(config: BughuntersConfig, env: NodeJS.ProcessEnv = process.env): DoctorCheck[] {
+function agentChecks(config: BugpatrolConfig, env: NodeJS.ProcessEnv = process.env): DoctorCheck[] {
   const checks: DoctorCheck[] = [];
   const roles = (['explorer', 'judge', 'fixer'] as const)
     .filter((role) => role !== 'fixer' || config.agents.fixer.enabled);

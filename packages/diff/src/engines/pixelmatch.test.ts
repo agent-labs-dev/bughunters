@@ -36,7 +36,7 @@ function writePng(name: string, patch?: { x: number; y: number; w: number; h: nu
 }
 
 beforeAll(() => {
-  dir = mkdtempSync(join(tmpdir(), 'bughunters-diff-'));
+  dir = mkdtempSync(join(tmpdir(), 'bugpatrol-diff-'));
 });
 afterAll(() => {
   rmSync(dir, { recursive: true, force: true });

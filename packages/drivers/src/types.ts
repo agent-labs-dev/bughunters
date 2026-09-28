@@ -1,10 +1,10 @@
-import type { Locator, Platform, RoutineStep } from '@bughunters/core';
-import type { ScreenSnapshot } from '@bughunters/invariants';
+import type { Locator, Platform, RoutineStep } from '@bugpatrol/core';
+import type { ScreenSnapshot } from '@bugpatrol/invariants';
 
 /**
  * One interactive or text-bearing thing on the screen, normalised across
  * platforms. `ref` is short (`e12`) and valid only for the observation that
- * produced it; the explorer uses refs, and Bughunters turns each ref into a
+ * produced it; the explorer uses refs, and Bugpatrol turns each ref into a
  * stable `Locator` before it records a step.
  */
 export type UiElement = {

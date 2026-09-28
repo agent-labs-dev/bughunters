@@ -1,4 +1,4 @@
-import type { Answer, DecisionRecord } from '@bughunters/core';
+import type { Answer, DecisionRecord } from '@bugpatrol/core';
 
 /**
  * Keyed on the state hash. This is the single largest cost and latency saving

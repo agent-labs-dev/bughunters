@@ -1,6 +1,6 @@
-import type { Decider, Finding, GroupId } from '@bughunters/core';
-import { id, shortHash } from '@bughunters/core';
-import { SAME_ROOT_CAUSE } from '@bughunters/decide';
+import type { Decider, Finding, GroupId } from '@bugpatrol/core';
+import { id, shortHash } from '@bugpatrol/core';
+import { SAME_ROOT_CAUSE } from '@bugpatrol/decide';
 
 export type RootCauseGroup = {
   id: GroupId;

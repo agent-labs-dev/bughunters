@@ -1,4 +1,4 @@
-import type { Finding } from '@bughunters/core';
+import type { Finding } from '@bugpatrol/core';
 import type { RootCauseGroup } from './cluster.js';
 
 export type NoiseConfig = {

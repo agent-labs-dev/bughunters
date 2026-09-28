@@ -1,6 +1,6 @@
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
-import type { Finding, Intent, IntentScope, ProjectId } from '@bughunters/core';
-import { paths, id } from '@bughunters/core';
+import type { Finding, Intent, IntentScope, ProjectId } from '@bugpatrol/core';
+import { paths, id } from '@bugpatrol/core';
 
 export type LedgerFile = { version: 1; intents: Intent[] };
 
@@ -56,7 +56,7 @@ export class IntentLedger {
     return intent;
   }
 
-  /** Removes expired entries. Surfaced via `bughunters intent prune`. */
+  /** Removes expired entries. Surfaced via `bugpatrol intent prune`. */
   prune(now = new Date()): Intent[] {
     const expired = this.intents.filter((i) => i.expiresAt && i.expiresAt <= now);
     this.intents = this.intents.filter((i) => !expired.includes(i));

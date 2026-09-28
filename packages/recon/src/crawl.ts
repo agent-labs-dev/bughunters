@@ -1,4 +1,4 @@
-import { sha256 } from '@bughunters/core';
+import { sha256 } from '@bugpatrol/core';
 
 export type CrawlBudget = {
   maxScreens: number;

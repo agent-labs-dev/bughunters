@@ -1,5 +1,5 @@
 {
-  "name": "@bughunters/triage",
+  "name": "@bugpatrol/triage",
   "version": "0.0.0",
   "private": true,
   "license": "Apache-2.0",
@@ -9,5 +9,5 @@
   "exports": { ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" } },
   "files": ["dist"],
   "scripts": { "build": "tsc --build" },
-  "dependencies": { "@bughunters/core": "workspace:*", "@bughunters/decide": "workspace:*" }
+  "dependencies": { "@bugpatrol/core": "workspace:*", "@bugpatrol/decide": "workspace:*" }
 }

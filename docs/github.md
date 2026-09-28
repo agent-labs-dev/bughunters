@@ -1,6 +1,6 @@
 # GitHub
 
-Bughunters can publish its results to your GitHub repo:
+Bugpatrol can publish its results to your GitHub repo:
 
 - A **pull request** for each fix that the fixer wrote.
 - A **GitHub issue** for each bug at `issueMinSeverity` or worse that has no fix.
@@ -15,7 +15,7 @@ gh auth status
 
 The account must be able to push branches, and open PRs and issues, in the repo. The default `gh auth login` scopes (`repo`) are enough.
 
-`bughunters doctor` also checks gh when GitHub is on.
+`bugpatrol doctor` also checks gh when GitHub is on.
 
 ## 2. Turn it on
 
@@ -35,11 +35,11 @@ All the settings:
 | `repo` | the repo of `app.source` | The repo, as `owner/name` |
 | `pullRequests` | `draft` | Open PRs as drafts, or as ready for review |
 | `issueMinSeverity` | `major` | The lowest severity that becomes a GitHub issue |
-| `labels` | `[bughunters]` | The labels on each PR and issue. The first label also finds them again for sync |
-| `assetsBranch` | `bughunters-assets` | The branch that holds the report images |
+| `labels` | `[bugpatrol]` | The labels on each PR and issue. The first label also finds them again for sync |
+| `assetsBranch` | `bugpatrol-assets` | The branch that holds the report images |
 | `prScope` | from `fixer.commitMessage` | The scope in PR titles, for example `app` in `fix(app): ...` |
 | `ci.enabled` | `true` | Watch the CI checks of each PR, and fix a failed check |
-| `ci.attempts` | `2` | The fixer attempts for each PR before Bughunters stops |
+| `ci.attempts` | `2` | The fixer attempts for each PR before Bugpatrol stops |
 | `ci.waitMinutes` | `20` | How long one cycle waits for the running checks |
 
 For PRs, also turn on the fixer. Refer to [Getting started](getting-started.md#6-let-it-fix-bugs).
@@ -47,22 +47,22 @@ For PRs, also turn on the fixer. Refer to [Getting started](getting-started.md#6
 ## 3. Look at the reports first
 
 ```bash
-npx bughunters publish --dry-run
+npx bugpatrol publish --dry-run
 ```
 
-The judge writes each report to `.bughunters/runs/publish/<issue>.md`. Nothing goes to GitHub. The command lists each draft:
+The judge writes each report to `.bugpatrol/runs/publish/<issue>.md`. Nothing goes to GitHub. The command lists each draft:
 
 ```text
-  issue draft iss_a366e07f8376  .bughunters/runs/publish/iss_a366e07f8376.md
-  PR draft    iss_c72d694ed42f  .bughunters/runs/publish/iss_c72d694ed42f.md
+  issue draft iss_a366e07f8376  .bugpatrol/runs/publish/iss_a366e07f8376.md
+  PR draft    iss_c72d694ed42f  .bugpatrol/runs/publish/iss_c72d694ed42f.md
 Wrote 1 PR(s) and 1 issue(s); skipped 0.
 ```
 
 ## 4. Publish
 
 ```bash
-npx bughunters publish                 # all the items that are ready
-npx bughunters publish --issue <id>    # one item
+npx bugpatrol publish                 # all the items that are ready
+npx bugpatrol publish --issue <id>    # one item
 ```
 
 The command lists each URL:
@@ -75,7 +75,7 @@ Opened 1 PR(s) and 1 issue(s); skipped 0.
 
 `patrol` runs the same step at the end of each cycle.
 
-### What Bughunters publishes
+### What Bugpatrol publishes
 
 | Item | When |
 | --- | --- |
@@ -85,11 +85,11 @@ Opened 1 PR(s) and 1 issue(s); skipped 0.
 
 The judge reads each item before it publishes it. It can skip an item that is clearly not a product bug, and it gives the reason.
 
-### What Bughunters changes in the repo
+### What Bugpatrol changes in the repo
 
 - It makes the labels in `labels`, if they do not exist.
-- It pushes the orphan branch `bughunters-assets`, with the screenshots of each report. The images never enter a PR diff. Do not merge this branch.
-- For each PR, it commits the fix on `bughunters/fix-<issue>`, and it pushes that branch. The commit runs your hooks. Bughunters never uses `--no-verify`, and it never force-pushes.
+- It pushes the orphan branch `bugpatrol-assets`, with the screenshots of each report. The images never enter a PR diff. Do not merge this branch.
+- For each PR, it commits the fix on `bugpatrol/fix-<issue>`, and it pushes that branch. The commit runs your hooks. Bugpatrol never uses `--no-verify`, and it never force-pushes.
 
 ### What a report contains
 
@@ -97,35 +97,35 @@ The judge reads each item before it publishes it. It can skip an item that is cl
 - What happened, what was expected, and the steps.
 - The screenshots.
 - For a PR: the cause, the change, the diff stat, and the retest: before and after screenshots, with the judge's verdict (✅ fixed, ❌ not fixed, or ❔ unclear).
-- The severity, and how many times Bughunters saw the bug.
+- The severity, and how many times Bugpatrol saw the bug.
 
 Review each PR as you review a PR from a person. A retest verdict of ❔ unclear means that the explorer could not reach the screen in the retest.
 
 ## 5. Make CI green
 
-After a PR opens, Bughunters watches its CI checks:
+After a PR opens, Bugpatrol watches its CI checks:
 
 ```bash
-npx bughunters ci --wait             # wait for the checks, and fix a failed one
-npx bughunters ci --issue <id>       # one PR
+npx bugpatrol ci --wait             # wait for the checks, and fix a failed one
+npx bugpatrol ci --issue <id>       # one PR
 ```
 
-1. Bughunters reads the checks with `gh pr checks`.
+1. Bugpatrol reads the checks with `gh pr checks`.
 2. When a check fails, the fixer gets the end of the failed log (`gh run view --log-failed`). It fixes the cause in the fix worktree, and it runs `fixer.verify`.
-3. Bughunters commits the change on the same branch, and pushes it. It never force-pushes. The PR then runs its checks again.
-4. After `ci.attempts` tries, Bughunters stops. The dashboard shows `CI red` on the PR, and `patrol --once` exits with code 1. A person must then look at the PR.
+3. Bugpatrol commits the change on the same branch, and pushes it. It never force-pushes. The PR then runs its checks again.
+4. After `ci.attempts` tries, Bugpatrol stops. The dashboard shows `CI red` on the PR, and `patrol --once` exits with code 1. A person must then look at the PR.
 
 `patrol` runs this step after publish, and it waits up to `ci.waitMinutes`. A check that still runs goes to the next cycle. The PR chip on the dashboard shows the state: `CI running`, `CI green`, `CI failed, fixing`, or `CI red`.
 
 ## 6. Sync the state back
 
 ```bash
-npx bughunters github sync
+npx bugpatrol github sync
 ```
 
-Bughunters reads each PR and issue that has the first label, and it updates its own issues:
+Bugpatrol reads each PR and issue that has the first label, and it updates its own issues:
 
-| On GitHub | In Bughunters |
+| On GitHub | In Bugpatrol |
 | --- | --- |
 | The PR is merged | The fix shows the PR as merged |
 | The PR is closed with no merge | The fix is rejected. The judge and the fixer get a lesson, so they do not propose that change again |
@@ -133,7 +133,7 @@ Bughunters reads each PR and issue that has the first label, and it updates its 
 | The issue is closed as not planned | The issue is `dismissed`, and the finding does not come back |
 | The issue is opened again | The issue is `filed` again |
 
-`publish` runs a sync after it publishes. While the dashboard runs, it syncs every 5 minutes. The Issues page shows the PR or issue number and its state. `bughunters issue list` shows the numbers too.
+`publish` runs a sync after it publishes. While the dashboard runs, it syncs every 5 minutes. The Issues page shows the PR or issue number and its state. `bugpatrol issue list` shows the numbers too.
 
 ## Troubleshooting
 
@@ -142,6 +142,6 @@ Bughunters reads each PR and issue that has the first label, and it updates its 
 | `GitHub is off` | Set `agents.github.enabled: true`, or use `publish --dry-run` |
 | `the gh CLI is not installed` | Install it from https://cli.github.com |
 | `gh is not logged in` | Run `gh auth login` |
-| `Nothing to publish` | No item matches the table in [What Bughunters publishes](#what-bughunters-publishes). Run `bughunters issue list`, and check the severities and the fixes |
-| The commit hook rejected a commit | The fixer gets a lesson with the hook error. Fix the hook error in the worktree, or run `bughunters fix --issue <id>` again |
+| `Nothing to publish` | No item matches the table in [What Bugpatrol publishes](#what-bugpatrol-publishes). Run `bugpatrol issue list`, and check the severities and the fixes |
+| The commit hook rejected a commit | The fixer gets a lesson with the hook error. Fix the hook error in the worktree, or run `bugpatrol fix --issue <id>` again |
 | The images do not show | The repo is private, and the reader is not signed in to GitHub, or has no access |

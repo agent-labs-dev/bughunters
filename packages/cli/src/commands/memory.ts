@@ -1,5 +1,5 @@
-import { ConfigError, type LessonRole } from '@bughunters/core';
-import { Workspace } from '@bughunters/agents';
+import { ConfigError, type LessonRole } from '@bugpatrol/core';
+import { Workspace } from '@bugpatrol/agents';
 
 const roles = new Set<LessonRole>(['explorer', 'judge', 'fixer']);
 const flag = (args: string[], name: string) => {
@@ -23,13 +23,13 @@ export async function runMemoryCommand(args: string[], root: string, log: (line:
     const role = flag(args.slice(1), '--role');
     const text = args.slice(1).find((part, index, all) => !part.startsWith('--') && all[index - 1] !== '--role' && all[index - 1] !== '--scope');
     if (!role || !roles.has(role as LessonRole) || !text?.trim())
-      throw new ConfigError('Usage: bughunters memory add --role explorer|judge|fixer "text" [--scope s]');
+      throw new ConfigError('Usage: bugpatrol memory add --role explorer|judge|fixer "text" [--scope s]');
     const [lesson] = await workspace.upsertLessons([{ role: role as LessonRole, source: 'human',
       scope: flag(args.slice(1), '--scope'), text }]);
     log(`Added ${lesson!.id}`);
     return;
   }
-  if (!id) throw new ConfigError(`bughunters memory ${action} needs a lesson id`);
+  if (!id) throw new ConfigError(`bugpatrol memory ${action} needs a lesson id`);
   if (action === 'remove') {
     await workspace.removeLesson(id);
     log(`Removed ${id}`);
@@ -37,7 +37,7 @@ export async function runMemoryCommand(args: string[], root: string, log: (line:
   }
   if (action === 'retire') {
     const reason = flag(rest, '--reason');
-    if (!reason) throw new ConfigError('bughunters memory retire needs --reason');
+    if (!reason) throw new ConfigError('bugpatrol memory retire needs --reason');
     await workspace.retireLesson(id, reason);
     log(`Retired ${id}`);
     return;

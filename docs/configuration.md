@@ -1,20 +1,20 @@
 # Configuration
 
-All settings live in `.bughunters/bughunters.yml`. Every field has a default, so a small file is enough.
+All settings live in `.bugpatrol/bugpatrol.yml`. Every field has a default, so a small file is enough.
 
-## The `.bughunters/` folder
+## The `.bugpatrol/` folder
 
-Bughunters keeps all of its files in one folder at the root of your project:
+Bugpatrol keeps all of its files in one folder at the root of your project:
 
 | Path | What it is | Git |
 | --- | --- | --- |
-| `.bughunters/bughunters.yml` | The config | Commit it |
-| `.bughunters/instructions.md` | The app guide for the explorer | Commit it |
-| `.bughunters/runs/` | The local data: sessions, issues, fixes, worktrees, memory, and screenshots | `init` adds it to `.gitignore` |
+| `.bugpatrol/bugpatrol.yml` | The config | Commit it |
+| `.bugpatrol/instructions.md` | The app guide for the explorer | Commit it |
+| `.bugpatrol/runs/` | The local data: sessions, issues, fixes, worktrees, memory, and screenshots | `init` adds it to `.gitignore` |
 
-The project root is the folder that holds `.bughunters/`. All paths in the config (`source`, `cwd`, `instructions`) are relative to the project root. You can run a command from any folder in the project: Bughunters finds `.bughunters/` in the current folder or in a folder above it.
+The project root is the folder that holds `.bugpatrol/`. All paths in the config (`source`, `cwd`, `instructions`) are relative to the project root. You can run a command from any folder in the project: Bugpatrol finds `.bugpatrol/` in the current folder or in a folder above it.
 
-Older versions kept `bughunters.yml` and `instructions.md` at the project root. If Bughunters finds a file there, it stops and shows the commands that move the files.
+Older versions kept `bugpatrol.yml` and `instructions.md` at the project root. If Bugpatrol finds a file there, it stops and shows the commands that move the files.
 
 ## The full file
 
@@ -27,7 +27,7 @@ app:
   setup: []                     # commands: { run, cwd, capture, background, readyWhen, timeoutMs }
   teardown: []
   connect: { url: http://localhost:3000 }   # or cdp, or appId + device
-  instructions: .bughunters/instructions.md
+  instructions: .bugpatrol/instructions.md
   secrets: [TEST_PASSWORD]      # environment variables the explorer may use as {{NAME}}
 
 agents:
@@ -53,8 +53,8 @@ agents:
     repo: owner/name            # optional: default is the repo of app.source
     pullRequests: draft         # draft | ready
     issueMinSeverity: major     # a bug with no fix becomes an issue at this severity or worse
-    labels: [bughunters]
-    assetsBranch: bughunters-assets # the orphan branch that holds report images
+    labels: [bugpatrol]
+    assetsBranch: bugpatrol-assets # the orphan branch that holds report images
     prScope: app                # optional: the scope in PR titles
   memory:
     enabled: true
@@ -75,10 +75,10 @@ Each item in `app.setup` and `app.teardown` is one shell command:
 | `cwd` | The folder for the command, relative to the project root |
 | `capture` | A map from a name to a regex. The first group of the match becomes a value, for example `{ CDP_PORT: 'CDP :(\d+)' }` |
 | `background` | `true` keeps the process alive for the session. Use it for a dev server |
-| `readyWhen` | For a background command: Bughunters waits until the output matches this regex |
+| `readyWhen` | For a background command: Bugpatrol waits until the output matches this regex |
 | `timeoutMs` | The time limit. The default is 10 minutes |
 
-Later commands and `connect` can use a captured value as `${NAME}`. The explorer can use it as `{{NAME}}`. Bughunters treats each captured value as a secret.
+Later commands and `connect` can use a captured value as `${NAME}`. The explorer can use it as `{{NAME}}`. Bugpatrol treats each captured value as a secret.
 
 ## Connect
 
@@ -132,4 +132,4 @@ The layout checks can report controls that are correct, for example text hidden 
 
 ## The deterministic gate
 
-The web gate (`bughunters run`) has more settings: `run`, `auth`, `viewports`, `scope`, `crawl`, `mask`, `tolerance`, `determinism`, and `decisions` (an optional general model that reviews the gate findings). `bughunters init --gate` writes a starter file with all of them. Refer to [The deterministic gate](deterministic-gate.md) and to [bughunters.example.yml](../bughunters.example.yml).
+The web gate (`bugpatrol run`) has more settings: `run`, `auth`, `viewports`, `scope`, `crawl`, `mask`, `tolerance`, `determinism`, and `decisions` (an optional general model that reviews the gate findings). `bugpatrol init --gate` writes a starter file with all of them. Refer to [The deterministic gate](deterministic-gate.md) and to [bugpatrol.example.yml](../bugpatrol.example.yml).

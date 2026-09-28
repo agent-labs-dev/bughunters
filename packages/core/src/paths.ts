@@ -2,36 +2,55 @@ import { existsSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 
 /**
- * Everything Bughunters owns lives in one folder at the project root:
+ * Everything Bugpatrol owns lives in one folder at the project root:
  *
- *   .bughunters/
- *     bughunters.yml     committed: the config
+ *   .bugpatrol/
+ *     bugpatrol.yml      committed: the config
  *     instructions.md    committed: the app guide for the explorer
  *     runs/              gitignored: sessions, issues, fixes, worktrees, memory
  *
  * The gate's committed manifest is small, diffs cleanly, and makes a baseline
  * change reviewable in the pull request. The pixels live in content-addressed
  * object storage; putting them in git is what makes every CI clone pay (spec 12.1).
+ *
+ * A repo from before the rename to Bugpatrol has `.bughunters/bughunters.yml`,
+ * and it keeps that folder: see layout().
  */
-export const BUGHUNTERS_DIR = '.bughunters';
-/** The gitignored part of BUGHUNTERS_DIR. */
+export const BUGPATROL_DIR = '.bugpatrol';
+/** The gitignored part of BUGPATROL_DIR. */
 export const DATA_DIR = 'runs';
-export const CONFIG_FILENAME = 'bughunters.yml';
+export const CONFIG_FILENAME = 'bugpatrol.yml';
+/** The folder and the config name from before the rename to Bugpatrol. A repo that has them keeps them. */
+export const LEGACY_DIR = '.bughunters';
+export const LEGACY_CONFIG_FILENAME = 'bughunters.yml';
 
-const data = (root: string, ...parts: string[]) => join(root, BUGHUNTERS_DIR, DATA_DIR, ...parts);
+/**
+ * The folder and the config file of `root`: `.bugpatrol/bugpatrol.yml`, or
+ * `.bughunters/bughunters.yml` in a repo that has only that one.
+ */
+export function layout(root: string): { dir: string; config: string } {
+  if (!existsSync(join(root, BUGPATROL_DIR, CONFIG_FILENAME))
+    && existsSync(join(root, LEGACY_DIR, LEGACY_CONFIG_FILENAME))) {
+    return { dir: LEGACY_DIR, config: LEGACY_CONFIG_FILENAME };
+  }
+  return { dir: BUGPATROL_DIR, config: CONFIG_FILENAME };
+}
+
+const dir = (root: string) => join(root, layout(root).dir);
+const data = (root: string, ...parts: string[]) => join(dir(root), DATA_DIR, ...parts);
 
 export const paths = {
-  dir: (root: string) => join(root, BUGHUNTERS_DIR),
+  dir,
   /** Gitignored. All local output: nothing under it is committed. */
   data: (root: string) => data(root),
   /** Committed. */
-  config: (root: string) => join(root, BUGHUNTERS_DIR, CONFIG_FILENAME),
+  config: (root: string) => join(dir(root), layout(root).config),
   /** Committed. Human-reviewable. */
-  appModel: (root: string) => join(root, BUGHUNTERS_DIR, 'appmodel.json'),
+  appModel: (root: string) => join(dir(root), 'appmodel.json'),
   /** Committed. Hashes + image digest, NOT the pixels. */
-  baselineManifest: (root: string) => join(root, BUGHUNTERS_DIR, 'baselines.manifest.json'),
+  baselineManifest: (root: string) => join(dir(root), 'baselines.manifest.json'),
   /** Committed. Reviewable in PRs -- a ledger nobody can audit is a mute button. */
-  intents: (root: string) => join(root, BUGHUNTERS_DIR, 'intents.json'),
+  intents: (root: string) => join(dir(root), 'intents.json'),
   /** The local pixel store behind the manifest. */
   baselines: (root: string) => data(root, 'baselines'),
   /** Gate run output. */
@@ -61,7 +80,7 @@ export const paths = {
 
 /**
  * The project root: the nearest folder at or above `start` that holds
- * `.bughunters/bughunters.yml`, so a command works from any subfolder, the
+ * `.bugpatrol/bugpatrol.yml`, so a command works from any subfolder, the
  * way git does. With no config anywhere above, `start` itself.
  */
 export function findProjectRoot(start: string): string {
@@ -76,11 +95,11 @@ export function findProjectRoot(start: string): string {
 
 /**
  * The app guide for the explorer: `app.instructions` when it is set, else
- * `.bughunters/instructions.md` when that file exists.
+ * `.bugpatrol/instructions.md` when that file exists.
  */
 export function instructionsPath(root: string, configured?: string): string | undefined {
   if (configured) return resolve(root, configured);
-  const fallback = join(root, BUGHUNTERS_DIR, 'instructions.md');
+  const fallback = join(dir(root), 'instructions.md');
   return existsSync(fallback) ? fallback : undefined;
 }
 
@@ -90,12 +109,12 @@ export function instructionsPath(root: string, configured?: string): string | un
  * current layout, or undefined when there is nothing old here.
  */
 export function legacyLayout(root: string): string | undefined {
-  if (!existsSync(join(root, CONFIG_FILENAME))) return undefined;
+  if (!existsSync(join(root, LEGACY_CONFIG_FILENAME))) return undefined;
   return [
-    `Bughunters now keeps its config in ${BUGHUNTERS_DIR}/. Run this command in ${root}:`,
-    `  mkdir -p ${BUGHUNTERS_DIR} && mv ${CONFIG_FILENAME} instructions.md ${BUGHUNTERS_DIR}/`,
-    `Then remove the \`instructions:\` line from ${BUGHUNTERS_DIR}/${CONFIG_FILENAME}.`,
-    `Bughunters now writes its local data in ${BUGHUNTERS_DIR}/${DATA_DIR}/. Add ${BUGHUNTERS_DIR}/${DATA_DIR}/ to .gitignore.`,
+    `Bugpatrol now keeps its config in ${BUGPATROL_DIR}/. Run this command in ${root}:`,
+    `  mkdir -p ${BUGPATROL_DIR} && mv ${LEGACY_CONFIG_FILENAME} ${BUGPATROL_DIR}/${CONFIG_FILENAME} && mv instructions.md ${BUGPATROL_DIR}/`,
+    `Then remove the \`instructions:\` line from ${BUGPATROL_DIR}/${CONFIG_FILENAME}.`,
+    `Bugpatrol now writes its local data in ${BUGPATROL_DIR}/${DATA_DIR}/. Add ${BUGPATROL_DIR}/${DATA_DIR}/ to .gitignore.`,
   ].join('\n');
 }
 

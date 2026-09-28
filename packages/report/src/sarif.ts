@@ -1,4 +1,4 @@
-import type { Finding } from '@bughunters/core';
+import type { Finding } from '@bugpatrol/core';
 
 /** SARIF so findings land on GitHub's code-scanning surface (spec 5.4). */
 export function toSarif(findings: Finding[], version = '0.0.0'): string {
@@ -18,7 +18,7 @@ export function toSarif(findings: Finding[], version = '0.0.0'): string {
         region: { startLine: 1 },
       },
     })),
-    partialFingerprints: { bughuntersFingerprint: f.fingerprint },
+    partialFingerprints: { bugpatrolFingerprint: f.fingerprint },
   }));
 
   return `${JSON.stringify(
@@ -27,7 +27,7 @@ export function toSarif(findings: Finding[], version = '0.0.0'): string {
       version: '2.1.0',
       runs: [
         {
-          tool: { driver: { name: 'Bughunters', version, informationUri: 'https://github.com/agent-labs-dev/bughunters', rules } },
+          tool: { driver: { name: 'Bugpatrol', version, informationUri: 'https://github.com/agent-labs-dev/bugpatrol', rules } },
           results,
         },
       ],

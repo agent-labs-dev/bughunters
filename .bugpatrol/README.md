@@ -1,10 +1,10 @@
-# .bughunters/
+# .bugpatrol/
 
 These files are **committed** and reviewable in the pull request:
 
 | File | What it is |
 | ---- | ---------- |
-| `bughunters.yml` | The config |
+| `bugpatrol.yml` | The config |
 | `instructions.md` | The app guide for the explorer |
 | `appmodel.json` | The AppModel — screens, flows, edges, and the inverse file→screen map |
 | `baselines.manifest.json` | Baseline hashes plus the image digest they were captured in. **Not the pixels.** |

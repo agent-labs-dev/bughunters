@@ -1,4 +1,4 @@
-import type { Answer, Question } from '@bughunters/core';
+import type { Answer, Question } from '@bugpatrol/core';
 
 /**
  * Answers are schema-constrained upstream, but re-validated here: a malformed

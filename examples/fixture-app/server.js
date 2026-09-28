@@ -1,4 +1,4 @@
-// A deliberately tiny app used as Bughunters's own test subject.
+// A deliberately tiny app used as Bugpatrol's own test subject.
 //
 // It exists to make the M0 and M3 acceptance criteria checkable:
 //   M0 - changing BREAK=color produces exactly one failing Check
