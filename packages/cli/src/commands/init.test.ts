@@ -1,12 +1,22 @@
-import { describe, expect, it } from 'vitest';
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync, mkdirSync, chmodSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { instructionsPath, loadConfig, parseConfig } from '@bugpatrol/core';
+import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
 import {
-  defaultAnswers, detectApp, detectAppId, interview, detectProviders, parseInitFlags, providerOptions, renderConfig,
-  writeGateConfig, writeInitialConfig, type Detected, type InitAnswers,
+  type Detected,
+  defaultAnswers,
+  detectApp,
+  detectAppId,
+  detectProviders,
+  type InitAnswers,
+  interview,
+  parseInitFlags,
+  providerOptions,
+  renderConfig,
+  writeGateConfig,
+  writeInitialConfig,
 } from './init.js';
 
 function fixtureRepo(pkg: Record<string, unknown> = {}): string {
@@ -61,7 +71,10 @@ describe('detectApp', () => {
   it('detects Electron and Expo from the dependencies', () => {
     expect(detectApp(fixtureRepo({ devDependencies: { electron: '1' } })).platform).toBe('electron');
     const root = fixtureRepo({ dependencies: { expo: '1' } });
-    writeFileSync(join(root, 'app.json'), JSON.stringify({ expo: { ios: { bundleIdentifier: 'com.acme.ios' }, android: { package: 'com.acme.android' } } }));
+    writeFileSync(
+      join(root, 'app.json'),
+      JSON.stringify({ expo: { ios: { bundleIdentifier: 'com.acme.ios' }, android: { package: 'com.acme.android' } } }),
+    );
     const guess = detectApp(root);
     expect(['ios', 'android']).toContain(guess.platform);
     expect(guess.appId).toBe(guess.platform === 'ios' ? 'com.acme.ios' : 'com.acme.android');
@@ -72,16 +85,24 @@ describe('detectApp', () => {
 describe('detectAppId', () => {
   it('reads app.config, the Xcode project, and the Gradle file', () => {
     const expo = fixtureRepo();
-    writeFileSync(join(expo, 'app.config.ts'), "export default { ios: { bundleIdentifier: 'com.acme.cfg' }, android: { package: 'com.acme.droid' } }");
+    writeFileSync(
+      join(expo, 'app.config.ts'),
+      "export default { ios: { bundleIdentifier: 'com.acme.cfg' }, android: { package: 'com.acme.droid' } }",
+    );
     expect(detectAppId(expo, 'ios')).toEqual({ appId: 'com.acme.cfg', source: 'app.config.ts' });
     expect(detectAppId(expo, 'android')).toEqual({ appId: 'com.acme.droid', source: 'app.config.ts' });
 
     const native = mkdtempSync(join(tmpdir(), 'bugpatrol-native-'));
     mkdirSync(join(native, 'ios', 'Acme.xcodeproj'), { recursive: true });
-    writeFileSync(join(native, 'ios', 'Acme.xcodeproj', 'project.pbxproj'),
-      'PRODUCT_BUNDLE_IDENTIFIER = com.acme.AcmeTests;\nPRODUCT_BUNDLE_IDENTIFIER = com.acme.app;\n');
+    writeFileSync(
+      join(native, 'ios', 'Acme.xcodeproj', 'project.pbxproj'),
+      'PRODUCT_BUNDLE_IDENTIFIER = com.acme.AcmeTests;\nPRODUCT_BUNDLE_IDENTIFIER = com.acme.app;\n',
+    );
     mkdirSync(join(native, 'android', 'app'), { recursive: true });
-    writeFileSync(join(native, 'android', 'app', 'build.gradle.kts'), 'android { defaultConfig { applicationId = "com.acme.android" } }');
+    writeFileSync(
+      join(native, 'android', 'app', 'build.gradle.kts'),
+      'android { defaultConfig { applicationId = "com.acme.android" } }',
+    );
     expect(detectAppId(native, 'ios')?.appId).toBe('com.acme.app');
     expect(detectAppId(native, 'android')?.appId).toBe('com.acme.android');
   });
@@ -134,7 +155,11 @@ describe('defaultAnswers', () => {
   });
 
   it('lets each role use its own provider', () => {
-    const picked = defaultAnswers(guess, { ...none, clis: ['claude'] }, parseInitFlags(['--explorer', 'openrouter', '--fixer', 'codex']));
+    const picked = defaultAnswers(
+      guess,
+      { ...none, clis: ['claude'] },
+      parseInitFlags(['--explorer', 'openrouter', '--fixer', 'codex']),
+    );
     expect(picked.providers).toEqual({ explorer: 'openrouter', judge: 'claude', fixer: 'codex' });
   });
 });
@@ -162,20 +187,32 @@ describe('renderConfig', () => {
 
   it('expands CLI presets per role, and keeps the fixer off', () => {
     const config = parseConfig(parse(renderConfig(answers())));
-    expect(config.agents.explorer.use).toMatchObject({ runtime: 'cli', command: expect.stringContaining('--mcp-config {mcp}') });
-    expect(config.agents.fixer.use).toMatchObject({ runtime: 'cli', command: 'claude -p --output-format json --permission-mode acceptEdits' });
+    expect(config.agents.explorer.use).toMatchObject({
+      runtime: 'cli',
+      command: expect.stringContaining('--mcp-config {mcp}'),
+    });
+    expect(config.agents.fixer.use).toMatchObject({
+      runtime: 'cli',
+      command: 'claude -p --output-format json --permission-mode acceptEdits',
+    });
     expect(config.agents.fixer.enabled).toBe(false);
     expect(config.agents.github.enabled).toBe(false);
     expect(renderConfig(answers())).not.toMatch(/jev|decisions/i);
   });
 
   it('writes a model route for an API key provider', () => {
-    const config = parseConfig(parse(renderConfig(answers({ providers: { explorer: 'openrouter', judge: 'openrouter', fixer: 'claude' } }))));
+    const config = parseConfig(
+      parse(renderConfig(answers({ providers: { explorer: 'openrouter', judge: 'openrouter', fixer: 'claude' } }))),
+    );
     expect(config.agents.explorer.use).toEqual({ runtime: 'model', via: 'openrouter', model: 'z-ai/glm-5.3-flash' });
   });
 
   it('adds --perm yolo to pi when pi-permission-modes would block its tools', () => {
-    const config = parseConfig(parse(renderConfig(answers({ providers: { explorer: 'pi', judge: 'pi', fixer: 'pi' }, piPermissionModes: true }))));
+    const config = parseConfig(
+      parse(
+        renderConfig(answers({ providers: { explorer: 'pi', judge: 'pi', fixer: 'pi' }, piPermissionModes: true })),
+      ),
+    );
     expect(config.agents.explorer.use).toMatchObject({ command: 'pi -p --no-session --perm yolo --mcp-config {mcp}' });
   });
 });
@@ -186,7 +223,9 @@ describe('writeInitialConfig', () => {
     writeFileSync(join(root, '.gitignore'), 'node_modules');
     const result = writeInitialConfig(root, answers());
     expect(result.written).toEqual(['.bugpatrol/bugpatrol.yml', '.bugpatrol/instructions.md', '.gitignore']);
-    expect(readFileSync(join(root, '.gitignore'), 'utf8')).toBe('node_modules\n# Bugpatrol: local data and screenshots of the real app\n.bugpatrol/runs/\n');
+    expect(readFileSync(join(root, '.gitignore'), 'utf8')).toBe(
+      'node_modules\n# Bugpatrol: local data and screenshots of the real app\n.bugpatrol/runs/\n',
+    );
     expect(readFileSync(join(root, '.bugpatrol', 'instructions.md'), 'utf8')).toContain('Never do these things');
     expect(existsSync(join(root, 'bugpatrol.yml'))).toBe(false);
     const config = loadConfig(root);
@@ -213,7 +252,10 @@ describe('writeInitialConfig', () => {
   });
 
   it('warns about a key that the config needs and the shell does not have', () => {
-    const result = writeInitialConfig(fixtureRepo(), answers({ providers: { explorer: 'openrouter', judge: 'openrouter', fixer: 'openrouter' } }));
+    const result = writeInitialConfig(
+      fixtureRepo(),
+      answers({ providers: { explorer: 'openrouter', judge: 'openrouter', fixer: 'openrouter' } }),
+    );
     expect(result.warnings.join('\n')).toContain('OPENROUTER_API_KEY');
   });
 });
@@ -232,7 +274,13 @@ describe('interview', () => {
     const write = process.stdout.write;
     process.stdout.write = (() => true) as typeof process.stdout.write;
     try {
-      const result = await interview(ask, fixtureRepo(), guess, detected, defaultAnswers(guess, detected, parseInitFlags([])));
+      const result = await interview(
+        ask,
+        fixtureRepo(),
+        guess,
+        detected,
+        defaultAnswers(guess, detected, parseInitFlags([])),
+      );
       return { result, prompts, replies };
     } finally {
       process.stdout.write = write;
@@ -242,16 +290,28 @@ describe('interview', () => {
 
   it('puts each detected value on the input line, so Enter keeps it', async () => {
     const { result, prompts } = await play([]);
-    expect(prompts.map((prompt) => prompt.prefill)).toEqual(['1', 'npm run dev', 'http://localhost:5173', '1', '1', '1']);
+    expect(prompts.map((prompt) => prompt.prefill)).toEqual([
+      '1',
+      'npm run dev',
+      'http://localhost:5173',
+      '1',
+      '1',
+      '1',
+    ]);
     expect(result).toMatchObject({
-      platform: 'web', start: 'npm run dev', url: 'http://localhost:5173',
+      platform: 'web',
+      start: 'npm run dev',
+      url: 'http://localhost:5173',
       providers: { explorer: 'claude', judge: 'claude', fixer: 'claude' },
     });
   });
 
   it('takes an edited value, a cleared value, and a different number', async () => {
     const { result, replies } = await play([enter, () => 'pnpm dev', enter, () => '2', enter, enter]);
-    expect(result).toMatchObject({ start: 'pnpm dev', providers: { explorer: 'codex', judge: 'codex', fixer: 'claude' } });
+    expect(result).toMatchObject({
+      start: 'pnpm dev',
+      providers: { explorer: 'codex', judge: 'codex', fixer: 'claude' },
+    });
     expect(replies).toEqual([]);
     expect((await play([enter, () => ''])).result.start).toBeUndefined();
   });

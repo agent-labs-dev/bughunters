@@ -1,8 +1,8 @@
-import { ConfigError, type BugpatrolConfig } from '@bugpatrol/core';
-import type { Driver } from './types.js';
-import { WebDriver } from './web.js';
+import { type BugpatrolConfig, ConfigError } from '@bugpatrol/core';
 import { ElectronDriver } from './electron.js';
 import { MaestroDriver } from './maestro.js';
+import type { Driver } from './types.js';
+import { WebDriver } from './web.js';
 
 /** Pick the transport configured for the app while resolving captured endpoints. */
 export function createDriver(config: BugpatrolConfig, vars: (value: string) => string): Driver {

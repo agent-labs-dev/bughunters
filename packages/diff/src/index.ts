@@ -2,10 +2,10 @@ import { diffWithOdiff, OdiffUnavailableError } from './engines/odiff.js';
 import { diffWithPixelmatch } from './engines/pixelmatch.js';
 import type { CrossCheckResult, DiffRequest, DiffResult } from './types.js';
 
-export * from './types.js';
-export * from './tolerance.js';
-export * from './perceptual.js';
 export * from './mask-accounting.js';
+export * from './perceptual.js';
+export * from './tolerance.js';
+export * from './types.js';
 export { diffWithOdiff, diffWithPixelmatch, OdiffUnavailableError };
 
 /** How far the two engines may disagree before the result is untrustworthy. */

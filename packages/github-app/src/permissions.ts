@@ -24,7 +24,12 @@ export const PERMISSIONS: PermissionSpec[] = [
   { name: 'issues', level: 'write', neededFor: 'Filing bugs and questions', requestedWhen: 'always' },
   { name: 'pull_requests', level: 'write', neededFor: 'The sticky PR comment', requestedWhen: 'always' },
   { name: 'actions', level: 'read', neededFor: 'Reading CI artifacts', requestedWhen: 'surfaces.readArtifacts' },
-  { name: 'contents', level: 'write', neededFor: 'Creating the fix branch and commits', requestedWhen: 'surfaces.fixPRs' },
+  {
+    name: 'contents',
+    level: 'write',
+    neededFor: 'Creating the fix branch and commits',
+    requestedWhen: 'surfaces.fixPRs',
+  },
 ];
 
 export function requiredPermissions(enabled: { fixPRs: boolean; readArtifacts?: boolean }): PermissionSpec[] {

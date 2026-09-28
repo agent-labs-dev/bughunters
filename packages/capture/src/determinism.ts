@@ -101,7 +101,7 @@ export type FontAudit = {
  * installed -- `check()` returns true when no face matches. Those are covered
  * structurally by the pinned image and its bundled font set instead.
  */
-export const FONT_AUDIT_SOURCE = String.raw`
+export const FONT_AUDIT_SOURCE = `
 (async () => {
   await document.fonts.ready;
 

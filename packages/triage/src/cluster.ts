@@ -63,7 +63,7 @@ async function modelPass(groups: RootCauseGroup[], decider: Decider): Promise<Ro
         findingB: describe(b.representative),
       });
       const answers = await decider.ask(state, { same_root_cause: SAME_ROOT_CAUSE });
-      const answer = answers['same_root_cause'];
+      const answer = answers.same_root_cause;
       // Merging is a form of silencing: it hides N-1 findings behind one
       // report, so it needs confidence, not just a majority probability.
       if (answer?.kind === 'noul' && answer.value >= 0.5 && answer.confidence >= 0.85) {

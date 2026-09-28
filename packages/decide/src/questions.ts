@@ -8,8 +8,7 @@ import type { Question } from '@bugpatrol/core';
 export const SCREEN_QUESTIONS: Record<string, Question> = {
   is_anomalous: {
     type: 'noul',
-    instructions:
-      'Does any evidence here indicate behaviour that differs from the modelled product behaviour?',
+    instructions: 'Does any evidence here indicate behaviour that differs from the modelled product behaviour?',
   },
   classification: {
     type: 'choice',

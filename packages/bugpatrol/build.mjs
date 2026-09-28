@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs';
-import { copyFile, mkdir, readFile, readdir, rm } from 'node:fs/promises';
+import { copyFile, mkdir, readdir, readFile, rm } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
@@ -27,7 +27,11 @@ const target = join(here, 'src/ui');
 await rm(target, { recursive: true, force: true });
 await mkdir(target, { recursive: true });
 for (const file of await readdir(source, { withFileTypes: true })) {
-  if (file.isFile() && /\.(?:html|js|css|png|jpe?g|svg|json)$/.test(file.name) && !/\.(?:test|spec)\./.test(file.name)) {
+  if (
+    file.isFile() &&
+    /\.(?:html|js|css|png|jpe?g|svg|json)$/.test(file.name) &&
+    !/\.(?:test|spec)\./.test(file.name)
+  ) {
     await copyFile(join(source, file.name), join(target, file.name));
   }
 }

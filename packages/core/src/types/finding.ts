@@ -1,4 +1,4 @@
-import type { FindingId, RunId, GroupId, ScreenId, FlowId, FileRef, ArtifactRef } from './ids.js';
+import type { ArtifactRef, FileRef, FindingId, FlowId, GroupId, RunId, ScreenId } from './ids.js';
 import type { Action } from './project.js';
 
 export type Tier = 'tier1' | 'tier2' | 'tier3';
@@ -39,14 +39,7 @@ export type Evidence = {
   reproSteps?: Action[];
 };
 
-export type FindingStatus =
-  | 'open'
-  | 'triaged'
-  | 'accepted'
-  | 'muted'
-  | 'quarantined'
-  | 'fixed'
-  | 'question';
+export type FindingStatus = 'open' | 'triaged' | 'accepted' | 'muted' | 'quarantined' | 'fixed' | 'question';
 
 export type Finding = {
   id: FindingId;

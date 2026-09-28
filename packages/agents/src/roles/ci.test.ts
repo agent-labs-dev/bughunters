@@ -3,15 +3,14 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
+import { type FixProposal, parseConfig } from '@bugpatrol/core';
 import { describe, expect, it } from 'vitest';
-import { parseConfig, type FixProposal } from '@bugpatrol/core';
 import type { Gh } from '../github.js';
 import type { Runtime } from '../types.js';
 import { Workspace } from '../workspace.js';
-import { readChecks, watchCi, type Check } from './ci.js';
+import { type Check, readChecks, watchCi } from './ci.js';
 
-const git = async (cwd: string, ...args: string[]) =>
-  (await promisify(execFile)('git', args, { cwd })).stdout.trim();
+const git = async (cwd: string, ...args: string[]) => (await promisify(execFile)('git', args, { cwd })).stdout.trim();
 
 async function fixture() {
   const root = await mkdtemp(join(tmpdir(), 'bugpatrol-ci-'));
@@ -25,12 +24,25 @@ async function fixture() {
   await git(worktree, 'add', '-A');
   await git(worktree, 'commit', '-q', '-m', 'fix: the bug');
   await git(worktree, 'push', '-q', '-u', 'origin', 'bugpatrol/fix-iss_1');
-  const fix: FixProposal = { version: 1, id: 'fix_iss_1', issueId: 'iss_1', status: 'proposed', runtime: 'cli:claude',
-    repo: worktree, branch: 'bugpatrol/fix-iss_1', worktree, startedAt: '', commit: await git(worktree, 'rev-parse', 'HEAD'),
-    pr: { number: 7, url: 'https://github.com/o/r/pull/7', draft: true, state: 'open' } };
+  const fix: FixProposal = {
+    version: 1,
+    id: 'fix_iss_1',
+    issueId: 'iss_1',
+    status: 'proposed',
+    runtime: 'cli:claude',
+    repo: worktree,
+    branch: 'bugpatrol/fix-iss_1',
+    worktree,
+    startedAt: '',
+    commit: await git(worktree, 'rev-parse', 'HEAD'),
+    pr: { number: 7, url: 'https://github.com/o/r/pull/7', draft: true, state: 'open' },
+  };
   await new Workspace(root).saveFix(fix);
-  const config = parseConfig({ version: 1, app: { connect: { url: 'http://x' } },
-    agents: { fixer: { enabled: true }, github: { enabled: true, repo: 'o/r', ci: { attempts: 2 } } } });
+  const config = parseConfig({
+    version: 1,
+    app: { connect: { url: 'http://x' } },
+    agents: { fixer: { enabled: true }, github: { enabled: true, repo: 'o/r', ci: { attempts: 2 } } },
+  });
   return { root, worktree, config };
 }
 
@@ -63,13 +75,20 @@ describe('watchCi', () => {
     const f = await fixture();
     try {
       const prompts: string[] = [];
-      const runtime: Runtime = { label: 'scripted', async run(task) {
-        prompts.push(task.prompt);
-        await writeFile(join(task.workdir!, 'app.ts'), 'export const x = 2;\n');
-        return { stop: 'done', steps: 1, costUsd: 0, summary: 'Fixed the test.' };
-      } };
-      const result = await watchCi(f.root, f.config, { gh: fakeGh([[failed], [passed]]), createRuntime: () => runtime,
-        wait: true, sleep: async () => {} });
+      const runtime: Runtime = {
+        label: 'scripted',
+        async run(task) {
+          prompts.push(task.prompt);
+          await writeFile(join(task.workdir!, 'app.ts'), 'export const x = 2;\n');
+          return { stop: 'done', steps: 1, costUsd: 0, summary: 'Fixed the test.' };
+        },
+      };
+      const result = await watchCi(f.root, f.config, {
+        gh: fakeGh([[failed], [passed]]),
+        createRuntime: () => runtime,
+        wait: true,
+        sleep: async () => {},
+      });
       expect(result.problems).toEqual([]);
       expect(prompts[0]).toContain('Error: expected 2, got 1');
       const fix = (await new Workspace(f.root).listFixes())[0]!;
@@ -85,13 +104,20 @@ describe('watchCi', () => {
     const f = await fixture();
     try {
       let runs = 0;
-      const runtime: Runtime = { label: 'scripted', async run(task) {
-        runs++;
-        await writeFile(join(task.workdir!, 'app.ts'), `export const x = ${runs + 2};\n`);
-        return { stop: 'done', steps: 1, costUsd: 0, summary: 'Tried.' };
-      } };
-      const result = await watchCi(f.root, f.config, { gh: fakeGh([[failed]]), createRuntime: () => runtime,
-        wait: true, sleep: async () => {} });
+      const runtime: Runtime = {
+        label: 'scripted',
+        async run(task) {
+          runs++;
+          await writeFile(join(task.workdir!, 'app.ts'), `export const x = ${runs + 2};\n`);
+          return { stop: 'done', steps: 1, costUsd: 0, summary: 'Tried.' };
+        },
+      };
+      const result = await watchCi(f.root, f.config, {
+        gh: fakeGh([[failed]]),
+        createRuntime: () => runtime,
+        wait: true,
+        sleep: async () => {},
+      });
       expect(runs).toBe(2);
       expect(result.problems).toEqual([expect.stringContaining('A person must look')]);
       expect((await new Workspace(f.root).listFixes())[0]!.ci).toMatchObject({ state: 'gave-up', attempts: 2 });
@@ -103,8 +129,12 @@ describe('watchCi', () => {
   it('leaves running checks for the next cycle when it does not wait', async () => {
     const f = await fixture();
     try {
-      await watchCi(f.root, f.config, { gh: fakeGh([[{ name: 'test', bucket: 'pending' }]]),
-        createRuntime: () => { throw new Error('no fixer'); } });
+      await watchCi(f.root, f.config, {
+        gh: fakeGh([[{ name: 'test', bucket: 'pending' }]]),
+        createRuntime: () => {
+          throw new Error('no fixer');
+        },
+      });
       expect((await new Workspace(f.root).listFixes())[0]!.ci).toMatchObject({ state: 'pending', attempts: 0 });
     } finally {
       await rm(f.root, { recursive: true, force: true });
@@ -116,8 +146,13 @@ describe('watchCi', () => {
     try {
       f.config.agents.fixer.enabled = false;
       const logs: string[] = [];
-      await watchCi(f.root, f.config, { gh: fakeGh([[failed]]), onLog: (line) => logs.push(line),
-        createRuntime: () => { throw new Error('must not run'); } });
+      await watchCi(f.root, f.config, {
+        gh: fakeGh([[failed]]),
+        onLog: (line) => logs.push(line),
+        createRuntime: () => {
+          throw new Error('must not run');
+        },
+      });
       expect(logs.join('\n')).toContain('The fixer is off');
       expect((await new Workspace(f.root).listFixes())[0]?.ci).toMatchObject({ state: 'failed', attempts: 0 });
     } finally {

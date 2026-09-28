@@ -27,10 +27,7 @@ export function maskedPixelCount(masks: MaskRegion[], width: number, height: num
 }
 
 /** Coarse connected-component grouping. Feeds the fingerprint region signature. */
-export function boundingRegions(
-  pixels: Array<{ x: number; y: number }>,
-  gridPx = 32,
-): RegionBox[] {
+export function boundingRegions(pixels: Array<{ x: number; y: number }>, gridPx = 32): RegionBox[] {
   if (pixels.length === 0) return [];
   const cells = new Map<string, RegionBox>();
   for (const p of pixels) {

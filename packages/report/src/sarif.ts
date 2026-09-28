@@ -27,7 +27,14 @@ export function toSarif(findings: Finding[], version = '0.0.0'): string {
       version: '2.1.0',
       runs: [
         {
-          tool: { driver: { name: 'Bugpatrol', version, informationUri: 'https://github.com/agent-labs-dev/bugpatrol', rules } },
+          tool: {
+            driver: {
+              name: 'Bugpatrol',
+              version,
+              informationUri: 'https://github.com/agent-labs-dev/bugpatrol',
+              rules,
+            },
+          },
           results,
         },
       ],

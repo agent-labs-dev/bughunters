@@ -1,5 +1,5 @@
+import { bugpatrolConfigSchema, ConfigError } from '@bugpatrol/core';
 import { describe, expect, it } from 'vitest';
-import { ConfigError, bugpatrolConfigSchema } from '@bugpatrol/core';
 import { createDriver } from './factory.js';
 
 const vars = (value: string) => value;

@@ -1,17 +1,19 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { appendFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createServer } from 'node:net';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { AgentReader } from './agents.js';
-import { layoutGraph } from './ui/graph-layout.js';
 import { writeAgentFixture } from './fixtures/agent-workspace.js';
-import { startDashboard, watchProject, type Dashboard } from './server.js';
+import { type Dashboard, startDashboard, watchProject } from './server.js';
+import { layoutGraph } from './ui/graph-layout.js';
 
 let root: string;
 let dashboard: Dashboard | undefined;
 
-beforeEach(() => { root = mkdtempSync(join(tmpdir(), 'bugpatrol-agents-')); });
+beforeEach(() => {
+  root = mkdtempSync(join(tmpdir(), 'bugpatrol-agents-'));
+});
 afterEach(async () => {
   await dashboard?.close();
   dashboard = undefined;
@@ -31,40 +33,90 @@ describe('AgentReader', () => {
     map.screens[4].links = ['home'];
     for (const screen of map.screens.slice(0, 4)) screen.routineId = `screen-${screen.id}`;
     writeFileSync(file, JSON.stringify(map));
-    const routine = { version: 1, id: 'enter-app', description: 'Enter', platform: 'electron',
-      screenId: null, steps: [], createdAt: '', updatedAt: '' };
+    const routine = {
+      version: 1,
+      id: 'enter-app',
+      description: 'Enter',
+      platform: 'electron',
+      screenId: null,
+      steps: [],
+      createdAt: '',
+      updatedAt: '',
+    };
     mkdirSync(join(root, '.bugpatrol', 'runs', 'routines'), { recursive: true });
     writeFileSync(join(root, '.bugpatrol', 'runs', 'routines', 'enter-app.json'), JSON.stringify(routine));
     for (const [id, screenId, requires] of [
       ['screen-settings', 'settings', ['screen-home']],
       ['screen-billing', 'billing', ['enter-app']],
       ['screen-projects', 'projects', ['missing']],
-    ] as const) writeFileSync(join(root, '.bugpatrol', 'runs', 'routines', `${id}.json`),
-      JSON.stringify({ ...routine, id, screenId, requires }));
+    ] as const)
+      writeFileSync(
+        join(root, '.bugpatrol', 'runs', 'routines', `${id}.json`),
+        JSON.stringify({ ...routine, id, screenId, requires }),
+      );
     const result = new AgentReader(root).screens();
     expect(result.entryId).toBe('__start');
-    expect(result.screens.find((screen) => screen.id === '__start'))
-      .toMatchObject({ name: 'App start', virtual: true });
-    expect(result.edges.filter((edge) => edge.from === 'home'))
-      .toEqual([{ from: 'home', to: 'settings', kind: 'tap', via: 'Settings', count: 3, steps: 1 },
-        { from: 'home', to: 'settings', kind: 'route', via: 'route', count: 1, steps: 0 }]);
-    expect(result.edges).toContainEqual({ from: '__start', to: 'billing', kind: 'route',
-      via: 'route', count: 1, steps: 0 });
-    expect(result.edges).toContainEqual({ from: '__start', to: 'projects', kind: 'route',
-      via: 'route', count: 1, steps: 0 });
-    expect(result.edges).toContainEqual({ from: 'profile', to: 'home', kind: 'other',
-      via: undefined, count: 1, steps: 0 });
+    expect(result.screens.find((screen) => screen.id === '__start')).toMatchObject({
+      name: 'App start',
+      virtual: true,
+    });
+    expect(result.edges.filter((edge) => edge.from === 'home')).toEqual([
+      { from: 'home', to: 'settings', kind: 'tap', via: 'Settings', count: 3, steps: 1 },
+      { from: 'home', to: 'settings', kind: 'route', via: 'route', count: 1, steps: 0 },
+    ]);
+    expect(result.edges).toContainEqual({
+      from: '__start',
+      to: 'billing',
+      kind: 'route',
+      via: 'route',
+      count: 1,
+      steps: 0,
+    });
+    expect(result.edges).toContainEqual({
+      from: '__start',
+      to: 'projects',
+      kind: 'route',
+      via: 'route',
+      count: 1,
+      steps: 0,
+    });
+    expect(result.edges).toContainEqual({
+      from: 'profile',
+      to: 'home',
+      kind: 'other',
+      via: undefined,
+      count: 1,
+      steps: 0,
+    });
     expect(result.edges.some((edge) => edge.from === 'projects')).toBe(false);
   });
 
   it('links App start to the enter-app screen when every screen has an edge in', () => {
     const dir = join(root, '.bugpatrol', 'runs');
     mkdirSync(join(dir, 'routines'), { recursive: true });
-    const screen = (id: string, to: string) => ({ id, name: id, routineId: `screen-${id}`, links: [],
-      transitions: [{ to, kind: 'tap', via: to, count: 1, steps: 1 }], lastSeenAt: '', firstSeenAt: '' });
-    writeFileSync(join(dir, 'appmap.json'), JSON.stringify({ version: 1, platform: 'web', updatedAt: '',
-      screens: [screen('chat', 'home'), screen('home', 'chat')] }));
-    for (const [id, requires] of [['enter-app', ['screen-home']], ['screen-home', []], ['screen-chat', []]] as const) {
+    const screen = (id: string, to: string) => ({
+      id,
+      name: id,
+      routineId: `screen-${id}`,
+      links: [],
+      transitions: [{ to, kind: 'tap', via: to, count: 1, steps: 1 }],
+      lastSeenAt: '',
+      firstSeenAt: '',
+    });
+    writeFileSync(
+      join(dir, 'appmap.json'),
+      JSON.stringify({
+        version: 1,
+        platform: 'web',
+        updatedAt: '',
+        screens: [screen('chat', 'home'), screen('home', 'chat')],
+      }),
+    );
+    for (const [id, requires] of [
+      ['enter-app', ['screen-home']],
+      ['screen-home', []],
+      ['screen-chat', []],
+    ] as const) {
       writeFileSync(join(dir, 'routines', `${id}.json`), JSON.stringify({ id, requires, screenId: null, steps: [] }));
     }
     const result = new AgentReader(root).screens();
@@ -76,35 +128,70 @@ describe('AgentReader', () => {
     const dir = join(root, '.bugpatrol', 'runs');
     mkdirSync(join(dir, 'routines'), { recursive: true });
     const ids = ['signin', 'home', 'settings', 'browse'];
-    writeFileSync(join(dir, 'appmap.json'), JSON.stringify({ version: 1, platform: 'web', updatedAt: '',
-      screens: ids.map((id) => ({ id, name: id, routineId: `screen-${id}`, links: [],
-        lastSeenAt: '2026-01-01', firstSeenAt: '2026-01-01' })) }));
+    writeFileSync(
+      join(dir, 'appmap.json'),
+      JSON.stringify({
+        version: 1,
+        platform: 'web',
+        updatedAt: '',
+        screens: ids.map((id) => ({
+          id,
+          name: id,
+          routineId: `screen-${id}`,
+          links: [],
+          lastSeenAt: '2026-01-01',
+          firstSeenAt: '2026-01-01',
+        })),
+      }),
+    );
     for (const [id, requires] of [
-      ['enter-app', []], ['screen-signin', []], ['screen-home', ['enter-app']],
-      ['screen-settings', ['screen-home']], ['screen-browse', ['enter-app']],
-    ] as const) writeFileSync(join(dir, 'routines', `${id}.json`),
-      JSON.stringify({ id, requires, screenId: null, steps: [] }));
+      ['enter-app', []],
+      ['screen-signin', []],
+      ['screen-home', ['enter-app']],
+      ['screen-settings', ['screen-home']],
+      ['screen-browse', ['enter-app']],
+    ] as const)
+      writeFileSync(join(dir, 'routines', `${id}.json`), JSON.stringify({ id, requires, screenId: null, steps: [] }));
     const result = new AgentReader(root).screens();
-    expect(result.edges.filter((edge) => edge.from === '__start').map((edge) => edge.to).sort())
-      .toEqual(['browse', 'home', 'signin']);
-    expect(result.edges).toContainEqual({ from: 'home', to: 'settings', kind: 'route',
-      via: 'route', count: 1, steps: 0 });
+    expect(
+      result.edges
+        .filter((edge) => edge.from === '__start')
+        .map((edge) => edge.to)
+        .sort(),
+    ).toEqual(['browse', 'home', 'signin']);
+    expect(result.edges).toContainEqual({
+      from: 'home',
+      to: 'settings',
+      kind: 'route',
+      via: 'route',
+      count: 1,
+      steps: 0,
+    });
     const reached = new Set(['__start']);
-    for (let pass = 0; pass < result.screens.length; pass++) for (const edge of result.edges) {
-      if (reached.has(edge.from)) reached.add(edge.to);
-    }
+    for (let pass = 0; pass < result.screens.length; pass++)
+      for (const edge of result.edges) {
+        if (reached.has(edge.from)) reached.add(edge.to);
+      }
     expect(reached.size).toBe(result.screens.length);
     expect(layoutGraph(result.screens, result.edges, result.entryId).unlinkedY).toBeNull();
   });
 
   it('shows a role that has not run yet from the config, not as off', () => {
     mkdirSync(join(root, '.bugpatrol'), { recursive: true });
-    writeFileSync(join(root, '.bugpatrol', 'bugpatrol.yml'), [
-      'version: 1', 'app:', '  connect: { url: "http://localhost:3000" }', 'agents:',
-      '  explorer: { use: { runtime: model, via: openrouter, model: z-ai/glm-5.3-flash } }',
-      '  judge: { use: claude }', '',
-    ].join('\n'));
-    const agents = (new AgentReader(root).overview() as { agents: { role: string; state: string; runtime: string }[] }).agents;
+    writeFileSync(
+      join(root, '.bugpatrol', 'bugpatrol.yml'),
+      [
+        'version: 1',
+        'app:',
+        '  connect: { url: "http://localhost:3000" }',
+        'agents:',
+        '  explorer: { use: { runtime: model, via: openrouter, model: z-ai/glm-5.3-flash } }',
+        '  judge: { use: claude }',
+        '',
+      ].join('\n'),
+    );
+    const agents = (new AgentReader(root).overview() as { agents: { role: string; state: string; runtime: string }[] })
+      .agents;
     expect(agents).toMatchObject([
       { role: 'explorer', state: 'idle', runtime: 'model:openrouter/z-ai/glm-5.3-flash' },
       { role: 'judge', state: 'idle', runtime: 'cli:claude' },
@@ -117,8 +204,11 @@ describe('AgentReader', () => {
     expect(reader.issues()).toEqual([]);
     expect(reader.sessions()).toEqual([]);
     expect(reader.appmap().screens).toEqual([]);
-    expect((reader.overview() as { agents: { state: string }[] }).agents.map((agent) => agent.state))
-      .toEqual(['off', 'off', 'off']);
+    expect((reader.overview() as { agents: { state: string }[] }).agents.map((agent) => agent.state)).toEqual([
+      'off',
+      'off',
+      'off',
+    ]);
     mkdirSync(join(root, '.bugpatrol', 'runs', 'issues'), { recursive: true });
     writeFileSync(join(root, '.bugpatrol', 'runs', 'agents.json'), '{');
     writeFileSync(join(root, '.bugpatrol', 'runs', 'issues', 'broken.json'), '{');
@@ -169,12 +259,23 @@ describe('AgentReader', () => {
     const reader = new AgentReader(root);
     const issue = reader.issues().find((item) => item.id === 'iss-settings')!;
     const fix = reader.issue(issue.id)!.fix!;
-    writeFileSync(join(root, '.bugpatrol', 'runs', 'issues', `${issue.id}.json`), JSON.stringify({ ...issue,
-      github: { number: 8, url: 'https://github.com/o/r/issues/8', at: 'now', state: 'open' } }));
-    writeFileSync(join(root, '.bugpatrol', 'runs', 'fixes', `${fix.id}.json`), JSON.stringify({ ...fix,
-      pr: { number: 7, url: 'https://github.com/o/r/pull/7', draft: false, state: 'merged' } }));
+    writeFileSync(
+      join(root, '.bugpatrol', 'runs', 'issues', `${issue.id}.json`),
+      JSON.stringify({
+        ...issue,
+        github: { number: 8, url: 'https://github.com/o/r/issues/8', at: 'now', state: 'open' },
+      }),
+    );
+    writeFileSync(
+      join(root, '.bugpatrol', 'runs', 'fixes', `${fix.id}.json`),
+      JSON.stringify({
+        ...fix,
+        pr: { number: 7, url: 'https://github.com/o/r/pull/7', draft: false, state: 'merged' },
+      }),
+    );
     expect(reader.issues().find((item) => item.id === issue.id)).toMatchObject({
-      github: { state: 'open' }, pr: { state: 'merged' },
+      github: { state: 'open' },
+      pr: { state: 'merged' },
     });
     expect((reader.overview() as { github: string }).github).toContain('1 merged');
   });
@@ -200,15 +301,14 @@ describe.skipIf(!canBind)('agent API', () => {
     expect(routines).toHaveLength(2);
     expect(routines[0].steps).toBe(1);
   });
-
-
 });
-
 
 describe('watchProject', () => {
   it('picks up .bugpatrol created after start', async () => {
     let changes = 0;
-    const watcher = watchProject(root, () => { changes += 1; });
+    const watcher = watchProject(root, () => {
+      changes += 1;
+    });
     expect(watcher).toBeDefined();
     try {
       mkdirSync(join(root, '.bugpatrol'));
@@ -227,16 +327,40 @@ describe('stale status', () => {
       // A pid far above any real one: the process cannot exist.
       const dead = 2 ** 22 + 12345;
       mkdirSync(join(root, '.bugpatrol', 'runs', 'sessions', 'ses_1'), { recursive: true });
-      writeFileSync(join(root, '.bugpatrol', 'runs', 'agents.json'), JSON.stringify({
-        version: 1,
-        patrol: { cycle: 1, state: 'running', startedAt: '2026-01-01T00:00:00.000Z', pid: dead },
-        agents: [{ role: 'fixer', state: 'working', activity: 'Fixing 9 issues', runtime: 'cli:claude',
-          updatedAt: '2026-01-01T00:00:00.000Z', spentUsd: 0, pid: dead }],
-      }));
-      writeFileSync(join(root, '.bugpatrol', 'runs', 'sessions', 'ses_1', 'session.json'), JSON.stringify({
-        version: 1, id: 'ses_1', role: 'fixer', pid: dead, startedAt: '2026-01-01T00:00:00.000Z',
-        status: 'running', steps: 0, costUsd: 0, screensFound: [], candidates: 0, issues: [],
-      }));
+      writeFileSync(
+        join(root, '.bugpatrol', 'runs', 'agents.json'),
+        JSON.stringify({
+          version: 1,
+          patrol: { cycle: 1, state: 'running', startedAt: '2026-01-01T00:00:00.000Z', pid: dead },
+          agents: [
+            {
+              role: 'fixer',
+              state: 'working',
+              activity: 'Fixing 9 issues',
+              runtime: 'cli:claude',
+              updatedAt: '2026-01-01T00:00:00.000Z',
+              spentUsd: 0,
+              pid: dead,
+            },
+          ],
+        }),
+      );
+      writeFileSync(
+        join(root, '.bugpatrol', 'runs', 'sessions', 'ses_1', 'session.json'),
+        JSON.stringify({
+          version: 1,
+          id: 'ses_1',
+          role: 'fixer',
+          pid: dead,
+          startedAt: '2026-01-01T00:00:00.000Z',
+          status: 'running',
+          steps: 0,
+          costUsd: 0,
+          screensFound: [],
+          candidates: 0,
+          issues: [],
+        }),
+      );
       const reader = new AgentReader(root);
       expect(reader.agents()?.patrol?.state).toBe('stopped');
       expect(reader.agents()?.agents[0]).toMatchObject({ state: 'idle', activity: 'Stopped: its process ended.' });
@@ -252,21 +376,46 @@ describe('usageReport', () => {
     const { usageReport } = await import('./agents.js');
     const now = new Date(2026, 8, 26, 12);
     const at = (day: number, hour: number) => new Date(2026, 8, day, hour).toISOString();
-    const session = (id: string, role: 'explorer' | 'judge', startedAt: string, byModel: Record<string, { input: number; output: number }>) => ({
-      version: 1 as const, id, role, startedAt, status: 'finished' as const, steps: 1, costUsd: 0, screensFound: [], candidates: 0, issues: [],
-      tokens: Object.values(byModel).reduce((sum, u) => ({ input: sum.input + u.input, output: sum.output + u.output }), { input: 0, output: 0 }),
+    const session = (
+      id: string,
+      role: 'explorer' | 'judge',
+      startedAt: string,
+      byModel: Record<string, { input: number; output: number }>,
+    ) => ({
+      version: 1 as const,
+      id,
+      role,
+      startedAt,
+      status: 'finished' as const,
+      steps: 1,
+      costUsd: 0,
+      screensFound: [],
+      candidates: 0,
+      issues: [],
+      tokens: Object.values(byModel).reduce(
+        (sum, u) => ({ input: sum.input + u.input, output: sum.output + u.output }),
+        { input: 0, output: 0 },
+      ),
       tokensByModel: byModel,
     });
-    const report = usageReport([
-      session('a', 'explorer', at(26, 10), { glm: { input: 1000, output: 100 }, 'gpt-mini': { input: 300, output: 0 } }),
-      session('b', 'explorer', at(24, 10), { glm: { input: 3000, output: 300 } }),
-      session('c', 'judge', at(26, 11), { 'claude-sonnet-5': { input: 500, output: 50 } }),
-      session('old', 'judge', at(1, 11), { 'claude-sonnet-5': { input: 9999, output: 9 } }),
-    ], now);
+    const report = usageReport(
+      [
+        session('a', 'explorer', at(26, 10), {
+          glm: { input: 1000, output: 100 },
+          'gpt-mini': { input: 300, output: 0 },
+        }),
+        session('b', 'explorer', at(24, 10), { glm: { input: 3000, output: 300 } }),
+        session('c', 'judge', at(26, 11), { 'claude-sonnet-5': { input: 500, output: 50 } }),
+        session('old', 'judge', at(1, 11), { 'claude-sonnet-5': { input: 9999, output: 9 } }),
+      ],
+      now,
+    );
     expect(report.todayByRole.explorer).toEqual({ input: 1300, output: 100 });
     expect(report.todayByRole.judge).toEqual({ input: 500, output: 50 });
     expect(report.week.map((row) => [row.role, row.model, row.sessions, row.tokens.input])).toEqual([
-      ['explorer', 'glm', 2, 4000], ['explorer', 'gpt-mini', 1, 300], ['judge', 'claude-sonnet-5', 1, 500],
+      ['explorer', 'glm', 2, 4000],
+      ['explorer', 'gpt-mini', 1, 300],
+      ['judge', 'claude-sonnet-5', 1, 500],
     ]);
     expect(report.weekTotal).toEqual({ input: 4800, output: 450 });
   });

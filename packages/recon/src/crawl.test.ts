@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeUrl, Frontier, CrawlBudgetGuard } from './crawl.js';
+import { CrawlBudgetGuard, Frontier, normalizeUrl } from './crawl.js';
 
 describe('normalizeUrl', () => {
   it('collapses list/detail routes into one screen template', () => {

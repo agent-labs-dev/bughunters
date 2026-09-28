@@ -1,8 +1,8 @@
-import { describe, expect, it } from 'vitest';
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { parseConfig } from '@bugpatrol/core';
+import { describe, expect, it } from 'vitest';
 import { runChecks } from './doctor.js';
 
 function project(): string {
@@ -14,7 +14,11 @@ function project(): string {
 
 describe('runChecks', () => {
   it('checks each agent LLM, and leaves out the gate checks without a run block', () => {
-    const config = parseConfig({ version: 1, app: { connect: { url: 'http://localhost:3000' } }, agents: { explorer: { use: { runtime: 'model', via: 'openrouter' } } } });
+    const config = parseConfig({
+      version: 1,
+      app: { connect: { url: 'http://localhost:3000' } },
+      agents: { explorer: { use: { runtime: 'model', via: 'openrouter' } } },
+    });
     const checks = runChecks(project(), config);
     const names = checks.map((check) => check.name);
     expect(names).toEqual(expect.arrayContaining(['config', 'node', 'explorer', 'judge']));

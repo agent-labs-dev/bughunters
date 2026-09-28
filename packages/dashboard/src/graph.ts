@@ -59,11 +59,7 @@ export type AppGraph = {
  * Bugpatrol has never looked at. Showing coverage honestly is the whole point --
  * a map that only draws what was tested implies the rest does not exist.
  */
-export function buildGraph(
-  model: AppModel | undefined,
-  run: RunRecord | undefined,
-  live?: LiveProgress,
-): AppGraph {
+export function buildGraph(model: AppModel | undefined, run: RunRecord | undefined, live?: LiveProgress): AppGraph {
   // A run in flight wins: watching the map fill in as Bugpatrol walks the app is
   // the point of having it live, and the finished run is one refresh away.
   if (live?.status === 'running' && live.captured.length > 0) return fromLive(live);
@@ -302,7 +298,8 @@ export function problemKey(ruleId: string | undefined, summary: string | undefin
   return `${ruleId ?? ''}\u0000${(summary ?? '').replace(/"[^"]*"/, '"…"')}`;
 }
 
-const NON_PAGE_EXTENSION = /\.(xml|rss|atom|json|txt|csv|pdf|zip|gz|tar|dmg|exe|msi|pkg|apk|ipa|deb|rpm|png|jpe?g|gif|svg|webp|ico|mp4|mp3|wav|woff2?|ttf|otf|js|css|map)$/i;
+const NON_PAGE_EXTENSION =
+  /\.(xml|rss|atom|json|txt|csv|pdf|zip|gz|tar|dmg|exe|msi|pkg|apk|ipa|deb|rpm|png|jpe?g|gif|svg|webp|ico|mp4|mp3|wav|woff2?|ttf|otf|js|css|map)$/i;
 const FEED_SEGMENT = /^(rss|atom|feed|feeds|sitemap)(\.xml)?$/i;
 
 /**

@@ -3,10 +3,10 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
+import { type Locator, type Platform, sha256 } from '@bugpatrol/core';
+import type { ScreenSnapshot } from '@bugpatrol/invariants';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
-import { sha256, type Locator, type Platform } from '@bugpatrol/core';
-import type { ScreenSnapshot } from '@bugpatrol/invariants';
 import { locatorFor, stepFor } from './dom.js';
 import type { ActResult, Driver, DriverAction, Observation, UiElement } from './types.js';
 
@@ -48,9 +48,7 @@ export function parseHierarchy(parts: Part[]): Schema {
       if (Array.isArray(value.elements)) {
         return value;
       }
-    } catch {
-      continue;
-    }
+    } catch {}
   }
   throw new Error('Maestro inspect_screen returned no element hierarchy');
 }
@@ -65,12 +63,14 @@ function bounds(value: unknown): UiElement['box'] | undefined {
 }
 
 function inside(box: UiElement['box'], root: UiElement['box']): boolean {
-  return box.width > 0
-    && box.height > 0
-    && box.x >= root.x
-    && box.y >= root.y
-    && box.x + box.width <= root.x + root.width
-    && box.y + box.height <= root.y + root.height;
+  return (
+    box.width > 0 &&
+    box.height > 0 &&
+    box.x >= root.x &&
+    box.y >= root.y &&
+    box.x + box.width <= root.x + root.width &&
+    box.y + box.height <= root.y + root.height
+  );
 }
 
 function nativeRole(
@@ -119,7 +119,7 @@ export function flattenHierarchy(schema: Schema): {
     const rid = String(read(node, 'resource-id') ?? '').trim();
     const name = a11y || txt || hint || val || rid;
     const children = read(node, 'children');
-    const descendants = Array.isArray(children) ? children as Node[] : [];
+    const descendants = Array.isArray(children) ? (children as Node[]) : [];
     let current = parent;
     if (box && inside(box, root) && name) {
       const duplicate = parent && parent.name === name && JSON.stringify(parent.box) === JSON.stringify(box);
@@ -157,7 +157,18 @@ export function flattenHierarchy(schema: Schema): {
   return { elements, viewport };
 }
 
-const KEYBOARD_KEYS = new Set(['shift', 'delete', 'space', 'numbers', 'more', 'go', 'return', 'emoji', 'dictate', 'next keyboard']);
+const KEYBOARD_KEYS = new Set([
+  'shift',
+  'delete',
+  'space',
+  'numbers',
+  'more',
+  'go',
+  'return',
+  'emoji',
+  'dictate',
+  'next keyboard',
+]);
 
 /**
  * Removes what belongs to the OS rather than the app: the root node, the
@@ -171,14 +182,13 @@ export function pruneSystemChrome(
   viewport: { width: number; height: number },
   statusBarHeight: number,
 ): UiElement[] {
-  const isRoot = (element: UiElement) =>
-    element.box.width >= viewport.width && element.box.height >= viewport.height;
+  const isRoot = (element: UiElement) => element.box.width >= viewport.width && element.box.height >= viewport.height;
   const inStatusBar = (element: UiElement) => element.box.y + element.box.height <= statusBarHeight;
   const isScrollBar = (element: UiElement) => /scroll bar/i.test(element.name);
   const isKey = (element: UiElement) =>
-    element.role === 'button'
-    && element.box.y >= viewport.height * 0.4
-    && (element.name.length === 1 || KEYBOARD_KEYS.has(element.name.toLowerCase()));
+    element.role === 'button' &&
+    element.box.y >= viewport.height * 0.4 &&
+    (element.name.length === 1 || KEYBOARD_KEYS.has(element.name.toLowerCase()));
 
   const keys = elements.filter(isKey);
   const keyboardOpen = keys.length >= 15;
@@ -230,8 +240,12 @@ export function tapCommand(locator: Locator): string {
 
 export function typeCommands(action: Extract<DriverAction, { kind: 'type' }>, target: Target): string[] {
   const commands = target.locator ? [tapCommand(target.locator)] : [];
-  if (!action.append) commands.push(`eraseText: ${target.element?.value === undefined || target.element.value === '••••'
-    ? 100 : target.element.value.length + 10}`);
+  if (!action.append)
+    commands.push(
+      `eraseText: ${
+        target.element?.value === undefined || target.element.value === '••••' ? 100 : target.element.value.length + 10
+      }`,
+    );
   commands.push(`inputText: ${yamlString(action.value)}`);
   if (action.submit) commands.push('pressKey: Enter');
   return commands;
@@ -287,7 +301,10 @@ export class MaestroDriver implements Driver {
   private deviceId?: string;
   private lastObservation?: Observation;
 
-  constructor(platform: 'ios' | 'android', private readonly options: MaestroOptions) {
+  constructor(
+    platform: 'ios' | 'android',
+    private readonly options: MaestroOptions,
+  ) {
     this.platform = platform;
   }
 
@@ -299,7 +316,7 @@ export class MaestroDriver implements Driver {
     });
     this.client = new Client({ name: 'bugpatrol-drivers', version: '0.0.0' });
     await this.client.connect(this.transport);
-    this.deviceId = this.options.device ?? await this.defaultDevice();
+    this.deviceId = this.options.device ?? (await this.defaultDevice());
   }
 
   private async defaultDevice(): Promise<string> {
@@ -314,7 +331,8 @@ export class MaestroDriver implements Driver {
         }
       } else {
         const { stdout } = await exec('adb', ['devices']);
-        const serial = stdout.split('\n')
+        const serial = stdout
+          .split('\n')
           .slice(1)
           .map((line) => /^([^\s]+)\s+device$/.exec(line)?.[1])
           .find(Boolean);
@@ -333,15 +351,11 @@ export class MaestroDriver implements Driver {
       try {
         const parsed = JSON.parse(part.text) as unknown;
         const list = Array.isArray(parsed) ? parsed : (parsed as { devices?: unknown[] }).devices;
-        const first = Array.isArray(list)
-          ? list[0] as { id?: string; device_id?: string } | undefined
-          : undefined;
+        const first = Array.isArray(list) ? (list[0] as { id?: string; device_id?: string } | undefined) : undefined;
         if (first?.device_id || first?.id) {
           return first.device_id ?? first.id!;
         }
-      } catch {
-        continue;
-      }
+      } catch {}
     }
     throw new Error(`No ${this.platform} device available`);
   }
@@ -385,13 +399,15 @@ export class MaestroDriver implements Driver {
       screenshot,
       viewport: { ...viewport, scale: pixelWidth / viewport.width },
       elements,
-      volatileRegions: [{
-        x: 0,
-        y: 0,
-        width: viewport.width,
-        height: statusBar,
-        reason: 'status bar',
-      }],
+      volatileRegions: [
+        {
+          x: 0,
+          y: 0,
+          width: viewport.width,
+          height: statusBar,
+          reason: 'status bar',
+        },
+      ],
       consoleErrors: [],
       at: new Date().toISOString(),
     };
@@ -400,9 +416,7 @@ export class MaestroDriver implements Driver {
   }
 
   private target(action: Extract<DriverAction, { kind: 'tap' | 'type' | 'scroll' }>): Target {
-    const element = action.ref
-      ? this.lastObservation?.elements.find((item) => item.ref === action.ref)
-      : undefined;
+    const element = action.ref ? this.lastObservation?.elements.find((item) => item.ref === action.ref) : undefined;
     if (action.ref && !element) {
       throw new Error(`Unknown element ref: ${action.ref}`);
     }
@@ -463,9 +477,7 @@ export class MaestroDriver implements Driver {
   }
 
   private async back(): Promise<void> {
-    const command = this.platform === 'ios'
-      ? 'swipe:\n    start: "2%,50%"\n    end: "90%,50%"'
-      : 'back';
+    const command = this.platform === 'ios' ? 'swipe:\n    start: "2%,50%"\n    end: "90%,50%"' : 'back';
     await this.run([command]);
   }
 
@@ -532,7 +544,10 @@ export class MaestroDriver implements Driver {
     let previous = '';
     let frames = 0;
     while (Date.now() - start < timeout) {
-      const inspection = await this.client!.callTool({ name: 'inspect_screen', arguments: { device_id: this.deviceId } });
+      const inspection = await this.client!.callTool({
+        name: 'inspect_screen',
+        arguments: { device_id: this.deviceId },
+      });
       const tree = flattenHierarchy(parseHierarchy(inspection.content as Part[]));
       const current = sha256(JSON.stringify(tree.elements.map((element) => [element.name, element.box])));
       frames++;

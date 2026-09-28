@@ -29,8 +29,10 @@ export const LEGACY_CONFIG_FILENAME = 'bughunters.yml';
  * `.bughunters/bughunters.yml` in a repo that has only that one.
  */
 export function layout(root: string): { dir: string; config: string } {
-  if (!existsSync(join(root, BUGPATROL_DIR, CONFIG_FILENAME))
-    && existsSync(join(root, LEGACY_DIR, LEGACY_CONFIG_FILENAME))) {
+  if (
+    !existsSync(join(root, BUGPATROL_DIR, CONFIG_FILENAME)) &&
+    existsSync(join(root, LEGACY_DIR, LEGACY_CONFIG_FILENAME))
+  ) {
     return { dir: LEGACY_DIR, config: LEGACY_CONFIG_FILENAME };
   }
   return { dir: BUGPATROL_DIR, config: CONFIG_FILENAME };

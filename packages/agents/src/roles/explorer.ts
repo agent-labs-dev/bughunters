@@ -1,9 +1,9 @@
 import { readFile } from 'node:fs/promises';
 import { instructionsPath } from '@bugpatrol/core';
-import type { Runtime, RoleOutcome, Tool } from '../types.js';
+import { explorerPrompt, explorerSystem } from '../prompts.js';
 import type { AgentSession } from '../session.js';
 import { explorerTools } from '../tools/explorer.js';
-import { explorerPrompt, explorerSystem } from '../prompts.js';
+import type { RoleOutcome, Runtime, Tool } from '../types.js';
 import { lessonsFor } from '../workspace.js';
 import { reflectOnSession } from './reflect.js';
 
@@ -51,8 +51,12 @@ export async function runExplorer(
   const task = {
     role: 'explorer' as const,
     sessionId: session.sessionId,
-    system: explorerSystem(session.config.app.platform, instructions,
-      lessonsFor(await session.workspace.readMemory(), 'explorer'), session.config.agents.checks),
+    system: explorerSystem(
+      session.config.app.platform,
+      instructions,
+      lessonsFor(await session.workspace.readMemory(), 'explorer'),
+      session.config.agents.checks,
+    ),
     prompt: explorerPrompt({
       goal: opts.goal,
       screens: map?.screens ?? [],
@@ -82,8 +86,10 @@ export async function runExplorer(
     });
     session.emit({ kind: 'session-end', summary: outcome.summary ?? `Explorer stopped: ${outcome.stop}` });
     await session.idle(outcome.costUsd);
-    const learned = await reflectOnSession(session.root, session.config, session.sessionId,
-      { vars: session.vars, onLog: (message) => session.emit({ kind: 'error', summary: message }) });
+    const learned = await reflectOnSession(session.root, session.config, session.sessionId, {
+      vars: session.vars,
+      onLog: (message) => session.emit({ kind: 'error', summary: message }),
+    });
     if (learned) session.emit({ kind: 'lesson', summary: `Saved ${learned} lesson(s) for the next sessions` });
     return outcome;
   } catch (error) {

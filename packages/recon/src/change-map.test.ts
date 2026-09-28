@@ -1,7 +1,7 @@
-import { describe, expect, it } from 'vitest';
-import { buildTestPlan, buildFileIndex, smokeSet } from './change-map.js';
-import { id } from '@bugpatrol/core';
 import type { AppModel, Screen } from '@bugpatrol/core';
+import { id } from '@bugpatrol/core';
+import { describe, expect, it } from 'vitest';
+import { buildFileIndex, buildTestPlan, smokeSet } from './change-map.js';
 
 function screen(path: string, files: string[]): Screen {
   return {
@@ -34,7 +34,14 @@ const model: AppModel = {
   summary: { purpose: '', audience: '', domainVocabulary: [], coreEntities: [] },
   screens,
   flows: [
-    { id: id.flow('signup'), name: 'sign up', goal: '', steps: [], screens: [id.screen('/dashboard')], criticality: 'entry' },
+    {
+      id: id.flow('signup'),
+      name: 'sign up',
+      goal: '',
+      steps: [],
+      screens: [id.screen('/dashboard')],
+      criticality: 'entry',
+    },
   ],
   edges: [],
   fileIndex: buildFileIndex({ screens }),

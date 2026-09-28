@@ -1,7 +1,13 @@
-import { chromium, type Browser, type BrowserContext, type Page } from 'playwright';
 import type { BugpatrolConfig, ViewportConfig } from '@bugpatrol/core';
 import { InfrastructureError, requireRun } from '@bugpatrol/core';
-import { DETERMINISTIC_CHROMIUM_ARGS, STABILITY_STYLESHEET, buildFreezeScript, FONT_AUDIT_SOURCE, type FontAudit } from './determinism.js';
+import { type Browser, type BrowserContext, chromium, type Page } from 'playwright';
+import {
+  buildFreezeScript,
+  DETERMINISTIC_CHROMIUM_ARGS,
+  FONT_AUDIT_SOURCE,
+  type FontAudit,
+  STABILITY_STYLESHEET,
+} from './determinism.js';
 
 export type CaptureSession = {
   browser: Browser;

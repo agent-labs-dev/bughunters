@@ -1,5 +1,5 @@
-import { ConfigError, type LessonRole } from '@bugpatrol/core';
 import { Workspace } from '@bugpatrol/agents';
+import { ConfigError, type LessonRole } from '@bugpatrol/core';
 
 const roles = new Set<LessonRole>(['explorer', 'judge', 'fixer']);
 const flag = (args: string[], name: string) => {
@@ -15,17 +15,25 @@ export async function runMemoryCommand(args: string[], root: string, log: (line:
     if (role && !roles.has(role as LessonRole)) throw new ConfigError(`Unknown memory role: ${role}`);
     const lessons = (await workspace.readMemory()).lessons.filter((lesson) => !role || lesson.role === role);
     log('id  role  hits  source  scope  text');
-    for (const lesson of lessons) log(`${lesson.id}  ${lesson.role}  ${lesson.hits}  ${lesson.source}  ${lesson.scope ?? 'app'}  ${lesson.text}${lesson.retired ? ' [retired]' : ''}`);
+    for (const lesson of lessons)
+      log(
+        `${lesson.id}  ${lesson.role}  ${lesson.hits}  ${lesson.source}  ${lesson.scope ?? 'app'}  ${lesson.text}${lesson.retired ? ' [retired]' : ''}`,
+      );
     if (!lessons.length) log('No lessons.');
     return;
   }
   if (action === 'add') {
     const role = flag(args.slice(1), '--role');
-    const text = args.slice(1).find((part, index, all) => !part.startsWith('--') && all[index - 1] !== '--role' && all[index - 1] !== '--scope');
+    const text = args
+      .slice(1)
+      .find(
+        (part, index, all) => !part.startsWith('--') && all[index - 1] !== '--role' && all[index - 1] !== '--scope',
+      );
     if (!role || !roles.has(role as LessonRole) || !text?.trim())
       throw new ConfigError('Usage: bugpatrol memory add --role explorer|judge|fixer "text" [--scope s]');
-    const [lesson] = await workspace.upsertLessons([{ role: role as LessonRole, source: 'human',
-      scope: flag(args.slice(1), '--scope'), text }]);
+    const [lesson] = await workspace.upsertLessons([
+      { role: role as LessonRole, source: 'human', scope: flag(args.slice(1), '--scope'), text },
+    ]);
     log(`Added ${lesson!.id}`);
     return;
   }

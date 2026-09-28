@@ -1,4 +1,4 @@
-import type { IntentId, ProjectId, ScreenId, FindingId } from './ids.js';
+import type { FindingId, IntentId, ProjectId, ScreenId } from './ids.js';
 
 export type IntentScope =
   | { kind: 'fingerprint'; fingerprint: string }
@@ -7,12 +7,7 @@ export type IntentScope =
   | { kind: 'rule'; ruleId: string }
   | { kind: 'rule-on-screen'; ruleId: string; screenId: ScreenId };
 
-export type IntentDecision =
-  | 'intended'
-  | 'not-intended'
-  | 'mute'
-  | 'tune-tolerance'
-  | 'exclude-screen';
+export type IntentDecision = 'intended' | 'not-intended' | 'mute' | 'tune-tolerance' | 'exclude-screen';
 
 /**
  * The Intent Ledger is Bugpatrol's institutional memory: the answer to a tool that

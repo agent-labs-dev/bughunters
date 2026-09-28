@@ -1,10 +1,10 @@
-import { readFileSync, existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { parse as parseYaml } from 'yaml';
-import { bugpatrolConfigSchema, type BugpatrolConfig } from './schema.js';
 import type { z } from 'zod';
-import type { runSchema } from './schema.js';
 import { ConfigError } from '../errors.js';
 import { BUGPATROL_DIR, CONFIG_FILENAME, legacyLayout, paths } from '../paths.js';
+import type { runSchema } from './schema.js';
+import { type BugpatrolConfig, bugpatrolConfigSchema } from './schema.js';
 
 /**
  * Config precedence: CLI flags > repo bugpatrol.yml > org defaults > detected
@@ -17,7 +17,9 @@ export function loadConfig(root = process.cwd(), overrides: Partial<BugpatrolCon
   if (!existsSync(path)) {
     const legacy = legacyLayout(root);
     if (legacy) throw new ConfigError(legacy);
-    throw new ConfigError(`No ${BUGPATROL_DIR}/${CONFIG_FILENAME} found in ${root} or above it. Run \`bugpatrol init\` first.`);
+    throw new ConfigError(
+      `No ${BUGPATROL_DIR}/${CONFIG_FILENAME} found in ${root} or above it. Run \`bugpatrol init\` first.`,
+    );
   }
 
   let raw: unknown;
@@ -33,9 +35,7 @@ export function loadConfig(root = process.cwd(), overrides: Partial<BugpatrolCon
 export function parseConfig(raw: unknown, source = '<inline>'): BugpatrolConfig {
   const result = bugpatrolConfigSchema.safeParse(raw);
   if (!result.success) {
-    const issues = result.error.issues
-      .map((i) => `  ${i.path.join('.') || '<root>'}: ${i.message}`)
-      .join('\n');
+    const issues = result.error.issues.map((i) => `  ${i.path.join('.') || '<root>'}: ${i.message}`).join('\n');
     throw new ConfigError(`Invalid config in ${source}:\n${issues}`);
   }
   return result.data;

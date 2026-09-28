@@ -1,29 +1,28 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { captureScreen, openSession, startApp, watchConsole } from '@bugpatrol/capture';
 import {
-  BugpatrolError,
-  BaselineStore,
-  ExitCode,
-  InfrastructureError,
-  requireRun,
-  baselineKeyFor,
-  paths,
-  shortHash,
   type AppModel,
+  BaselineStore,
   type BugpatrolConfig,
+  BugpatrolError,
+  baselineKeyFor,
+  ExitCode,
   type ExitCodeValue,
+  InfrastructureError,
   type LiveProgress,
+  paths,
   type RunMode,
+  requireRun,
+  shortHash,
   type ViewportConfig,
 } from '@bugpatrol/core';
-import { captureScreen, openSession, watchConsole } from '@bugpatrol/capture';
-import { startApp } from '@bugpatrol/capture';
 import { diff } from '@bugpatrol/diff';
 import type { ScreenSnapshot } from '@bugpatrol/invariants';
-import { executeRun, newRunId, type CapturedScreen, type RunResult } from './run-pipeline.js';
+import { type CapturedScreen, executeRun, newRunId, type RunResult } from './run-pipeline.js';
 
-export { executeRun } from './run-pipeline.js';
 export type { CapturedScreen, RunResult } from './run-pipeline.js';
+export { executeRun } from './run-pipeline.js';
 
 export type ScreenTarget = { id: string; url: string };
 
@@ -146,7 +145,10 @@ export async function runCommand(options: RunCommandOptions): Promise<RunResult>
 class LiveProgressWriter {
   private readonly state: LiveProgress;
 
-  constructor(private readonly root: string, plannedCaptures: number) {
+  constructor(
+    private readonly root: string,
+    plannedCaptures: number,
+  ) {
     this.state = {
       version: 1,
       runId: `pending_${Date.now().toString(36)}`,
@@ -176,7 +178,13 @@ class LiveProgressWriter {
       actual: screen.artifacts.actual,
       baselineCreated: screen.baselineCreated,
       changedPixels: screen.comparison?.primary.changedPixels,
-      links: (screen.snapshot.links ?? []).map((l) => ({ href: l.href, text: l.text, external: l.external, download: l.download, type: l.type })),
+      links: (screen.snapshot.links ?? []).map((l) => ({
+        href: l.href,
+        text: l.text,
+        external: l.external,
+        download: l.download,
+        type: l.type,
+      })),
     });
     this.flush();
   }

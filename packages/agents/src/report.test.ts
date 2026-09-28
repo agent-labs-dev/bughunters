@@ -1,21 +1,56 @@
-import { describe, expect, it } from 'vitest';
 import type { FixProposal, Issue } from '@bugpatrol/core';
+import { describe, expect, it } from 'vitest';
 import { buildReport } from './report.js';
 
-const issue: Issue = { version: 1, id: 'iss_1', fingerprint: 'fp', title: 'Broken screen',
-  body: 'What happened: SECRET was shown.\nExpected: no error.', severity: 'major', status: 'new',
-  screenId: 'home', candidateIds: [], evidence: { screenshot: 'before1.png' },
+const issue: Issue = {
+  version: 1,
+  id: 'iss_1',
+  fingerprint: 'fp',
+  title: 'Broken screen',
+  body: 'What happened: SECRET was shown.\nExpected: no error.',
+  severity: 'major',
+  status: 'new',
+  screenId: 'home',
+  candidateIds: [],
+  evidence: { screenshot: 'before1.png' },
   judgement: { by: 'judge', reason: 'People cannot continue.', at: '2026-01-01' },
-  occurrences: 2, firstSeenAt: '2026-01-01', lastSeenAt: '2026-01-02' };
-const fix: FixProposal = { version: 1, id: 'fix_1', issueId: issue.id, status: 'verified',
-  runtime: 'fake', repo: '', worktree: '', branch: 'fix', startedAt: 'now',
-  summary: 'Expanded the panel.', diffStat: 'app.ts | 2 +-',
-  retests: [{ attempt: 1, outcome: 'fixed', reason: 'Both screens work.', at: 'now',
-    shots: [{ screenId: 'home', before: 'before1.png', after: 'after1.png' },
-      { screenId: 'settings', before: 'before2.png', after: 'after2.png' }] }] };
-const base = { summary: 'The panel blocked the next step.', issue, candidates: [], fix,
+  occurrences: 2,
+  firstSeenAt: '2026-01-01',
+  lastSeenAt: '2026-01-02',
+};
+const fix: FixProposal = {
+  version: 1,
+  id: 'fix_1',
+  issueId: issue.id,
+  status: 'verified',
+  runtime: 'fake',
+  repo: '',
+  worktree: '',
+  branch: 'fix',
+  startedAt: 'now',
+  summary: 'Expanded the panel.',
+  diffStat: 'app.ts | 2 +-',
+  retests: [
+    {
+      attempt: 1,
+      outcome: 'fixed',
+      reason: 'Both screens work.',
+      at: 'now',
+      shots: [
+        { screenId: 'home', before: 'before1.png', after: 'after1.png' },
+        { screenId: 'settings', before: 'before2.png', after: 'after2.png' },
+      ],
+    },
+  ],
+};
+const base = {
+  summary: 'The panel blocked the next step.',
+  issue,
+  candidates: [],
+  fix,
   imageUrl: (path: string) => `https://example.test/${path}`,
-  redact: (text: string) => text.replaceAll('SECRET', '{{TOKEN}}') };
+  redact: (text: string) => text.replaceAll('SECRET', '{{TOKEN}}'),
+};
 
 describe('buildReport', () => {
   it('includes verification shots, closing link, footer, and redacts secrets', () => {

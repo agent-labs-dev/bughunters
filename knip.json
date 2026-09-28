@@ -1,0 +1,21 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "workspaces": {
+    "packages/bugpatrol": {
+      "entry": ["build.mjs"],
+      "ignoreDependencies": [
+        "@bugpatrol/cli",
+        "@modelcontextprotocol/sdk",
+        "odiff-bin",
+        "pixelmatch",
+        "playwright",
+        "pngjs",
+        "yaml",
+        "zod"
+      ]
+    },
+    "packages/dashboard": {
+      "entry": ["src/ui/app.js", "scripts/*.mjs"]
+    }
+  }
+}

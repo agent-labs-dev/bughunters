@@ -1,8 +1,8 @@
-import { describe, expect, it, beforeAll, afterAll } from 'vitest';
-import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { PNG } from 'pngjs';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { diffWithPixelmatch } from './pixelmatch.js';
 
 const W = 60;

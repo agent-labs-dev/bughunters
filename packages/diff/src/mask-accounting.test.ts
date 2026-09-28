@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { maskedPixelCount, isMasked, boundingRegionsFromLines } from './mask-accounting.js';
+import { boundingRegionsFromLines, isMasked, maskedPixelCount } from './mask-accounting.js';
 
 describe('maskedPixelCount', () => {
   it('does not double-count overlapping masks', () => {

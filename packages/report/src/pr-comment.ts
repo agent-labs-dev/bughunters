@@ -34,12 +34,20 @@ export function renderPrComment(input: {
     verdict,
     '',
     `Tested ${run.plan.coverage.screensSelected} of ${run.plan.coverage.screensTotal} screens in \`${run.mode}\` mode` +
-      (run.plan.mappingConfidence < 0.6 ? ' — **low mapping confidence**, so a smoke set was used as a fallback.' : '.'),
+      (run.plan.mappingConfidence < 0.6
+        ? ' — **low mapping confidence**, so a smoke set was used as a fallback.'
+        : '.'),
     '',
     ...(blocking.length > 0 ? ['#### Blocking', ...blocking.map(bullet), ''] : []),
     ...(issues.length > 0 ? ['#### Filed as issues', ...issues.map(bullet), ''] : []),
     ...(questions.length > 0
-      ? ['#### Needs a decision', ...questions.map(bullet), '', '_A question is a first-class outcome, not a failure. Answering one writes the Intent Ledger so it is never asked again._', '']
+      ? [
+          '#### Needs a decision',
+          ...questions.map(bullet),
+          '',
+          '_A question is a first-class outcome, not a failure. Answering one writes the Intent Ledger so it is never asked again._',
+          '',
+        ]
       : []),
     input.suppressed > 0 ? `${input.suppressed} finding(s) suppressed by the Intent Ledger.\n` : '',
     '<details><summary>Test plan</summary>\n',

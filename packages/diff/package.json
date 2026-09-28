@@ -6,14 +6,25 @@
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
-  "exports": { ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" } },
-  "files": ["dist"],
-  "scripts": { "build": "tsc --build" },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc --build"
+  },
   "dependencies": {
     "@bugpatrol/core": "workspace:*",
     "odiff-bin": "^3.2.1",
     "pixelmatch": "^6.0.0",
     "pngjs": "^7.0.0"
   },
-  "devDependencies": { "@types/pngjs": "^6.0.5" }
+  "devDependencies": {
+    "@types/pngjs": "^6.0.5"
+  }
 }

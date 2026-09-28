@@ -29,9 +29,7 @@ function el(selector: string, box: [number, number, number, number], extra: Reco
 
 describe('evaluateAll', () => {
   it('reports occlusion as critical and names what is covering the element', () => {
-    const v = evaluateAll(
-      snapshot({ elements: [el('#save', [10, 10, 100, 40], { hitSelector: '.sticky-footer' })] }),
-    );
+    const v = evaluateAll(snapshot({ elements: [el('#save', [10, 10, 100, 40], { hitSelector: '.sticky-footer' })] }));
     const occ = v.find((x) => x.ruleId === 'layout/occlusion');
     expect(occ?.severity).toBe('critical');
     expect(occ?.message).toContain('.sticky-footer');
@@ -67,8 +65,12 @@ describe('evaluateAll', () => {
   it('only fires horizontal scroll when it is a regression', () => {
     const wide = { scrollWidth: 1600, clientWidth: 1440, scrollHeight: 900, clientHeight: 900, hasStylesheets: true };
     const alreadyWide = snapshot({ document: wide });
-    expect(evaluateAll(alreadyWide, { baseline: alreadyWide }).some((x) => x.ruleId === 'layout/horizontal-scroll')).toBe(false);
-    expect(evaluateAll(alreadyWide, { baseline: snapshot() }).some((x) => x.ruleId === 'layout/horizontal-scroll')).toBe(true);
+    expect(
+      evaluateAll(alreadyWide, { baseline: alreadyWide }).some((x) => x.ruleId === 'layout/horizontal-scroll'),
+    ).toBe(false);
+    expect(
+      evaluateAll(alreadyWide, { baseline: snapshot() }).some((x) => x.ruleId === 'layout/horizontal-scroll'),
+    ).toBe(true);
   });
 
   it('orders violations with the most severe first', () => {

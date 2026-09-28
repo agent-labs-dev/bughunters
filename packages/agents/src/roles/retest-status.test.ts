@@ -1,11 +1,25 @@
-import { describe, expect, it } from 'vitest';
 import { bugpatrolConfigSchema, type FixProposal, type Retest } from '@bugpatrol/core';
+import { describe, expect, it } from 'vitest';
 import { applyRetest } from './retest.js';
 
 const config = bugpatrolConfigSchema.parse({ version: 1, app: { platform: 'electron' } });
-const fix = (): FixProposal => ({ version: 1, id: 'fix_1', issueId: 'iss_1', status: 'retesting', runtime: 'cli',
-  repo: '/repo', branch: 'b', worktree: '/wt', startedAt: '2026-01-01T00:00:00.000Z' });
-const retest = (outcome: Retest['outcome']): Retest => ({ attempt: 1, outcome, reason: '', at: '2026-01-01T00:00:00.000Z' });
+const fix = (): FixProposal => ({
+  version: 1,
+  id: 'fix_1',
+  issueId: 'iss_1',
+  status: 'retesting',
+  runtime: 'cli',
+  repo: '/repo',
+  branch: 'b',
+  worktree: '/wt',
+  startedAt: '2026-01-01T00:00:00.000Z',
+});
+const retest = (outcome: Retest['outcome']): Retest => ({
+  attempt: 1,
+  outcome,
+  reason: '',
+  at: '2026-01-01T00:00:00.000Z',
+});
 
 describe('applyRetest', () => {
   it('keeps a fix in retesting after a setup error, and the error is not an attempt', () => {

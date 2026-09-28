@@ -1,11 +1,14 @@
-import { PNG } from 'pngjs';
 import type { Locator, Platform } from '@bugpatrol/core';
-import type { Driver, DriverAction, Observation, ActResult, UiElement } from '@bugpatrol/drivers';
+import type { ActResult, Driver, DriverAction, Observation, UiElement } from '@bugpatrol/drivers';
 import type { ScreenSnapshot } from '@bugpatrol/invariants';
+import { PNG } from 'pngjs';
 
 export type FakeScreen = {
-  elements: UiElement[]; next?: Record<string, string>; color?: number;
-  consoleErrors?: string[]; networkErrors?: string[];
+  elements: UiElement[];
+  next?: Record<string, string>;
+  color?: number;
+  consoleErrors?: string[];
+  networkErrors?: string[];
 };
 
 /** Small deterministic app for role tests; every screen has a valid PNG. */
@@ -17,7 +20,11 @@ export class FakeDriver implements Driver {
   current: string;
   failAt?: number;
 
-  constructor(readonly screens: Record<string, FakeScreen>, start = 'home', platform: Platform = 'web') {
+  constructor(
+    readonly screens: Record<string, FakeScreen>,
+    start = 'home',
+    platform: Platform = 'web',
+  ) {
     this.current = start;
     this.platform = platform;
   }
@@ -37,10 +44,18 @@ export class FakeDriver implements Driver {
       png.data[index + 2] = Math.floor(color / 3) % 256;
       png.data[index + 3] = 255;
     }
-    return { platform: this.platform, location: `fake://${this.current}`, title: this.current,
-      screenshot: PNG.sync.write(png), viewport: { width: 100, height: 100, scale: 1 },
-      elements: screen.elements, volatileRegions: [], consoleErrors: screen.consoleErrors ?? [],
-      networkErrors: screen.networkErrors ?? [], at: new Date().toISOString() };
+    return {
+      platform: this.platform,
+      location: `fake://${this.current}`,
+      title: this.current,
+      screenshot: PNG.sync.write(png),
+      viewport: { width: 100, height: 100, scale: 1 },
+      elements: screen.elements,
+      volatileRegions: [],
+      consoleErrors: screen.consoleErrors ?? [],
+      networkErrors: screen.networkErrors ?? [],
+      at: new Date().toISOString(),
+    };
   }
 
   async act(action: DriverAction): Promise<ActResult> {
@@ -55,11 +70,25 @@ export class FakeDriver implements Driver {
     if (action.kind === 'type') {
       const element = this.find(action.ref, action.locator);
       if (action.ref && !element) return { ok: false, error: 'element not found' };
-      return { ok: true, step: { kind: 'type', target: element ? locator(element) : undefined,
-        value: action.value, submit: action.submit } };
+      return {
+        ok: true,
+        step: {
+          kind: 'type',
+          target: element ? locator(element) : undefined,
+          value: action.value,
+          submit: action.submit,
+        },
+      };
     }
-    if (action.kind === 'scroll') return { ok: true, step: { kind: 'scroll', direction: action.direction,
-      target: this.find(action.ref, action.locator) ? locator(this.find(action.ref, action.locator)!) : undefined } };
+    if (action.kind === 'scroll')
+      return {
+        ok: true,
+        step: {
+          kind: 'scroll',
+          direction: action.direction,
+          target: this.find(action.ref, action.locator) ? locator(this.find(action.ref, action.locator)!) : undefined,
+        },
+      };
     if (action.kind === 'open') {
       const target = action.url.replace('fake://', '');
       if (this.screens[target]) this.current = target;
@@ -105,10 +134,13 @@ export class FakeDriver implements Driver {
   }
 
   private find(ref?: string, target?: Locator): UiElement | undefined {
-    return this.screens[this.current]?.elements.find((element) => element.ref === ref ||
-      (target?.testId && element.testId === target.testId) ||
-      (target?.role && target?.name && element.role === target.role && element.name === target.name) ||
-      (target?.text && element.text === target.text));
+    return this.screens[this.current]?.elements.find(
+      (element) =>
+        element.ref === ref ||
+        (target?.testId && element.testId === target.testId) ||
+        (target?.role && target?.name && element.role === target.role && element.name === target.name) ||
+        (target?.text && element.text === target.text),
+    );
   }
 }
 

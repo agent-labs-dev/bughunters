@@ -1,5 +1,5 @@
-import type { TokenUsage } from './usage.js';
 import type { Severity } from './finding.js';
+import type { TokenUsage } from './usage.js';
 
 /**
  * The agent layer (ADR 0005). Everything here is written to `.bugpatrol/` as
@@ -51,7 +51,8 @@ export type RoutineStep = (
   | { kind: 'back' }
   | { kind: 'open'; url: string }
   | { kind: 'wait'; ms: number }
-  | { kind: 'window'; match: string }) & { at?: string };
+  | { kind: 'window'; match: string }
+) & { at?: string };
 
 export type Routine = {
   version: 1;
@@ -67,7 +68,14 @@ export type Routine = {
   createdAt: string;
   updatedAt: string;
   /** Replay history, so a routine that keeps breaking is visible as one. */
-  lastReplay?: { at: string; ok: boolean; degraded?: boolean; error?: string; skipped?: number[]; onFixBuild?: boolean };
+  lastReplay?: {
+    at: string;
+    ok: boolean;
+    degraded?: boolean;
+    error?: string;
+    skipped?: number[];
+    onFixBuild?: boolean;
+  };
   /**
    * What the screen showed when the routine was saved: the names of a few
    * stable elements. A replay may skip a step whose target is gone (a banner
@@ -166,8 +174,15 @@ export type Issue = {
   occurrences: number;
   firstSeenAt: string;
   lastSeenAt: string;
-  github?: { number: number; url: string; at: string; state?: 'open' | 'closed';
-    stateReason?: 'completed' | 'not_planned' | 'reopened' | null; stateAt?: string; checkedAt?: string };
+  github?: {
+    number: number;
+    url: string;
+    at: string;
+    state?: 'open' | 'closed';
+    stateReason?: 'completed' | 'not_planned' | 'reopened' | null;
+    stateAt?: string;
+    checkedAt?: string;
+  };
   fixRejected?: { pr: number; url: string; at: string };
   publishSkipped?: { reason: string; at: string };
   fixId?: string;
@@ -178,7 +193,15 @@ export type Issue = {
 };
 
 /** `declined`: the fixer read the code and found no bug to fix; its summary says why. */
-export type FixStatus = 'running' | 'retesting' | 'proposed' | 'declined' | 'failed' | 'verified' | 'opened' | 'rejected';
+export type FixStatus =
+  | 'running'
+  | 'retesting'
+  | 'proposed'
+  | 'declined'
+  | 'failed'
+  | 'verified'
+  | 'opened'
+  | 'rejected';
 
 export type RetestOutcome = 'fixed' | 'not-fixed' | 'unclear' | 'error' | 'skipped';
 /**
@@ -237,8 +260,15 @@ export type FixProposal = {
   endedAt?: string;
   costUsd?: number;
   retests?: Retest[];
-  pr?: { number: number; url: string; draft: boolean; at?: string;
-    state?: 'open' | 'merged' | 'closed'; stateAt?: string; checkedAt?: string };
+  pr?: {
+    number: number;
+    url: string;
+    draft: boolean;
+    at?: string;
+    state?: 'open' | 'merged' | 'closed';
+    stateAt?: string;
+    checkedAt?: string;
+  };
   /** The CI checks on the PR, and the fixer's attempts to make them pass. */
   ci?: {
     state: 'none' | 'pending' | 'passed' | 'failed' | 'gave-up';
@@ -304,9 +334,15 @@ export type AgentStatus = {
 /** `agents.json`. */
 export type AgentsFile = {
   version: 1;
-  patrol?: { cycle: number; state: 'running' | 'stopped'; startedAt: string; nextAt?: string; pid?: number;
+  patrol?: {
+    cycle: number;
+    state: 'running' | 'stopped';
+    startedAt: string;
+    nextAt?: string;
+    pid?: number;
     /** The source commit that the last full cycle tested. */
-    commit?: string };
+    commit?: string;
+  };
   agents: AgentStatus[];
 };
 

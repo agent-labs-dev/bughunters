@@ -1,7 +1,7 @@
-import { spawn, type ChildProcess } from 'node:child_process';
+import { type ChildProcess, spawn } from 'node:child_process';
 import { resolve } from 'node:path';
-import { InfrastructureError, type AppCommand, type AppConfig } from '@bugpatrol/core';
-import { Vars } from './vars.js';
+import { type AppCommand, type AppConfig, InfrastructureError } from '@bugpatrol/core';
+import type { Vars } from './vars.js';
 
 type Options = { root: string; vars: Vars; emit?: (summary: string) => void; source?: string };
 
@@ -16,8 +16,12 @@ export async function startApp(app: AppConfig, opts: Options): Promise<{ vars: V
     const shell = opts.vars.resolveConfig(command.run);
     const configuredCwd = resolve(opts.root, opts.vars.resolveConfig(command.cwd ?? '.'));
     const cwd = opts.source && configuredCwd === configuredSource ? opts.source : configuredCwd;
-    const env = { ...process.env, ...Object.fromEntries(opts.vars.entries()), BUGPATROL_SOURCE: effectiveSource,
-      BUGHUNTERS_SOURCE: effectiveSource };
+    const env = {
+      ...process.env,
+      ...Object.fromEntries(opts.vars.entries()),
+      BUGPATROL_SOURCE: effectiveSource,
+      BUGHUNTERS_SOURCE: effectiveSource,
+    };
     const started = Date.now();
     const child = spawn('/bin/sh', ['-c', shell], {
       cwd,
@@ -128,15 +132,17 @@ export async function startApp(app: AppConfig, opts: Options): Promise<{ vars: V
           report(String(error));
         }
       }
-      await Promise.all(children.map(async (child) => {
-        if (child.exitCode !== null || child.signalCode !== null) {
-          return;
-        }
-        killGroup(child);
-        const timer = setTimeout(() => killGroup(child, 'SIGKILL'), 5_000);
-        await new Promise<void>((done) => child.once('exit', () => done()));
-        clearTimeout(timer);
-      }));
+      await Promise.all(
+        children.map(async (child) => {
+          if (child.exitCode !== null || child.signalCode !== null) {
+            return;
+          }
+          killGroup(child);
+          const timer = setTimeout(() => killGroup(child, 'SIGKILL'), 5_000);
+          await new Promise<void>((done) => child.once('exit', () => done()));
+          clearTimeout(timer);
+        }),
+      );
     },
   };
 }

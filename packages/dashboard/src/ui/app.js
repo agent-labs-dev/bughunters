@@ -32,7 +32,11 @@ const state = {
 };
 
 let screenMode = 'graph';
-try { screenMode = localStorage.getItem('bugpatrol-screen-mode') === 'grid' ? 'grid' : 'graph'; } catch { /* storage may be disabled */ }
+try {
+  screenMode = localStorage.getItem('bugpatrol-screen-mode') === 'grid' ? 'grid' : 'graph';
+} catch {
+  /* storage may be disabled */
+}
 const graphCamera = { box: null, key: '' };
 let showBackLinks = false;
 
@@ -41,7 +45,7 @@ let showBackLinks = false;
 // Mirrors isFeedEvent in agents.ts: the feed shows actions, not reasoning.
 function isFeedEvent(event) {
   if (event.kind === 'thought' || event.kind === 'tool-call') return false;
-  return Boolean(event.summary && event.summary.trim());
+  return Boolean(event.summary?.trim());
 }
 
 async function getJson(url) {
@@ -63,7 +67,10 @@ async function refresh({ keepSelection = true } = {}) {
   const patrol = state.overview.patrol;
   patrolEl.textContent = patrol.state === 'running' ? `Patrol running · cycle ${patrol.cycle}` : 'Patrol stopped';
   patrolEl.classList.toggle('running', patrol.state === 'running');
-  liveEl.classList.toggle('working', state.overview.agents.some((agent) => agent.state === 'working'));
+  liveEl.classList.toggle(
+    'working',
+    state.overview.agents.some((agent) => agent.state === 'working'),
+  );
 
   // Follow the newest run unless the user has deliberately pinned an older one.
   const stillExists = state.runs.some((r) => r.id === state.selectedRunId);
@@ -132,8 +139,14 @@ function render() {
     const banner = renderLiveBanner();
     if (banner) view.append(banner);
   }
-  const renderers = { overview: renderOverview, issues: renderIssues, activity: renderActivity,
-    screens: renderScreens, memory: renderMemory, checks: renderRuns };
+  const renderers = {
+    overview: renderOverview,
+    issues: renderIssues,
+    activity: renderActivity,
+    screens: renderScreens,
+    memory: renderMemory,
+    checks: renderRuns,
+  };
   view.append(renderers[state.view]());
 }
 
@@ -164,7 +177,7 @@ function svgEl(tag, props = {}, children = []) {
 /** Shown only while a run is actually in flight. */
 function renderLiveBanner() {
   const live = state.live;
-  if (!live || live.status !== 'running') return null;
+  if (live?.status !== 'running') return null;
   const done = live.captured.length;
   const total = live.plannedCaptures || done;
   return el('div', { class: 'runbanner' }, [
@@ -178,29 +191,38 @@ function renderRuns() {
   if (state.runs.length === 0) {
     return el('div', {
       class: 'empty',
-      html: state.live?.status === 'running'
-        ? 'First check in progress.'
-        : 'No runs yet. Run <code>bugpatrol run</code> in this project and results appear here automatically.',
+      html:
+        state.live?.status === 'running'
+          ? 'First check in progress.'
+          : 'No runs yet. Run <code>bugpatrol run</code> in this project and results appear here automatically.',
     });
   }
 
-  const list = el('div', { class: 'card runlist' },
+  const list = el(
+    'div',
+    { class: 'card runlist' },
     state.runs.map((run) => {
-      const button = el('button', {
-        class: `runitem${run.id === state.selectedRunId ? ' active' : ''}`,
-        onclick: async () => {
-          state.selectedRunId = run.id;
-          state.detail = await getJson(`/api/runs/${encodeURIComponent(run.id)}`);
-          render();
+      const button = el(
+        'button',
+        {
+          class: `runitem${run.id === state.selectedRunId ? ' active' : ''}`,
+          onclick: async () => {
+            state.selectedRunId = run.id;
+            state.detail = await getJson(`/api/runs/${encodeURIComponent(run.id)}`);
+            render();
+          },
         },
-      }, [
-        el('div', { class: 'row' }, [
-          el('span', { class: `badge ${verdictClass(run)}`, text: verdictLabel(run) }),
-          el('span', { class: 'mono', text: shortCommit(run.commit) }),
-        ]),
-        el('div', { class: 'when',
-          text: `${formatTime(run.startedAt)} · ${run.mode} · ${run.findings.total} finding(s)` }),
-      ]);
+        [
+          el('div', { class: 'row' }, [
+            el('span', { class: `badge ${verdictClass(run)}`, text: verdictLabel(run) }),
+            el('span', { class: 'mono', text: shortCommit(run.commit) }),
+          ]),
+          el('div', {
+            class: 'when',
+            text: `${formatTime(run.startedAt)} · ${run.mode} · ${run.findings.total} finding(s)`,
+          }),
+        ],
+      );
       return button;
     }),
   );
@@ -214,8 +236,10 @@ function renderDetail() {
 
   const header = el('div', {}, [
     el('h2', {}, [
-      el('span', { class: `badge ${verdictClass(summaryOf(run, findings))}`,
-        text: verdictLabel(summaryOf(run, findings)) }),
+      el('span', {
+        class: `badge ${verdictClass(summaryOf(run, findings))}`,
+        text: verdictLabel(summaryOf(run, findings)),
+      }),
       el('span', { text: `  ${run.mode} run on ${shortCommit(run.commit)}` }),
     ]),
     el('div', { class: 'kv' }, [
@@ -230,9 +254,11 @@ function renderDetail() {
   const children = [header];
 
   if (!trace) {
-    children.push(el('div', { class: 'notes' }, [
-      el('p', { text: 'This run predates the trace format, so only its findings are available.' }),
-    ]));
+    children.push(
+      el('div', { class: 'notes' }, [
+        el('p', { text: 'This run predates the trace format, so only its findings are available.' }),
+      ]),
+    );
   }
 
   const byScreen = new Map();
@@ -260,22 +286,24 @@ function renderDetail() {
   for (const screen of trace?.screens ?? []) {
     const own = Array.isArray(screen.findingIds)
       ? screen.findingIds.map((id) => byId.get(id)).filter(Boolean)
-      : byScreen.get(screen.screenId) ?? [];
+      : (byScreen.get(screen.screenId) ?? []);
     const unique = own.filter((finding) => !seen.has(`${finding.screenId}|${problemKey(finding)}`));
     for (const finding of unique) seen.add(`${finding.screenId}|${problemKey(finding)}`);
     children.push(renderScreen(screen, unique, trace, viewports));
   }
 
   if (trace?.suppressed?.length) {
-    children.push(el('div', { class: 'screen' }, [
-      el('h3', { text: `Suppressed by the Intent Ledger (${trace.suppressed.length})` }),
-      ...trace.suppressed.map((s) =>
-        el('div', { class: 'finding' }, [
-          el('div', { text: `${s.ruleId} on ${s.screenId}` }),
-          el('div', { class: 'why', text: `"${s.reason}" — ${s.decidedBy}` }),
-        ]),
-      ),
-    ]));
+    children.push(
+      el('div', { class: 'screen' }, [
+        el('h3', { text: `Suppressed by the Intent Ledger (${trace.suppressed.length})` }),
+        ...trace.suppressed.map((s) =>
+          el('div', { class: 'finding' }, [
+            el('div', { text: `${s.ruleId} on ${s.screenId}` }),
+            el('div', { class: 'why', text: `"${s.reason}" — ${s.decidedBy}` }),
+          ]),
+        ),
+      ]),
+    );
   }
 
   return el('div', { class: 'card detail' }, children);
@@ -300,8 +328,9 @@ function renderScreen(screen, findings, trace, viewports) {
     shots.length ? el('div', { class: 'shots' }, shots) : null,
 
     el('div', { class: 'checks' }, [
-      ...fired.map((c) => el('span', { class: `chk fired sev-${c.severity ?? 'minor'}`,
-        title: c.message ?? '', text: c.ruleId })),
+      ...fired.map((c) =>
+        el('span', { class: `chk fired sev-${c.severity ?? 'minor'}`, title: c.message ?? '', text: c.ruleId }),
+      ),
       passed.length ? el('span', { class: 'muted', text: `${passed.length} other checks passed` }) : null,
     ]),
 
@@ -332,18 +361,40 @@ function renderGroup(group, trace, viewports) {
   const tags = [...(viewports.get(key) ?? [])];
   if (group.length === 1) {
     const card = renderFinding(first, trace);
-    card.append(el('div', { class: 'viewport-tags' }, tags.map((viewport) => el('span', { text: viewport }))));
+    card.append(
+      el(
+        'div',
+        { class: 'viewport-tags' },
+        tags.map((viewport) => el('span', { text: viewport })),
+      ),
+    );
     return card;
   }
-  const card = renderFinding({
-    ...first, summary: first.summary.replace(/"[^"]*"/, `${group.length} elements`),
-  }, trace);
-  card.append(el('div', { class: 'viewport-tags' }, tags.map((viewport) => el('span', { text: viewport }))));
+  const card = renderFinding(
+    {
+      ...first,
+      summary: first.summary.replace(/"[^"]*"/, `${group.length} elements`),
+    },
+    trace,
+  );
+  card.append(
+    el(
+      'div',
+      { class: 'viewport-tags' },
+      tags.map((viewport) => el('span', { text: viewport })),
+    ),
+  );
   const selectors = group.map((f) => (f.summary.match(/"([^"]*)"/) ?? [])[1]).filter(Boolean);
-  card.append(el('details', { class: 'members' }, [
-    el('summary', { text: `The same problem on ${group.length} elements` }),
-    el('ul', {}, selectors.map((sel) => el('li', {}, [el('code', { text: sel })]))),
-  ]));
+  card.append(
+    el('details', { class: 'members' }, [
+      el('summary', { text: `The same problem on ${group.length} elements` }),
+      el(
+        'ul',
+        {},
+        selectors.map((sel) => el('li', {}, [el('code', { text: sel })])),
+      ),
+    ]),
+  );
   return card;
 }
 
@@ -352,8 +403,10 @@ function renderFinding(finding, trace) {
   return el('div', { class: `finding sev-${finding.severity}` }, [
     el('div', { text: finding.summary }),
     why ? el('div', { class: 'why', text: `Routed to ${finding.route}: ${why}` }) : null,
-    el('div', { class: 'meta',
-      text: `${finding.ruleId} · ${finding.tier} · ${finding.severity} · ${finding.fingerprint}` }),
+    el('div', {
+      class: 'meta',
+      text: `${finding.ruleId} · ${finding.tier} · ${finding.severity} · ${finding.fingerprint}`,
+    }),
   ]);
 }
 
@@ -375,18 +428,19 @@ function renderReasoning(screen) {
 
   if (screen.diff) {
     const d = screen.diff;
-    add('Pixel diff', d.identical
-      ? `identical (${d.engine}, ${Math.round(d.durationMs)}ms)`
-      : `${d.changedPixels} px across ${d.regionCount} region(s) — ` +
-        `${(d.changedFraction * 100).toFixed(3)}% of compared area (${d.engine})`);
-    add('Masked', `${(d.maskedFraction * 100).toFixed(1)}% of the screen, ` +
-      `${d.maskedRegionCount} region(s)`);
+    add(
+      'Pixel diff',
+      d.identical
+        ? `identical (${d.engine}, ${Math.round(d.durationMs)}ms)`
+        : `${d.changedPixels} px across ${d.regionCount} region(s) — ` +
+            `${(d.changedFraction * 100).toFixed(3)}% of compared area (${d.engine})`,
+    );
+    add('Masked', `${(d.maskedFraction * 100).toFixed(1)}% of the screen, ` + `${d.maskedRegionCount} region(s)`);
     if (!d.enginesAgreed) add('Engines disagreed', `cross-check saw ${d.crossCheckChangedPixels} px`);
     // First line only: older runs stored the loader's full multi-line dump.
     if (d.degraded) add('Degraded', d.degraded.split('\n')[0].replace(/(: \/\S+)+.*$/, ''));
     if (d.dimensionMismatch) {
-      add('Dimensions changed', `${d.dimensionMismatch.baseline.join('x')} → ` +
-        d.dimensionMismatch.actual.join('x'));
+      add('Dimensions changed', `${d.dimensionMismatch.baseline.join('x')} → ${d.dimensionMismatch.actual.join('x')}`);
     }
   }
 
@@ -399,9 +453,10 @@ function renderReasoning(screen) {
 
   if (screen.decision) {
     const d = screen.decision;
-    add('Decision layer', d.decider === 'none'
-      ? `not consulted — ${d.skippedReason}`
-      : `${d.decider}, $${(d.costUsd ?? 0).toFixed(6)}`);
+    add(
+      'Decision layer',
+      d.decider === 'none' ? `not consulted — ${d.skippedReason}` : `${d.decider}, $${(d.costUsd ?? 0).toFixed(6)}`,
+    );
     if (d.stateChars) add('State digest', `${d.stateChars} chars (hash ${String(d.stateHash ?? '').slice(0, 12)})`);
     for (const [key, answer] of Object.entries(d.answers ?? {})) {
       add(`· ${key}`, `${answer.value} (confidence ${Number(answer.confidence).toFixed(2)})`);
@@ -410,13 +465,21 @@ function renderReasoning(screen) {
 
   return el('details', { class: 'reasoning' }, [
     el('summary', { text: 'How Bugpatrol reached this' }),
-    el('table', {}, rows.map(([k, v]) => el('tr', {}, [el('td', { text: k }), el('td', { text: String(v) })]))),
+    el(
+      'table',
+      {},
+      rows.map(([k, v]) => el('tr', {}, [el('td', { text: k }), el('td', { text: String(v) })])),
+    ),
   ]);
 }
 
 function shot(path, caption) {
-  const img = el('img', { src: artifact(path), alt: caption, loading: 'lazy',
-    onclick: () => openLightbox(path, caption) });
+  const img = el('img', {
+    src: artifact(path),
+    alt: caption,
+    loading: 'lazy',
+    onclick: () => openLightbox(path, caption),
+  });
   return el('figure', {}, [img, el('figcaption', { text: caption })]);
 }
 
@@ -432,7 +495,8 @@ const roleIcons = {
 
 function roleIcon(role) {
   const icon = roleIcons[role] ?? roleIcons.system;
-  const svg = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" ` +
+  const svg =
+    `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" ` +
     `stroke-width="1.4" aria-hidden="true">${icon}</svg>`;
   return el('span', { class: 'role-icon', title: role, 'aria-label': role, html: svg });
 }
@@ -466,10 +530,16 @@ function tokens(usage, suffix = ' tokens') {
 
 function tokenDetail(usage) {
   if (!usage) return 'The runtime reported no token usage.';
-  return [`${usage.input} input tokens`, usage.cacheRead ? `${usage.cacheRead} of them from the cache` : '',
-    usage.cacheWrite ? `${usage.cacheWrite} written to the cache` : '', `${usage.output} output tokens`,
+  return [
+    `${usage.input} input tokens`,
+    usage.cacheRead ? `${usage.cacheRead} of them from the cache` : '',
+    usage.cacheWrite ? `${usage.cacheWrite} written to the cache` : '',
+    `${usage.output} output tokens`,
     usage.listCostUsd ? `list price ${money(usage.listCostUsd)}` : '',
-    usage.estimated ? 'estimated from the text length' : ''].filter(Boolean).join(', ');
+    usage.estimated ? 'estimated from the text length' : '',
+  ]
+    .filter(Boolean)
+    .join(', ');
 }
 
 function renderUsage(usage) {
@@ -477,24 +547,42 @@ function renderUsage(usage) {
   const head = ['Agent', 'Model', 'Sessions', 'Input', 'Cached', 'Output', 'Per session', 'List price'];
   return el('section', { class: 'card panel usage' }, [
     title('Token usage', usage?.weekTotal ? `Last 7 days · ${tokens(usage.weekTotal)}` : 'Last 7 days'),
-    rows.length ? el('table', { class: 'usage-table' }, [
-      el('tr', {}, head.map((text) => el('th', { text }))),
-      ...rows.map((row) => el('tr', { title: tokenDetail(row.tokens) }, [
-        el('td', { text: capital(row.role) }), el('td', { text: row.model }),
-        el('td', { text: String(row.sessions) }), el('td', { text: count(row.tokens.input) }),
-        el('td', { text: row.tokens.cacheRead ? count(row.tokens.cacheRead) : '—' }),
-        el('td', { text: count(row.tokens.output) }),
-        el('td', { text: count(Math.round((row.tokens.input + row.tokens.output) / Math.max(1, row.sessions))) }),
-        el('td', { text: row.tokens.listCostUsd ? money(row.tokens.listCostUsd) : '—' }),
-      ])),
-    ]) : el('p', { class: 'empty', text: 'No token usage yet. The API agents, claude (--output-format json), and codex (--json) report their tokens.' }),
+    rows.length
+      ? el('table', { class: 'usage-table' }, [
+          el(
+            'tr',
+            {},
+            head.map((text) => el('th', { text })),
+          ),
+          ...rows.map((row) =>
+            el('tr', { title: tokenDetail(row.tokens) }, [
+              el('td', { text: capital(row.role) }),
+              el('td', { text: row.model }),
+              el('td', { text: String(row.sessions) }),
+              el('td', { text: count(row.tokens.input) }),
+              el('td', { text: row.tokens.cacheRead ? count(row.tokens.cacheRead) : '—' }),
+              el('td', { text: count(row.tokens.output) }),
+              el('td', { text: count(Math.round((row.tokens.input + row.tokens.output) / Math.max(1, row.sessions))) }),
+              el('td', { text: row.tokens.listCostUsd ? money(row.tokens.listCostUsd) : '—' }),
+            ]),
+          ),
+        ])
+      : el('p', {
+          class: 'empty',
+          text: 'No token usage yet. The API agents, claude (--output-format json), and codex (--json) report their tokens.',
+        }),
   ]);
 }
 
 function image(path, label, className = '') {
   if (!path) return el('div', { class: `image-empty ${className}`, text: 'No capture' });
-  return el('img', { class: className, src: artifact(path), alt: label, loading: 'lazy',
-    onclick: () => openLightbox(path, label) });
+  return el('img', {
+    class: className,
+    src: artifact(path),
+    alt: label,
+    loading: 'lazy',
+    onclick: () => openLightbox(path, label),
+  });
 }
 
 function severityChip(value) {
@@ -514,76 +602,132 @@ function githubChip({ kind, number, url, state, draft, ci }) {
   const label = kind === 'pr' ? 'PR' : 'Issue';
   const shown = state === 'open' && draft ? 'draft' : state;
   const checks = state === 'open' || !state ? CI_WORDS[ci] : undefined;
-  return el('a', { href: url, target: '_blank', rel: 'noopener noreferrer',
+  return el('a', {
+    href: url,
+    target: '_blank',
+    rel: 'noopener noreferrer',
     class: `gh-chip gh-${shown || 'unknown'}${checks ? ` ci-${ci}` : ''}`,
     text: `${label} #${number}${shown ? ` · ${shown}` : ''}${checks ? ` · ${checks}` : ''}`,
-    onclick: (event) => event.stopPropagation() });
+    onclick: (event) => event.stopPropagation(),
+  });
 }
 
 function issueChips(issue) {
-  return [issue.pr ? githubChip({ kind: 'pr', ...issue.pr }) : null,
-    issue.github ? githubChip({ kind: 'issue', ...issue.github }) : null];
+  return [
+    issue.pr ? githubChip({ kind: 'pr', ...issue.pr }) : null,
+    issue.github ? githubChip({ kind: 'issue', ...issue.github }) : null,
+  ];
 }
 
 function renderOverview() {
   const data = state.overview;
   if (!data) return el('div', { class: 'empty', text: 'Loading overview…' });
-  const agents = el('div', { class: 'agent-grid' }, data.agents.map((agent) =>
-    el('article', { class: 'card agent-card' }, [
-      el('div', { class: 'agent-head' }, [roleIcon(agent.role), el('strong', { text: capital(agent.role) }),
-        el('span', { class: `state-dot ${agent.state}`, title: agent.state })]),
-      el('div', { class: 'muted', text: agent.runtime || 'No runtime configured' }),
-      el('p', { text: agent.activity || capital(agent.state) }),
-      // Bugpatrol sees only the API calls that it makes. A local agent CLI
-      // bills the user's own plan, so its cost is not in this number.
-      el('div', { class: 'muted', title: tokenDetail(data.usage?.todayByRole?.[agent.role]),
-        text: `${tokens(data.usage?.todayByRole?.[agent.role])} today` }),
-      el('div', { class: 'muted', text: `API ${money(agent.spentUsd)} today`
-        + (String(agent.runtime).startsWith('cli') ? ' · the model runs on your CLI plan' : '') }),
-    ])));
-  const attention = el('section', { class: 'card panel' }, [title('Needs attention', `${data.counts.issuesOpen} open`),
-    data.attention.length ? el('div', { class: 'stack' }, data.attention.map((issue) =>
-      el('button', { class: 'attention-row', onclick: () => openIssue(issue.id) }, [
-        image(issue.evidence?.screenshot, issue.title, 'thumb'),
-        el('span', { class: 'grow' }, [el('strong', { text: issue.title }),
-          el('span', { class: 'row-meta' }, [
-            el('small', { class: 'muted', text: `${screenName(issue.screenId)} · ×${issue.occurrences}` }),
-            ...issueChips(issue)])]),
-        severityChip(issue.severity),
-        el('span', { class: 'muted', text: issueStatus(issue, issue.fix) }),
-      ]))) : el('p', { class: 'empty', text: 'No open issues. The agents found nothing wrong yet.' }),
+  const agents = el(
+    'div',
+    { class: 'agent-grid' },
+    data.agents.map((agent) =>
+      el('article', { class: 'card agent-card' }, [
+        el('div', { class: 'agent-head' }, [
+          roleIcon(agent.role),
+          el('strong', { text: capital(agent.role) }),
+          el('span', { class: `state-dot ${agent.state}`, title: agent.state }),
+        ]),
+        el('div', { class: 'muted', text: agent.runtime || 'No runtime configured' }),
+        el('p', { text: agent.activity || capital(agent.state) }),
+        // Bugpatrol sees only the API calls that it makes. A local agent CLI
+        // bills the user's own plan, so its cost is not in this number.
+        el('div', {
+          class: 'muted',
+          title: tokenDetail(data.usage?.todayByRole?.[agent.role]),
+          text: `${tokens(data.usage?.todayByRole?.[agent.role])} today`,
+        }),
+        el('div', {
+          class: 'muted',
+          text:
+            `API ${money(agent.spentUsd)} today` +
+            (String(agent.runtime).startsWith('cli') ? ' · the model runs on your CLI plan' : ''),
+        }),
+      ]),
+    ),
+  );
+  const attention = el('section', { class: 'card panel' }, [
+    title('Needs attention', `${data.counts.issuesOpen} open`),
+    data.attention.length
+      ? el(
+          'div',
+          { class: 'stack' },
+          data.attention.map((issue) =>
+            el('button', { class: 'attention-row', onclick: () => openIssue(issue.id) }, [
+              image(issue.evidence?.screenshot, issue.title, 'thumb'),
+              el('span', { class: 'grow' }, [
+                el('strong', { text: issue.title }),
+                el('span', { class: 'row-meta' }, [
+                  el('small', { class: 'muted', text: `${screenName(issue.screenId)} · ×${issue.occurrences}` }),
+                  ...issueChips(issue),
+                ]),
+              ]),
+              severityChip(issue.severity),
+              el('span', { class: 'muted', text: issueStatus(issue, issue.fix) }),
+            ]),
+          ),
+        )
+      : el('p', { class: 'empty', text: 'No open issues. The agents found nothing wrong yet.' }),
   ]);
   const live = data.live;
   const latest = data.recentSessions[0];
-  const livePanel = el('section', { class: 'card panel' }, [title('Live', live ? 'Session running' : 'Quiet now'),
-    live ? el('div', {}, [
-      image(live.screenshot, 'Newest session capture', 'live-shot'),
-      el('div', { class: 'event-list' }, live.events.map(renderEventRow)),
-    ]) : el('div', { class: 'quiet' }, [
-      el('p', { text: latest
-        ? `Last: the ${latest.role}, ${relativeTime(latest.startedAt)}. ${firstSentence(latest.summary)}`
-        : 'No sessions yet.' }),
-      data.patrol?.nextAt ? el('p', { class: 'muted',
-        text: `Next patrol at ${new Date(data.patrol.nextAt).toLocaleTimeString([], {
-          hour: '2-digit', minute: '2-digit',
-        })}${data.patrol.commit ? ` · last tested commit ${data.patrol.commit.slice(0, 7)}` : ''}`,
-      }) : null,
-    ]),
+  const livePanel = el('section', { class: 'card panel' }, [
+    title('Live', live ? 'Session running' : 'Quiet now'),
+    live
+      ? el('div', {}, [
+          image(live.screenshot, 'Newest session capture', 'live-shot'),
+          el('div', { class: 'event-list' }, live.events.map(renderEventRow)),
+        ])
+      : el('div', { class: 'quiet' }, [
+          el('p', {
+            text: latest
+              ? `Last: the ${latest.role}, ${relativeTime(latest.startedAt)}. ${firstSentence(latest.summary)}`
+              : 'No sessions yet.',
+          }),
+          data.patrol?.nextAt
+            ? el('p', {
+                class: 'muted',
+                text: `Next patrol at ${new Date(data.patrol.nextAt).toLocaleTimeString([], {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })}${data.patrol.commit ? ` · last tested commit ${data.patrol.commit.slice(0, 7)}` : ''}`,
+              })
+            : null,
+        ]),
   ]);
   const coverage = el('section', { class: 'card panel coverage' }, [
     title('Coverage', `${data.counts.screens} screens found`),
     data.github ? el('div', { class: 'muted github-summary', text: `GitHub · ${data.github}` }) : null,
-    el('div', { class: 'coverage-row' }, data.screens.map((screen) =>
-      el('button', { class: 'coverage-item', onclick: () => openScreen(screen.id) }, [
-        image(screen.lastScreenshot, screen.name), el('span', { text: screen.name }),
-      ]))),
+    el(
+      'div',
+      { class: 'coverage-row' },
+      data.screens.map((screen) =>
+        el('button', { class: 'coverage-item', onclick: () => openScreen(screen.id) }, [
+          image(screen.lastScreenshot, screen.name),
+          el('span', { text: screen.name }),
+        ]),
+      ),
+    ),
   ]);
-  return el('div', {}, [agents, el('div', { class: 'overview-grid' }, [attention, livePanel]), coverage, renderUsage(data.usage)]);
+  return el('div', {}, [
+    agents,
+    el('div', { class: 'overview-grid' }, [attention, livePanel]),
+    coverage,
+    renderUsage(data.usage),
+  ]);
 }
 
 function screenName(id) {
-  return state.appmap?.screens.find((screen) => screen.id === id)?.name ||
-    state.overview?.screens.find((screen) => screen.id === id)?.name || id || 'Unknown screen';
+  return (
+    state.appmap?.screens.find((screen) => screen.id === id)?.name ||
+    state.overview?.screens.find((screen) => screen.id === id)?.name ||
+    id ||
+    'Unknown screen'
+  );
 }
 
 function capital(value) {
@@ -599,29 +743,54 @@ async function openIssue(id) {
 function renderIssues() {
   const filters = ['open', 'fixed', 'dismissed', 'all'];
   const filtered = visibleIssues();
-  const list = el('div', { class: 'card panel' }, [title('Issues', `${filtered.length}`),
-    el('div', { class: 'filters' }, filters.map((filter) => el('button', {
-      class: `filter ${state.issueFilter === filter ? 'active' : ''}`, text: capital(filter),
-      onclick: async () => { state.issueFilter = filter; await refresh(); },
-    }))),
-    ...filtered.map((issue) => el('button', { class: `list-row ${issue.id === state.selectedIssueId ? 'active' : ''}`,
-      onclick: () => openIssue(issue.id) }, [
-      // The chips sit under the title, so a long title keeps the row's width.
-      el('span', { class: 'grow' }, [el('strong', { text: issue.title }),
-        el('span', { class: 'row-meta' }, [
-          el('small', { class: 'muted', text: `${screenName(issue.screenId)} · ${relativeTime(issue.lastSeenAt)}` }),
-          ...issueChips(issue)])]),
-      severityChip(issue.severity),
-    ])),
+  const list = el('div', { class: 'card panel' }, [
+    title('Issues', `${filtered.length}`),
+    el(
+      'div',
+      { class: 'filters' },
+      filters.map((filter) =>
+        el('button', {
+          class: `filter ${state.issueFilter === filter ? 'active' : ''}`,
+          text: capital(filter),
+          onclick: async () => {
+            state.issueFilter = filter;
+            await refresh();
+          },
+        }),
+      ),
+    ),
+    ...filtered.map((issue) =>
+      el(
+        'button',
+        { class: `list-row ${issue.id === state.selectedIssueId ? 'active' : ''}`, onclick: () => openIssue(issue.id) },
+        [
+          // The chips sit under the title, so a long title keeps the row's width.
+          el('span', { class: 'grow' }, [
+            el('strong', { text: issue.title }),
+            el('span', { class: 'row-meta' }, [
+              el('small', {
+                class: 'muted',
+                text: `${screenName(issue.screenId)} · ${relativeTime(issue.lastSeenAt)}`,
+              }),
+              ...issueChips(issue),
+            ]),
+          ]),
+          severityChip(issue.severity),
+        ],
+      ),
+    ),
   ]);
   return el('div', { class: 'master-detail' }, [list, renderIssueDetail()]);
 }
 
 function visibleIssues() {
-  return state.issues.filter((issue) => state.issueFilter === 'all' ||
-    (state.issueFilter === 'open'
-      ? !['fixed', 'dismissed'].includes(issue.status)
-      : issue.status === state.issueFilter));
+  return state.issues.filter(
+    (issue) =>
+      state.issueFilter === 'all' ||
+      (state.issueFilter === 'open'
+        ? !['fixed', 'dismissed'].includes(issue.status)
+        : issue.status === state.issueFilter),
+  );
 }
 
 function renderIssueDetail() {
@@ -629,30 +798,54 @@ function renderIssueDetail() {
   if (!detail) return el('section', { class: 'card panel empty', text: 'Select an issue.' });
   const { issue, fix, candidates } = detail;
   const evidence = issue.evidence ?? {};
-  const shots = [['Screenshot', evidence.screenshot], ['Baseline', evidence.baseline], ['Diff', evidence.diff]]
+  const shots = [
+    ['Screenshot', evidence.screenshot],
+    ['Baseline', evidence.baseline],
+    ['Diff', evidence.diff],
+  ]
     .filter(([, path]) => path)
     .map(([label, path]) => el('figure', {}, [image(path, label), el('figcaption', { text: label })]));
   const steps = evidence.steps ?? detail.routine?.steps ?? [];
   return el('article', { class: 'card panel issue-detail' }, [
     el('div', { class: 'detail-heading' }, [el('h1', { text: issue.title }), severityChip(issue.severity)]),
-    fix?.pr || issue.github || issue.publishSkipped ? el('div', { class: 'kv' }, [
-      ...issueChips({ pr: fix?.pr, github: issue.github }),
-      issue.publishSkipped ? el('span', { class: 'muted', text: `Not published: ${issue.publishSkipped.reason}` }) : null,
-    ]) : null,
-    issue.fixRejected ? el('p', { class: 'muted',
-      text: `The team closed PR #${issue.fixRejected.pr} without a merge. Bugpatrol will not propose this change again.` }) : null,
-    el('div', { class: 'kv' }, [el('span', { text: issueStatus(issue, fix) }),
-      el('span', { text: screenName(issue.screenId) }), el('span', { text: `×${issue.occurrences}` }),
+    fix?.pr || issue.github || issue.publishSkipped
+      ? el('div', { class: 'kv' }, [
+          ...issueChips({ pr: fix?.pr, github: issue.github }),
+          issue.publishSkipped
+            ? el('span', { class: 'muted', text: `Not published: ${issue.publishSkipped.reason}` })
+            : null,
+        ])
+      : null,
+    issue.fixRejected
+      ? el('p', {
+          class: 'muted',
+          text: `The team closed PR #${issue.fixRejected.pr} without a merge. Bugpatrol will not propose this change again.`,
+        })
+      : null,
+    el('div', { class: 'kv' }, [
+      el('span', { text: issueStatus(issue, fix) }),
+      el('span', { text: screenName(issue.screenId) }),
+      el('span', { text: `×${issue.occurrences}` }),
       el('span', { text: `First ${relativeTime(issue.firstSeenAt)}` }),
-      el('span', { text: `Last ${relativeTime(issue.lastSeenAt)}` })]),
+      el('span', { text: `Last ${relativeTime(issue.lastSeenAt)}` }),
+    ]),
     markdown(issue.body),
     shots.length ? el('div', { class: 'evidence-grid' }, shots) : null,
     // The judge writes the clean steps in the body. The recorded path is the
     // exact replay, detours included, so it is one click away.
     el('details', { class: 'recorded-path' }, [
-      el('summary', { text: `Recorded path: ${evidence.routineId ? `the routine ${evidence.routineId}, then ` : ''}`
-        + `${steps.length} step(s)` }),
-      steps.length ? el('ol', {}, steps.map((step) => el('li', { text: stepWords(step) }))) : null,
+      el('summary', {
+        text:
+          `Recorded path: ${evidence.routineId ? `the routine ${evidence.routineId}, then ` : ''}` +
+          `${steps.length} step(s)`,
+      }),
+      steps.length
+        ? el(
+            'ol',
+            {},
+            steps.map((step) => el('li', { text: stepWords(step) })),
+          )
+        : null,
     ]),
     title("Judge's reasoning"),
     el('p', { text: `${issue.judgement.by}: ${issue.judgement.reason}` }),
@@ -662,34 +855,52 @@ function renderIssueDetail() {
     candidates.length
       ? el('p', { class: 'muted', text: `From ${candidates.map((candidate) => candidate.id).join(', ')}` })
       : null,
-    fix ? el('section', { class: 'fix' }, [
-      el('div', { class: 'section-title' }, [el('h2', { text: 'Proposed fix' }), fixBadge(fix)]),
-      markdown(fix.summary || 'No summary yet.'),
-      ...(fix.retests?.length ? [retestBlock(fix.retests.at(-1), issue),
-        fix.retests.length > 1 ? el('details', { class: 'earlier-retests' }, [
-          el('summary', { text: `Earlier attempts (${fix.retests.length - 1})` }),
-          ...fix.retests.slice(0, -1).reverse().map((retest) => retestBlock(retest, issue)),
-        ]) : null] : []),
-      title('Code change'),
-      fix.diffStat ? el('pre', { text: fix.diffStat }) : null,
-      // Collapsed: the verdict and the screenshots come first; the diff is
-      // one click away for the reader who reviews the code.
-      fix.diff ? el('details', { class: 'diff-details' }, [
-        el('summary', { text: `Show the diff (${fix.diff.split(/^diff --git /m).length - 1} file(s))` }),
-        diffBlock(fix.diff),
-      ]) : null,
-      el('div', { class: 'kv' }, [el('span', { text: fix.branch }),
-        fix.worktreeRemovedAt
-          ? el('span', { text: `Worktree removed ${new Date(fix.worktreeRemovedAt).toLocaleString()}` })
-          : el('code', { text: fix.worktree })]),
-    ]) : null,
+    fix
+      ? el('section', { class: 'fix' }, [
+          el('div', { class: 'section-title' }, [el('h2', { text: 'Proposed fix' }), fixBadge(fix)]),
+          markdown(fix.summary || 'No summary yet.'),
+          ...(fix.retests?.length
+            ? [
+                retestBlock(fix.retests.at(-1), issue),
+                fix.retests.length > 1
+                  ? el('details', { class: 'earlier-retests' }, [
+                      el('summary', { text: `Earlier attempts (${fix.retests.length - 1})` }),
+                      ...fix.retests
+                        .slice(0, -1)
+                        .reverse()
+                        .map((retest) => retestBlock(retest, issue)),
+                    ])
+                  : null,
+              ]
+            : []),
+          title('Code change'),
+          fix.diffStat ? el('pre', { text: fix.diffStat }) : null,
+          // Collapsed: the verdict and the screenshots come first; the diff is
+          // one click away for the reader who reviews the code.
+          fix.diff
+            ? el('details', { class: 'diff-details' }, [
+                el('summary', { text: `Show the diff (${fix.diff.split(/^diff --git /m).length - 1} file(s))` }),
+                diffBlock(fix.diff),
+              ])
+            : null,
+          el('div', { class: 'kv' }, [
+            el('span', { text: fix.branch }),
+            fix.worktreeRemovedAt
+              ? el('span', { text: `Worktree removed ${new Date(fix.worktreeRemovedAt).toLocaleString()}` })
+              : el('code', { text: fix.worktree }),
+          ]),
+        ])
+      : null,
   ]);
 }
 
 /** The first sentence, for a list row. Long agent summaries belong in the detail. */
 function firstSentence(text) {
   if (!text) return '';
-  const plain = text.replace(/[*`#>]/g, '').replace(/\s+/g, ' ').trim();
+  const plain = text
+    .replace(/[*`#>]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
   const match = plain.match(/^(.{20,160}?[.!?])(\s|$)/);
   const sentence = match ? match[1] : plain;
   return sentence.length > 160 ? `${sentence.slice(0, 157)}...` : sentence;
@@ -722,41 +933,72 @@ function stepWords(step) {
 }
 
 function diffBlock(diff) {
-  return el('div', { class: 'diff-files' }, diff.split(/(?=^diff --git )/m).filter(Boolean).map((section) => {
-    const lines = section.split('\n');
-    const file = lines[0]?.match(/^diff --git a\/.* b\/(.*)$/)?.[1] ?? 'Patch';
-    return el('section', { class: 'diff-file' }, [el('h3', { text: file }),
-      el('pre', { class: 'diff-block' }, lines.map((line) => el('span', {
-        class: line.startsWith('+') && !line.startsWith('+++') ? 'added'
-          : line.startsWith('-') && !line.startsWith('---') ? 'removed'
-            : line.startsWith('@@') ? 'hunk' : '', text: line || ' ',
-      })))]);
-  }));
+  return el(
+    'div',
+    { class: 'diff-files' },
+    diff
+      .split(/(?=^diff --git )/m)
+      .filter(Boolean)
+      .map((section) => {
+        const lines = section.split('\n');
+        const file = lines[0]?.match(/^diff --git a\/.* b\/(.*)$/)?.[1] ?? 'Patch';
+        return el('section', { class: 'diff-file' }, [
+          el('h3', { text: file }),
+          el(
+            'pre',
+            { class: 'diff-block' },
+            lines.map((line) =>
+              el('span', {
+                class:
+                  line.startsWith('+') && !line.startsWith('+++')
+                    ? 'added'
+                    : line.startsWith('-') && !line.startsWith('---')
+                      ? 'removed'
+                      : line.startsWith('@@')
+                        ? 'hunk'
+                        : '',
+                text: line || ' ',
+              }),
+            ),
+          ),
+        ]);
+      }),
+  );
 }
 
 function fixBadge(fix) {
   const last = fix.retests?.at(-1);
-  const label = fix.status === 'verified' ? 'Verified in the app'
-    : fix.status === 'retesting' ? 'Retesting…'
-      : fix.status === 'declined' ? 'Declined'
-        : fix.status === 'failed' ? 'Failed'
-          : last && last.outcome !== 'fixed' ? 'Not verified' : 'Proposed';
+  const label =
+    fix.status === 'verified'
+      ? 'Verified in the app'
+      : fix.status === 'retesting'
+        ? 'Retesting…'
+        : fix.status === 'declined'
+          ? 'Declined'
+          : fix.status === 'failed'
+            ? 'Failed'
+            : last && last.outcome !== 'fixed'
+              ? 'Not verified'
+              : 'Proposed';
   const kind = fix.status === 'verified' ? 'pass' : ['declined', 'failed'].includes(fix.status) ? 'fail' : 'warn';
   return el('span', { class: `badge ${kind}`, text: label });
 }
 
 function retestBlock(retest, issue) {
   const before = retest.before ?? issue.evidence?.screenshot;
-  const pair = (shot) => el('div', { class: 'retest-shot-pair' }, [
-    retest.shots?.length ? el('h4', { text: screenName(shot.screenId) }) : null,
-    shot.reached === false ? el('span', { class: 'muted', text: 'Not reached' }) : null,
-    shot.note ? el('p', { class: 'muted', text: shot.note }) : null,
-    el('div', { class: 'retest-shots' }, [
-      el('figure', {}, [image(shot.before, 'Before'), el('figcaption', { text: 'Before' })]),
-      el('figure', {}, [image(shot.after, 'After (with the fix)'),
-        el('figcaption', { text: 'After (with the fix)' })]),
-    ]),
-  ]);
+  const pair = (shot) =>
+    el('div', { class: 'retest-shot-pair' }, [
+      retest.shots?.length ? el('h4', { text: screenName(shot.screenId) }) : null,
+      shot.reached === false ? el('span', { class: 'muted', text: 'Not reached' }) : null,
+      shot.note ? el('p', { class: 'muted', text: shot.note }) : null,
+      el('div', { class: 'retest-shots' }, [
+        el('figure', {}, [image(shot.before, 'Before'), el('figcaption', { text: 'Before' })]),
+        el('figure', {}, [
+          image(shot.after, 'After (with the fix)'),
+          el('figcaption', { text: 'After (with the fix)' }),
+        ]),
+      ]),
+    ]);
   return el('div', { class: 'retest-block' }, [
     el('h3', { text: `Retest ${retest.attempt}: ${retest.outcome}` }),
     el('p', { text: retest.reason }),
@@ -773,12 +1015,17 @@ function markdown(source = '') {
   let code = null;
   for (const line of lines) {
     if (line.startsWith('```')) {
-      if (code) { container.append(code); code = null; }
-      else code = el('pre', {}, [el('code')]);
+      if (code) {
+        container.append(code);
+        code = null;
+      } else code = el('pre', {}, [el('code')]);
       list = null;
       continue;
     }
-    if (code) { code.firstChild.textContent += `${line}\n`; continue; }
+    if (code) {
+      code.firstChild.textContent += `${line}\n`;
+      continue;
+    }
     const match = line.match(/^\s*(?:[-*]|\d+\.) (.*)$/);
     if (match) {
       const tag = /^\s*\d+\./.test(line) ? 'ol' : 'ul';
@@ -810,41 +1057,76 @@ function inlineMarkdown(line) {
 }
 
 function renderActivity() {
-  const list = el('section', { class: 'card panel' }, [title('Activity'),
-    ...state.sessions.map((session) => el('button', {
-      class: `list-row ${session.id === state.selectedSessionId ? 'active' : ''}`,
-      onclick: async () => { state.selectedSessionId = session.id; await refresh(); } }, [
-      roleIcon(session.role), el('span', { class: 'grow' }, [
-        el('strong', { text: firstSentence(session.summary) || `${capital(session.role)} session` }),
-        el('small', { class: 'muted',
-          text: `${capital(session.role)} · ${relativeTime(session.startedAt)} · ${duration(session)} · ${session.steps} steps · ` +
-            `${session.tokens ? `${tokens(session.tokens)} · ` : ''}API ${money(session.costUsd)} · `
-            + `${session.screensFound.length} screens · ${session.issues.length} issues`,
-        }),
-      ]),
-    ])),
+  const list = el('section', { class: 'card panel' }, [
+    title('Activity'),
+    ...state.sessions.map((session) =>
+      el(
+        'button',
+        {
+          class: `list-row ${session.id === state.selectedSessionId ? 'active' : ''}`,
+          onclick: async () => {
+            state.selectedSessionId = session.id;
+            await refresh();
+          },
+        },
+        [
+          roleIcon(session.role),
+          el('span', { class: 'grow' }, [
+            el('strong', { text: firstSentence(session.summary) || `${capital(session.role)} session` }),
+            el('small', {
+              class: 'muted',
+              text:
+                `${capital(session.role)} · ${relativeTime(session.startedAt)} · ${duration(session)} · ${session.steps} steps · ` +
+                `${session.tokens ? `${tokens(session.tokens)} · ` : ''}API ${money(session.costUsd)} · ` +
+                `${session.screensFound.length} screens · ${session.issues.length} issues`,
+            }),
+          ]),
+        ],
+      ),
+    ),
   ]);
   const detail = state.sessionDetail;
-  const timeline = detail ? el('section', { class: 'card panel' }, [
-    title('Timeline', `${capital(detail.session.role)} · ${relativeTime(detail.session.startedAt)}`),
-    detail.session.summary ? el('div', { class: 'session-summary' }, [markdown(detail.session.summary)]) : null,
-    el('div', { class: 'muted session-usage' }, detail.session.tokensByModel
-      ? Object.entries(detail.session.tokensByModel).map(([model, usage]) =>
-        el('div', { title: tokenDetail(usage), text: `${model}: ${tokens(usage)}` }))
-      : [el('div', { text: 'No token usage reported for this session.' })]),
-    el('label', { class: 'toggle' }, [el('input', {
-      type: 'checkbox',
-      ...(state.showThoughts ? { checked: '' } : {}),
-      onchange: (event) => { state.showThoughts = event.target.checked; render(); },
-    }), el('span', { text: 'Show agent reasoning' })]),
-    el('div', { class: 'event-list' }, detail.events.filter((event) => state.showThoughts || isFeedEvent(event))
-      .map(renderEventRow)),
-    detail.candidates.length ? title('Candidates') : null,
-    ...detail.candidates.map((candidate) => el('div', { class: 'candidate' }, [
-      el('strong', { text: candidate.summary }),
-      el('span', { class: 'muted', text: `${candidate.route?.to || 'unrouted'} · ${candidate.route?.reason || ''}` }),
-    ])),
-  ]) : el('section', { class: 'card panel empty', text: 'Select a session.' });
+  const timeline = detail
+    ? el('section', { class: 'card panel' }, [
+        title('Timeline', `${capital(detail.session.role)} · ${relativeTime(detail.session.startedAt)}`),
+        detail.session.summary ? el('div', { class: 'session-summary' }, [markdown(detail.session.summary)]) : null,
+        el(
+          'div',
+          { class: 'muted session-usage' },
+          detail.session.tokensByModel
+            ? Object.entries(detail.session.tokensByModel).map(([model, usage]) =>
+                el('div', { title: tokenDetail(usage), text: `${model}: ${tokens(usage)}` }),
+              )
+            : [el('div', { text: 'No token usage reported for this session.' })],
+        ),
+        el('label', { class: 'toggle' }, [
+          el('input', {
+            type: 'checkbox',
+            ...(state.showThoughts ? { checked: '' } : {}),
+            onchange: (event) => {
+              state.showThoughts = event.target.checked;
+              render();
+            },
+          }),
+          el('span', { text: 'Show agent reasoning' }),
+        ]),
+        el(
+          'div',
+          { class: 'event-list' },
+          detail.events.filter((event) => state.showThoughts || isFeedEvent(event)).map(renderEventRow),
+        ),
+        detail.candidates.length ? title('Candidates') : null,
+        ...detail.candidates.map((candidate) =>
+          el('div', { class: 'candidate' }, [
+            el('strong', { text: candidate.summary }),
+            el('span', {
+              class: 'muted',
+              text: `${candidate.route?.to || 'unrouted'} · ${candidate.route?.reason || ''}`,
+            }),
+          ]),
+        ),
+      ])
+    : el('section', { class: 'card panel empty', text: 'Select a session.' });
   return el('div', { class: 'master-detail' }, [list, timeline]);
 }
 
@@ -857,15 +1139,22 @@ function duration(session) {
 function renderEventRow(event) {
   return el('div', { class: 'event-row' }, [
     el('time', { text: new Date(event.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }),
-    roleIcon(event.role), el('span', { class: 'grow truncate', text: event.summary }),
+    roleIcon(event.role),
+    el('span', { class: 'grow truncate', text: event.summary }),
     event.tokens && event.kind !== 'usage'
-      ? el('small', { class: 'muted token-chip', title: `${event.model ?? ''} ${tokenDetail(event.tokens)}`.trim(), text: tokens(event.tokens, '') })
+      ? el('small', {
+          class: 'muted token-chip',
+          title: `${event.model ?? ''} ${tokenDetail(event.tokens)}`.trim(),
+          text: tokens(event.tokens, ''),
+        })
       : null,
     event.screenshot ? image(event.screenshot, event.summary, 'event-thumb') : null,
-    event.input !== undefined || event.output !== undefined ? el('details', {}, [
-      el('summary', { text: 'Tool data' }),
-      el('pre', { text: JSON.stringify({ input: event.input, output: event.output }, null, 2) }),
-    ]) : null,
+    event.input !== undefined || event.output !== undefined
+      ? el('details', {}, [
+          el('summary', { text: 'Tool data' }),
+          el('pre', { text: JSON.stringify({ input: event.input, output: event.output }, null, 2) }),
+        ])
+      : null,
   ]);
 }
 
@@ -882,129 +1171,276 @@ function renderScreens() {
   const selected = screens.find((screen) => screen.id === state.selectedScreenId);
   if (selected) {
     const routine = state.routines.find((entry) => entry.id === selected.routineId);
-    const issues = state.issues.filter((issue) =>
-      issue.screenId === selected.id && !['fixed', 'dismissed'].includes(issue.status));
+    const issues = state.issues.filter(
+      (issue) => issue.screenId === selected.id && !['fixed', 'dismissed'].includes(issue.status),
+    );
     return el('div', { class: 'card panel screen-detail' }, [
-      el('button', { class: 'back', text: '← All screens',
-        onclick: () => { state.selectedScreenId = null; render(); } }),
+      el('button', {
+        class: 'back',
+        text: '← All screens',
+        onclick: () => {
+          state.selectedScreenId = null;
+          render();
+        },
+      }),
       title(selected.name, `${selected.visits} visits · ${relativeTime(selected.lastSeenAt)}`),
       image(selected.lastScreenshot, selected.name, 'screen-large'),
       el('p', { text: selected.description }),
       title('Routine'),
-      el('p', { text: routine
-        ? `${routine.id} · ${routine.description} · ${routine.steps} steps`
-        : selected.routineId || 'No routine' }),
-      ...[['Comes from', edges.filter((edge) => edge.to === selected.id), 'from'],
-        ['Goes to', edges.filter((edge) => edge.from === selected.id), 'to']].map(([heading, links, end]) =>
-        el('section', { class: 'screen-links' }, [title(heading), ...links.map((edge) =>
-          el('button', { class: 'list-row', onclick: () => openScreen(edge[end]) }, [
-            el('strong', { text: screenName(edge[end]) }),
-            edge.via ? el('small', { class: 'muted', text: edge.via }) : null,
-          ]))])),
+      el('p', {
+        text: routine
+          ? `${routine.id} · ${routine.description} · ${routine.steps} steps`
+          : selected.routineId || 'No routine',
+      }),
+      ...[
+        ['Comes from', edges.filter((edge) => edge.to === selected.id), 'from'],
+        ['Goes to', edges.filter((edge) => edge.from === selected.id), 'to'],
+      ].map(([heading, links, end]) =>
+        el('section', { class: 'screen-links' }, [
+          title(heading),
+          ...links.map((edge) =>
+            el('button', { class: 'list-row', onclick: () => openScreen(edge[end]) }, [
+              el('strong', { text: screenName(edge[end]) }),
+              edge.via ? el('small', { class: 'muted', text: edge.via }) : null,
+            ]),
+          ),
+        ]),
+      ),
       title('Open issues', `${selected.openIssues}`),
-      ...issues.map((issue) => el('button', { class: 'list-row', onclick: () => openIssue(issue.id) }, [
-        el('strong', { text: issue.title }), severityChip(issue.severity),
-      ])),
+      ...issues.map((issue) =>
+        el('button', { class: 'list-row', onclick: () => openIssue(issue.id) }, [
+          el('strong', { text: issue.title }),
+          severityChip(issue.severity),
+        ]),
+      ),
     ]);
   }
-  const toggle = el('div', { class: 'screen-mode', role: 'group', 'aria-label': 'Screen view' },
-    ['graph', 'grid'].map((mode) => el('button', { class: screenMode === mode ? 'active' : '',
-      text: mode === 'graph' ? 'Graph' : 'Grid', 'aria-pressed': screenMode === mode,
-      onclick: () => { screenMode = mode; try { localStorage.setItem('bugpatrol-screen-mode', mode); } catch { /* disabled */ } render(); },
-    })));
-  return el('div', {}, [title('Screens', `${screens.length} found`),
+  const toggle = el(
+    'div',
+    { class: 'screen-mode', role: 'group', 'aria-label': 'Screen view' },
+    ['graph', 'grid'].map((mode) =>
+      el('button', {
+        class: screenMode === mode ? 'active' : '',
+        text: mode === 'graph' ? 'Graph' : 'Grid',
+        'aria-pressed': screenMode === mode,
+        onclick: () => {
+          screenMode = mode;
+          try {
+            localStorage.setItem('bugpatrol-screen-mode', mode);
+          } catch {
+            /* disabled */
+          }
+          render();
+        },
+      }),
+    ),
+  );
+  return el('div', {}, [
+    title('Screens', `${screens.length} found`),
     toggle,
-    screens.length === 0 ? el('div', { class: 'empty', text: 'No screens found yet.' })
-      : screenMode === 'graph' ? renderScreenGraph(graphScreens, edges) : el('div', { class: 'screen-grid' }, screens.map((screen) => el('button', {
-      class: 'card screen-card', onclick: () => openScreen(screen.id),
-    }, [image(screen.lastScreenshot, screen.name), el('div', { class: 'screen-copy' }, [
-      el('strong', { text: screen.name }),
-      el('p', { class: 'truncate muted', text: screen.description }),
-      el('small', { class: 'muted', text: `${relativeTime(screen.lastSeenAt)} · ${screen.visits} visits` }),
-      screen.openIssues ? el('span', { class: 'issue-count', text: `${screen.openIssues} open` }) : null,
-    ])])))]);
+    screens.length === 0
+      ? el('div', { class: 'empty', text: 'No screens found yet.' })
+      : screenMode === 'graph'
+        ? renderScreenGraph(graphScreens, edges)
+        : el(
+            'div',
+            { class: 'screen-grid' },
+            screens.map((screen) =>
+              el(
+                'button',
+                {
+                  class: 'card screen-card',
+                  onclick: () => openScreen(screen.id),
+                },
+                [
+                  image(screen.lastScreenshot, screen.name),
+                  el('div', { class: 'screen-copy' }, [
+                    el('strong', { text: screen.name }),
+                    el('p', { class: 'truncate muted', text: screen.description }),
+                    el('small', {
+                      class: 'muted',
+                      text: `${relativeTime(screen.lastSeenAt)} · ${screen.visits} visits`,
+                    }),
+                    screen.openIssues ? el('span', { class: 'issue-count', text: `${screen.openIssues} open` }) : null,
+                  ]),
+                ],
+              ),
+            ),
+          ),
+  ]);
 }
 
 function renderScreenGraph(screens, allEdges) {
   const layout = layoutGraph(screens, allEdges, state.appmap?.entryId);
   const key = `${screens.map((screen) => screen.id).join('|')}|${allEdges.length}`;
   const canvas = svgEl('svg', { class: 'screen-graph', role: 'group', 'aria-label': 'Map of app screens' });
-  const marker = svgEl('marker', { id: 'graph-arrow', markerWidth: 9, markerHeight: 9, refX: 8, refY: 4.5,
-    orient: 'auto', markerUnits: 'userSpaceOnUse' }, [svgEl('path', { d: 'M 0 0 L 9 4.5 L 0 9 Z' })]);
-  const mutedMarker = svgEl('marker', { id: 'graph-arrow-muted', markerWidth: 9, markerHeight: 9,
-    refX: 8, refY: 4.5, orient: 'auto', markerUnits: 'userSpaceOnUse' },
-  [svgEl('path', { d: 'M 0 0 L 9 4.5 L 0 9 Z' })]);
+  const marker = svgEl(
+    'marker',
+    {
+      id: 'graph-arrow',
+      markerWidth: 9,
+      markerHeight: 9,
+      refX: 8,
+      refY: 4.5,
+      orient: 'auto',
+      markerUnits: 'userSpaceOnUse',
+    },
+    [svgEl('path', { d: 'M 0 0 L 9 4.5 L 0 9 Z' })],
+  );
+  const mutedMarker = svgEl(
+    'marker',
+    {
+      id: 'graph-arrow-muted',
+      markerWidth: 9,
+      markerHeight: 9,
+      refX: 8,
+      refY: 4.5,
+      orient: 'auto',
+      markerUnits: 'userSpaceOnUse',
+    },
+    [svgEl('path', { d: 'M 0 0 L 9 4.5 L 0 9 Z' })],
+  );
   canvas.append(svgEl('defs', {}, [marker, mutedMarker]));
-  const edgeNodes = layout.edges.filter((edge) => showBackLinks || edge.kind !== 'back').map((edge) => {
-    const path = svgEl('path', { d: edge.path, class: `graph-edge ${edge.kind}`,
-      'data-from': edge.from, 'data-to': edge.to,
-      'marker-end': `url(#graph-arrow${['route', 'other', 'back'].includes(edge.kind) ? '-muted' : ''})`,
-      'stroke-width': ['route', 'other'].includes(edge.kind) ? 1 : 1.5 + Math.min(4, Math.log2(edge.count || 1)) });
-    path.append(svgEl('title', { text: edge.via || edge.kind }));
-    return path;
-  });
+  const edgeNodes = layout.edges
+    .filter((edge) => showBackLinks || edge.kind !== 'back')
+    .map((edge) => {
+      const path = svgEl('path', {
+        d: edge.path,
+        class: `graph-edge ${edge.kind}`,
+        'data-from': edge.from,
+        'data-to': edge.to,
+        'marker-end': `url(#graph-arrow${['route', 'other', 'back'].includes(edge.kind) ? '-muted' : ''})`,
+        'stroke-width': ['route', 'other'].includes(edge.kind) ? 1 : 1.5 + Math.min(4, Math.log2(edge.count || 1)),
+      });
+      path.append(svgEl('title', { text: edge.via || edge.kind }));
+      return path;
+    });
   canvas.append(svgEl('g', { class: 'graph-edges' }, edgeNodes));
-  if (layout.unlinkedX !== null) canvas.append(svgEl('text', { x: layout.unlinkedX, y: layout.unlinkedY + 20,
-    class: 'graph-unlinked', text: 'Not linked' }));
+  if (layout.unlinkedX !== null)
+    canvas.append(
+      svgEl('text', { x: layout.unlinkedX, y: layout.unlinkedY + 20, class: 'graph-unlinked', text: 'Not linked' }),
+    );
   const screenById = new Map(screens.map((screen) => [screen.id, screen]));
   let dragMoved = false;
   for (const node of layout.nodes) {
     const screen = screenById.get(node.id);
     if (screen.virtual) {
-      canvas.append(svgEl('g', { class: 'graph-start', 'aria-label': 'App start' }, [
-        svgEl('rect', { x: node.x, y: node.y, width: node.w, height: node.h, rx: node.h / 2 }),
-        svgEl('text', { x: node.x + node.w / 2, y: node.y + node.h / 2 + 5,
-          'text-anchor': 'middle', text: 'App start' }),
-      ]));
+      canvas.append(
+        svgEl('g', { class: 'graph-start', 'aria-label': 'App start' }, [
+          svgEl('rect', { x: node.x, y: node.y, width: node.w, height: node.h, rx: node.h / 2 }),
+          svgEl('text', {
+            x: node.x + node.w / 2,
+            y: node.y + node.h / 2 + 5,
+            'text-anchor': 'middle',
+            text: 'App start',
+          }),
+        ]),
+      );
       continue;
     }
-    const card = svgEl('g', { class: 'graph-node', role: 'button', tabindex: 0,
+    const card = svgEl('g', {
+      class: 'graph-node',
+      role: 'button',
+      tabindex: 0,
       'aria-label': `${screen.name}${screen.openIssues ? `, ${screen.openIssues} open issues` : ''}`,
-      onclick: () => { if (!dragMoved) openScreen(node.id); },
-      onkeydown: (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openScreen(node.id); } },
-      onpointerenter: () => { for (const path of edgeNodes) path.classList.toggle('faded',
-        path.getAttribute('data-from') !== node.id && path.getAttribute('data-to') !== node.id); },
-      onpointerleave: () => edgeNodes.forEach((path) => path.classList.remove('faded')),
+      onclick: () => {
+        if (!dragMoved) openScreen(node.id);
+      },
+      onkeydown: (event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          openScreen(node.id);
+        }
+      },
+      onpointerenter: () => {
+        for (const path of edgeNodes)
+          path.classList.toggle(
+            'faded',
+            path.getAttribute('data-from') !== node.id && path.getAttribute('data-to') !== node.id,
+          );
+      },
+      onpointerleave: () => {
+        for (const path of edgeNodes) path.classList.remove('faded');
+      },
     });
-    card.append(svgEl('rect', { x: node.x, y: node.y, width: node.w, height: node.h, rx: 9,
-      class: 'graph-card' }));
-    if (screen.lastScreenshot) card.append(svgEl('image', { x: node.x + 5, y: node.y + 5,
-      width: node.w - 10, height: 104, href: artifact(screen.lastScreenshot), preserveAspectRatio: 'xMidYMin slice' }));
-    card.append(svgEl('text', { x: node.x + 10, y: node.y + 134, class: 'graph-name',
-      text: screen.name.length > 24 ? `${screen.name.slice(0, 23)}…` : screen.name }));
+    card.append(svgEl('rect', { x: node.x, y: node.y, width: node.w, height: node.h, rx: 9, class: 'graph-card' }));
+    if (screen.lastScreenshot)
+      card.append(
+        svgEl('image', {
+          x: node.x + 5,
+          y: node.y + 5,
+          width: node.w - 10,
+          height: 104,
+          href: artifact(screen.lastScreenshot),
+          preserveAspectRatio: 'xMidYMin slice',
+        }),
+      );
+    card.append(
+      svgEl('text', {
+        x: node.x + 10,
+        y: node.y + 134,
+        class: 'graph-name',
+        text: screen.name.length > 24 ? `${screen.name.slice(0, 23)}…` : screen.name,
+      }),
+    );
     if (screen.openIssues) {
       card.append(svgEl('circle', { cx: node.x + node.w - 12, cy: node.y + 12, r: 12, class: 'graph-issue' }));
-      card.append(svgEl('text', { x: node.x + node.w - 12, y: node.y + 16,
-        'text-anchor': 'middle', class: 'graph-issue-text', text: screen.openIssues }));
+      card.append(
+        svgEl('text', {
+          x: node.x + node.w - 12,
+          y: node.y + 16,
+          'text-anchor': 'middle',
+          class: 'graph-issue-text',
+          text: screen.openIssues,
+        }),
+      );
     }
     card.append(svgEl('title', { text: screen.name }));
     canvas.append(card);
   }
   let box = graphCamera.key === key ? graphCamera.box : null;
-  const setBox = (next) => { box = next; graphCamera.box = next; graphCamera.key = key;
-    canvas.setAttribute('viewBox', `${next.x} ${next.y} ${next.w} ${next.h}`); };
+  const setBox = (next) => {
+    box = next;
+    graphCamera.box = next;
+    graphCamera.key = key;
+    canvas.setAttribute('viewBox', `${next.x} ${next.y} ${next.w} ${next.h}`);
+  };
   const fit = () => {
-    const width = canvas.clientWidth, height = canvas.clientHeight;
+    const width = canvas.clientWidth,
+      height = canvas.clientHeight;
     if (!width || !height) return;
     const scale = Math.max((layout.width + 80) / width, (layout.height + 100) / height);
-    setBox({ x: (layout.width - width * scale) / 2, y: (layout.height - height * scale) / 2,
-      w: width * scale, h: height * scale });
+    setBox({
+      x: (layout.width - width * scale) / 2,
+      y: (layout.height - height * scale) / 2,
+      w: width * scale,
+      h: height * scale,
+    });
   };
   const zoom = (factor, clientX, clientY) => {
     if (!box) fit();
     const bounds = canvas.getBoundingClientRect();
-    const fx = (clientX - bounds.left) / bounds.width, fy = (clientY - bounds.top) / bounds.height;
+    const fx = (clientX - bounds.left) / bounds.width,
+      fy = (clientY - bounds.top) / bounds.height;
     const w = Math.max(200, Math.min(layout.width * 5, box.w * factor));
-    const h = w * bounds.height / bounds.width;
+    const h = (w * bounds.height) / bounds.width;
     setBox({ x: box.x + (box.w - w) * fx, y: box.y + (box.h - h) * fy, w, h });
   };
-  canvas.addEventListener('wheel', (event) => { event.preventDefault();
-    zoom(Math.exp(event.deltaY * 0.001), event.clientX, event.clientY); }, { passive: false });
+  canvas.addEventListener(
+    'wheel',
+    (event) => {
+      event.preventDefault();
+      zoom(Math.exp(event.deltaY * 0.001), event.clientX, event.clientY);
+    },
+    { passive: false },
+  );
   const pointers = new Map();
   let lastPinch = 0;
-  canvas.addEventListener('pointerdown', (event) => { dragMoved = false;
+  canvas.addEventListener('pointerdown', (event) => {
+    dragMoved = false;
     pointers.set(event.pointerId, [event.clientX, event.clientY]);
-    event.target.setPointerCapture(event.pointerId); });
+    event.target.setPointerCapture(event.pointerId);
+  });
   canvas.addEventListener('pointermove', (event) => {
     if (!pointers.has(event.pointerId)) return;
     const before = pointers.get(event.pointerId);
@@ -1015,29 +1451,75 @@ function renderScreenGraph(screens, allEdges) {
       const distance = Math.hypot(a[0] - b[0], a[1] - b[1]);
       if (lastPinch) zoom(lastPinch / distance, (a[0] + b[0]) / 2, (a[1] + b[1]) / 2);
       lastPinch = distance;
-    } else if (box) setBox({ ...box, x: box.x - (event.clientX - before[0]) * box.w / canvas.clientWidth,
-      y: box.y - (event.clientY - before[1]) * box.h / canvas.clientHeight });
+    } else if (box)
+      setBox({
+        ...box,
+        x: box.x - ((event.clientX - before[0]) * box.w) / canvas.clientWidth,
+        y: box.y - ((event.clientY - before[1]) * box.h) / canvas.clientHeight,
+      });
   });
-  const endPointer = (event) => { pointers.delete(event.pointerId); lastPinch = 0; };
+  const endPointer = (event) => {
+    pointers.delete(event.pointerId);
+    lastPinch = 0;
+  };
   canvas.addEventListener('pointerup', endPointer);
   canvas.addEventListener('pointercancel', endPointer);
   requestAnimationFrame(() => {
     if (!canvas.isConnected) return;
-    if (box) { setBox(box); return; }
-    if (canvas.clientWidth && canvas.clientHeight) { fit(); return; }
+    if (box) {
+      setBox(box);
+      return;
+    }
+    if (canvas.clientWidth && canvas.clientHeight) {
+      fit();
+      return;
+    }
     const observer = new ResizeObserver(() => {
-      if (!canvas.isConnected) { observer.disconnect(); return; }
-      if (canvas.clientWidth && canvas.clientHeight) { observer.disconnect(); fit(); }
+      if (!canvas.isConnected) {
+        observer.disconnect();
+        return;
+      }
+      if (canvas.clientWidth && canvas.clientHeight) {
+        observer.disconnect();
+        fit();
+      }
     });
     observer.observe(canvas);
   });
   return el('div', { class: 'graph-wrap' }, [
     el('div', { class: 'graph-toolbar' }, [
       el('button', { text: 'Fit', onclick: fit }),
-      el('button', { text: '+', 'aria-label': 'Zoom in', onclick: () => zoom(.8, canvas.getBoundingClientRect().x + canvas.clientWidth / 2, canvas.getBoundingClientRect().y + canvas.clientHeight / 2) }),
-      el('button', { text: '−', 'aria-label': 'Zoom out', onclick: () => zoom(1.25, canvas.getBoundingClientRect().x + canvas.clientWidth / 2, canvas.getBoundingClientRect().y + canvas.clientHeight / 2) }),
-      el('label', {}, [el('input', { type: 'checkbox', checked: showBackLinks ? '' : null,
-        onchange: (event) => { showBackLinks = event.target.checked; render(); } }), ' Show back links']),
+      el('button', {
+        text: '+',
+        'aria-label': 'Zoom in',
+        onclick: () =>
+          zoom(
+            0.8,
+            canvas.getBoundingClientRect().x + canvas.clientWidth / 2,
+            canvas.getBoundingClientRect().y + canvas.clientHeight / 2,
+          ),
+      }),
+      el('button', {
+        text: '−',
+        'aria-label': 'Zoom out',
+        onclick: () =>
+          zoom(
+            1.25,
+            canvas.getBoundingClientRect().x + canvas.clientWidth / 2,
+            canvas.getBoundingClientRect().y + canvas.clientHeight / 2,
+          ),
+      }),
+      el('label', {}, [
+        el('input', {
+          type: 'checkbox',
+          checked: showBackLinks ? '' : null,
+          onchange: (event) => {
+            showBackLinks = event.target.checked;
+            render();
+          },
+        }),
+        ' Show back links',
+      ]),
     ]),
     el('p', { class: 'graph-legend', text: 'Solid = tap · dashed = deep link · grey = replay route' }),
     canvas,
@@ -1046,19 +1528,25 @@ function renderScreenGraph(screens, allEdges) {
 
 function renderMemory() {
   const lessons = state.memory?.lessons ?? [];
-  const row = (lesson) => el('div', { class: 'memory-row' }, [
-    el('span', { class: 'grow', text: lesson.text }),
-    el('span', { class: 'badge info', text: lesson.scope ?? 'app' }),
-    el('span', { class: 'muted', text: `${lesson.source} · ×${lesson.hits} · ${relativeTime(lesson.lastSeenAt)}` }),
-  ]);
-  return el('section', { class: 'card panel' }, [title('Memory'),
+  const row = (lesson) =>
+    el('div', { class: 'memory-row' }, [
+      el('span', { class: 'grow', text: lesson.text }),
+      el('span', { class: 'badge info', text: lesson.scope ?? 'app' }),
+      el('span', { class: 'muted', text: `${lesson.source} · ×${lesson.hits} · ${relativeTime(lesson.lastSeenAt)}` }),
+    ]);
+  return el('section', { class: 'card panel' }, [
+    title('Memory'),
     el('p', { class: 'muted', text: 'Use bugpatrol memory to edit lessons.' }),
-    ...['explorer', 'judge', 'fixer'].map((role) => el('section', { class: 'memory-group' }, [
-      el('h3', { text: capital(role) }),
-      ...lessons.filter((lesson) => lesson.role === role && !lesson.retired).map(row),
-    ])),
-    el('details', {}, [el('summary', { text: `Retired lessons (${lessons.filter((lesson) => lesson.retired).length})` }),
-      ...lessons.filter((lesson) => lesson.retired).map(row)]),
+    ...['explorer', 'judge', 'fixer'].map((role) =>
+      el('section', { class: 'memory-group' }, [
+        el('h3', { text: capital(role) }),
+        ...lessons.filter((lesson) => lesson.role === role && !lesson.retired).map(row),
+      ]),
+    ),
+    el('details', {}, [
+      el('summary', { text: `Retired lessons (${lessons.filter((lesson) => lesson.retired).length})` }),
+      ...lessons.filter((lesson) => lesson.retired).map(row),
+    ]),
   ]);
 }
 
@@ -1073,8 +1561,12 @@ function openLightbox(path, caption) {
   lightboxCaption.textContent = `${caption} — ${path}`;
   lightbox.hidden = false;
 }
-lightbox.addEventListener('click', () => { lightbox.hidden = true; });
-document.addEventListener('keydown', (event) => { if (event.key === 'Escape') lightbox.hidden = true; });
+lightbox.addEventListener('click', () => {
+  lightbox.hidden = true;
+});
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') lightbox.hidden = true;
+});
 
 // ---------------------------------------------------------------- boot
 
@@ -1088,7 +1580,8 @@ tabs.addEventListener('click', async (event) => {
 
 function summaryOf(run, findings) {
   return {
-    exitCode: run.exitCode, status: run.status,
+    exitCode: run.exitCode,
+    status: run.status,
     findings: { blocking: findings.filter((f) => f.route === 'check').length },
   };
 }

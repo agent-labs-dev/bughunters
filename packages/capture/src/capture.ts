@@ -1,13 +1,13 @@
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
-import type { Page } from 'playwright';
 import type { BugpatrolConfig, MaskConfig, ViewportConfig } from '@bugpatrol/core';
 import { sha256 } from '@bugpatrol/core';
 import { PROBE_SOURCE, type ScreenSnapshot } from '@bugpatrol/invariants';
-import { STABILITY_STYLESHEET } from './determinism.js';
-import { waitForStableFrame } from './stability-gate.js';
+import type { Page } from 'playwright';
 import { assertNoFontFallback } from './browser.js';
+import { STABILITY_STYLESHEET } from './determinism.js';
 import { confirmContrastWithPixels } from './pixel-contrast.js';
+import { waitForStableFrame } from './stability-gate.js';
 
 export type CaptureRequest = {
   screenId: string;
@@ -54,7 +54,10 @@ export async function captureScreen(
     mask: masks.map((m) => page.locator(m.selector)),
   });
 
-  const probe = (await page.evaluate(PROBE_SOURCE)) as Omit<ScreenSnapshot, 'screenId' | 'viewport' | 'consoleErrors'> & {
+  const probe = (await page.evaluate(PROBE_SOURCE)) as Omit<
+    ScreenSnapshot,
+    'screenId' | 'viewport' | 'consoleErrors'
+  > & {
     document: ScreenSnapshot['document'] & { scrollX?: number; scrollY?: number };
   };
 

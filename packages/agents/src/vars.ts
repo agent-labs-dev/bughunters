@@ -5,7 +5,10 @@ export class Vars {
   private readonly values = new Map<string, string>();
   private readonly configValues = new Map<string, string>();
 
-  constructor(secrets: AppConfig['secrets'] = [], private readonly env: NodeJS.ProcessEnv = process.env) {
+  constructor(
+    secrets: AppConfig['secrets'] = [],
+    private readonly env: NodeJS.ProcessEnv = process.env,
+  ) {
     for (const name of secrets) {
       if (env[name] !== undefined) {
         this.set(name, env[name]);

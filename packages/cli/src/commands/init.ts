@@ -1,23 +1,48 @@
 import { spawnSync } from 'node:child_process';
-import { appendFileSync, existsSync, readFileSync, readdirSync, writeFileSync, mkdirSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { createInterface } from 'node:readline/promises';
-import {
-  BUGPATROL_DIR, CLI_AGENTS, CONFIG_FILENAME, ConfigError, DATA_DIR, cliPreset, layout, legacyLayout, paths,
-  type AgentRole, type CliAgent, type StackProfile,
-} from '@bugpatrol/core';
 import { onPath } from '@bugpatrol/agents';
-import { detectStack, detectBringUp } from '@bugpatrol/recon';
+import {
+  type AgentRole,
+  BUGPATROL_DIR,
+  CLI_AGENTS,
+  type CliAgent,
+  CONFIG_FILENAME,
+  ConfigError,
+  cliPreset,
+  DATA_DIR,
+  layout,
+  legacyLayout,
+  paths,
+  type StackProfile,
+} from '@bugpatrol/core';
+import { detectBringUp, detectStack } from '@bugpatrol/recon';
 
 export type Platform = 'web' | 'electron' | 'ios' | 'android';
 export const PLATFORMS: Platform[] = ['web', 'electron', 'ios', 'android'];
 
 /** Model routes that need only an API key. */
 export const KEY_PROVIDERS = {
-  openrouter: { env: 'OPENROUTER_API_KEY', label: 'OpenRouter', url: 'https://openrouter.ai/keys', model: 'z-ai/glm-5.3-flash' },
-  vercel: { env: 'AI_GATEWAY_API_KEY', label: 'Vercel AI Gateway', url: 'https://vercel.com/ai-gateway', model: 'anthropic/claude-haiku-4.5' },
+  openrouter: {
+    env: 'OPENROUTER_API_KEY',
+    label: 'OpenRouter',
+    url: 'https://openrouter.ai/keys',
+    model: 'z-ai/glm-5.3-flash',
+  },
+  vercel: {
+    env: 'AI_GATEWAY_API_KEY',
+    label: 'Vercel AI Gateway',
+    url: 'https://vercel.com/ai-gateway',
+    model: 'anthropic/claude-haiku-4.5',
+  },
   openai: { env: 'OPENAI_API_KEY', label: 'OpenAI', url: 'https://platform.openai.com/api-keys', model: 'gpt-5-mini' },
-  anthropic: { env: 'ANTHROPIC_API_KEY', label: 'Anthropic', url: 'https://console.anthropic.com/settings/keys', model: 'claude-haiku-4-5' },
+  anthropic: {
+    env: 'ANTHROPIC_API_KEY',
+    label: 'Anthropic',
+    url: 'https://console.anthropic.com/settings/keys',
+    model: 'claude-haiku-4-5',
+  },
 } as const;
 export type KeyProvider = keyof typeof KEY_PROVIDERS;
 export type Provider = CliAgent | KeyProvider;
@@ -36,8 +61,7 @@ export type Detected = {
 };
 
 type Run = (command: string, args: string[]) => string;
-const run: Run = (command, args) =>
-  spawnSync(command, args, { encoding: 'utf8', timeout: 10_000 }).stdout ?? '';
+const run: Run = (command, args) => spawnSync(command, args, { encoding: 'utf8', timeout: 10_000 }).stdout ?? '';
 
 export function detectProviders(env: NodeJS.ProcessEnv = process.env, exec: Run = run): Detected {
   const found = CLI_AGENTS.filter((agent) => onPath(agent, env));
@@ -108,26 +132,31 @@ function list(dir: string): string[] {
 
 /** The Xcode projects at the root and in ios/, as project.pbxproj paths. */
 function xcodeProjects(root: string): string[] {
-  return ['.', 'ios'].flatMap((dir) => list(join(root, dir))
-    .filter((name) => name.endsWith('.xcodeproj'))
-    .map((name) => join(root, dir, name, 'project.pbxproj')));
+  return ['.', 'ios'].flatMap((dir) =>
+    list(join(root, dir))
+      .filter((name) => name.endsWith('.xcodeproj'))
+      .map((name) => join(root, dir, name, 'project.pbxproj')),
+  );
 }
 
 /** The Gradle files of an Android app module, at the root or in android/. */
 function gradleFiles(root: string): string[] {
-  return ['android/app', 'app'].flatMap((dir) => ['build.gradle', 'build.gradle.kts'].map((file) => join(root, dir, file)))
+  return ['android/app', 'app']
+    .flatMap((dir) => ['build.gradle', 'build.gradle.kts'].map((file) => join(root, dir, file)))
     .filter((file) => existsSync(file));
 }
 
 /** The bundle ID (iOS) or package name (Android), and the file it came from. */
 export function detectAppId(root: string, platform: 'ios' | 'android'): { appId: string; source: string } | undefined {
-  const expo = readJson<{ expo?: { ios?: { bundleIdentifier?: string }; android?: { package?: string } } }>(join(root, 'app.json'))?.expo;
+  const expo = readJson<{ expo?: { ios?: { bundleIdentifier?: string }; android?: { package?: string } } }>(
+    join(root, 'app.json'),
+  )?.expo;
   const fromJson = platform === 'ios' ? expo?.ios?.bundleIdentifier : expo?.android?.package;
   if (fromJson) return { appId: fromJson, source: 'app.json' };
   for (const file of ['app.config.ts', 'app.config.js']) {
-    const match = readText(join(root, file)).match(platform === 'ios'
-      ? /bundleIdentifier:\s*['"`]([\w.-]+)['"`]/
-      : /package:\s*['"`]([\w.-]+)['"`]/);
+    const match = readText(join(root, file)).match(
+      platform === 'ios' ? /bundleIdentifier:\s*['"`]([\w.-]+)['"`]/ : /package:\s*['"`]([\w.-]+)['"`]/,
+    );
     if (match) return { appId: match[1]!, source: file };
   }
   if (platform === 'ios') {
@@ -157,7 +186,10 @@ function detectPort(root: string, pkg: PackageJson, framework?: string): { port:
   }
   const fromEnv = readText(join(root, '.env')).match(/^PORT=(\d{2,5})\s*$/m)?.[1];
   if (fromEnv) return { port: Number(fromEnv), source: '.env' };
-  return { port: (framework && FRAMEWORK_PORTS[framework]) || 3000, source: framework ? `the ${framework} default` : 'the usual default' };
+  return {
+    port: (framework && FRAMEWORK_PORTS[framework]) || 3000,
+    source: framework ? `the ${framework} default` : 'the usual default',
+  };
 }
 
 /** The platform that this machine can run a mobile app on. */
@@ -186,7 +218,9 @@ export function detectApp(root: string): AppGuess {
   const nativeAndroid = !existsSync(join(root, 'package.json')) && gradleFiles(root).length > 0;
   if (reactNative || nativeIos || nativeAndroid) {
     const platform = nativeIos ? 'ios' : nativeAndroid ? 'android' : mobilePlatform(root);
-    notes.push(`Platform ${platform}: detected from ${reactNative ? 'package.json' : platform === 'ios' ? 'the Xcode project' : 'the Gradle files'}.`);
+    notes.push(
+      `Platform ${platform}: detected from ${reactNative ? 'package.json' : platform === 'ios' ? 'the Xcode project' : 'the Gradle files'}.`,
+    );
     const id = detectAppId(root, platform);
     if (id) notes.push(`App ID ${id.appId}: detected from ${id.source}.`);
     else notes.push('App ID: not found. Enter the bundle ID or the package name.');
@@ -268,9 +302,12 @@ export function renderConfig(answers: InitAnswers): string {
   }
   lines.push('  connect:');
   if (platform === 'web') lines.push(`    url: ${answers.url ?? 'http://localhost:3000'}`);
-  if (platform === 'electron') lines.push(`    cdp: http://127.0.0.1:${answers.cdpPort ?? 9222}   # the app must open this CDP port`);
+  if (platform === 'electron')
+    lines.push(`    cdp: http://127.0.0.1:${answers.cdpPort ?? 9222}   # the app must open this CDP port`);
   if (platform === 'ios' || platform === 'android') {
-    lines.push(`    appId: ${answers.appId ?? 'com.example.app'}${answers.appId ? '' : '   # TODO: your bundle ID or package name'}`);
+    lines.push(
+      `    appId: ${answers.appId ?? 'com.example.app'}${answers.appId ? '' : '   # TODO: your bundle ID or package name'}`,
+    );
     lines.push('    # device: <simulator UDID or emulator serial>   # default: the booted one');
   }
   lines.push(
@@ -333,7 +370,10 @@ function ignoreData(root: string): boolean {
     writeFileSync(gitignore, lines.join('\n'));
     return true;
   }
-  appendFileSync(gitignore, `${ignored && !ignored.endsWith('\n') ? '\n' : ''}# Bugpatrol: local data and screenshots of the real app\n${line}\n`);
+  appendFileSync(
+    gitignore,
+    `${ignored && !ignored.endsWith('\n') ? '\n' : ''}# Bugpatrol: local data and screenshots of the real app\n${line}\n`,
+  );
   return true;
 }
 
@@ -344,7 +384,6 @@ function relativeConfig(root: string): string {
   const shown = relative(process.cwd(), paths.config(root));
   return shown && !shown.startsWith('..') ? shown : paths.config(root);
 }
-
 
 /**
  * Writes .bugpatrol/bugpatrol.yml, .bugpatrol/instructions.md, and the
@@ -406,16 +445,33 @@ export function parseInitFlags(args: string[]): InitFlags {
       return next;
     };
     switch (flag) {
-      case '--yes': case '-y': flags.yes = true; break;
-      case '--gate': flags.gate = true; break;
-      case '--platform': flags.platform = oneOf(flag, args[++index], PLATFORMS); break;
-      case '--start': flags.start = value(); break;
-      case '--url': flags.url = value(); break;
-      case '--app-id': flags.appId = value(); break;
-      case '--agent': case '--explorer': case '--judge': case '--fixer':
+      case '--yes':
+      case '-y':
+        flags.yes = true;
+        break;
+      case '--gate':
+        flags.gate = true;
+        break;
+      case '--platform':
+        flags.platform = oneOf(flag, args[++index], PLATFORMS);
+        break;
+      case '--start':
+        flags.start = value();
+        break;
+      case '--url':
+        flags.url = value();
+        break;
+      case '--app-id':
+        flags.appId = value();
+        break;
+      case '--agent':
+      case '--explorer':
+      case '--judge':
+      case '--fixer':
         flags[flag.slice(2) as 'agent' | AgentRole] = oneOf(flag, args[++index], PROVIDERS);
         break;
-      default: throw new ConfigError(`Unknown flag for init: ${flag}`);
+      default:
+        throw new ConfigError(`Unknown flag for init: ${flag}`);
     }
   }
   return flags;
@@ -425,7 +481,8 @@ export function parseInitFlags(args: string[]): InitFlags {
 export function providerOptions(detected: Detected): { value: Provider; label: string }[] {
   const options: { value: Provider; label: string }[] = [];
   for (const cli of detected.clis) options.push({ value: cli, label: `${CLI_LABELS[cli]} (installed)` });
-  for (const key of detected.keys) options.push({ value: key, label: `${KEY_PROVIDERS[key].label} API key (${KEY_PROVIDERS[key].env} is set)` });
+  for (const key of detected.keys)
+    options.push({ value: key, label: `${KEY_PROVIDERS[key].label} API key (${KEY_PROVIDERS[key].env} is set)` });
   for (const key of ['openrouter', 'vercel'] as const) {
     if (!detected.keys.includes(key)) {
       options.push({ value: key, label: `${KEY_PROVIDERS[key].label} API key (get one at ${KEY_PROVIDERS[key].url})` });
@@ -445,13 +502,15 @@ export function defaultAnswers(guess: AppGuess, detected: Detected, flags: InitF
   };
   const missing = (Object.keys(providers) as AgentRole[]).filter((role) => !providers[role]);
   if (missing.length) {
-    throw new ConfigError([
-      'Bugpatrol needs an LLM for each agent, and it found none on this machine.',
-      'Install an agent CLI (claude, codex, kimi, or pi), or set an API key:',
-      `  OpenRouter:        export OPENROUTER_API_KEY=...   (${KEY_PROVIDERS.openrouter.url})`,
-      `  Vercel AI Gateway: export AI_GATEWAY_API_KEY=...   (${KEY_PROVIDERS.vercel.url})`,
-      'Or name one: bugpatrol init --agent claude',
-    ].join('\n'));
+    throw new ConfigError(
+      [
+        'Bugpatrol needs an LLM for each agent, and it found none on this machine.',
+        'Install an agent CLI (claude, codex, kimi, or pi), or set an API key:',
+        `  OpenRouter:        export OPENROUTER_API_KEY=...   (${KEY_PROVIDERS.openrouter.url})`,
+        `  Vercel AI Gateway: export AI_GATEWAY_API_KEY=...   (${KEY_PROVIDERS.vercel.url})`,
+        'Or name one: bugpatrol init --agent claude',
+      ].join('\n'),
+    );
   }
   return {
     platform,
@@ -468,10 +527,20 @@ export function defaultAnswers(guess: AppGuess, detected: Detected, flags: InitF
 /** Asks one question. `prefill` goes on the input line, so the user presses Enter or edits it. */
 type Ask = (question: string, prefill?: string) => Promise<string>;
 
-async function choose<T extends string>(ask: Ask, title: string, options: { value: T; label: string }[], fallback: T): Promise<T> {
-  const start = Math.max(0, options.findIndex((option) => option.value === fallback));
+async function choose<T extends string>(
+  ask: Ask,
+  title: string,
+  options: { value: T; label: string }[],
+  fallback: T,
+): Promise<T> {
+  const start = Math.max(
+    0,
+    options.findIndex((option) => option.value === fallback),
+  );
   process.stdout.write(`\n${title}\n`);
-  options.forEach((option, index) => process.stdout.write(`  ${index + 1}) ${option.label}${index === start ? '  [default]' : ''}\n`));
+  for (const [index, option] of options.entries()) {
+    process.stdout.write(`  ${index + 1}) ${option.label}${index === start ? '  [default]' : ''}\n`);
+  }
   for (;;) {
     const answer = (await ask(`Choose 1-${options.length}: `, String(start + 1))).trim();
     if (!answer) return options[start]!.value;
@@ -486,33 +555,65 @@ async function text(ask: Ask, question: string, prefill?: string): Promise<strin
 }
 
 /** Asks for each value, with the detected guess as the default. */
-export async function interview(ask: Ask, root: string, guess: AppGuess, detected: Detected, answers: InitAnswers): Promise<InitAnswers> {
+export async function interview(
+  ask: Ask,
+  root: string,
+  guess: AppGuess,
+  detected: Detected,
+  answers: InitAnswers,
+): Promise<InitAnswers> {
   if (guess.notes.length) {
     process.stdout.write('\nBugpatrol looked at the repo:\n');
     for (const note of guess.notes) process.stdout.write(`  ${note}\n`);
   }
-  const platform = await choose(ask, 'Which kind of app is it?',
-    PLATFORMS.map((value) => ({ value, label: value === guess.platform ? `${value} (detected)` : value })), answers.platform);
+  const platform = await choose(
+    ask,
+    'Which kind of app is it?',
+    PLATFORMS.map((value) => ({ value, label: value === guess.platform ? `${value} (detected)` : value })),
+    answers.platform,
+  );
   const next: InitAnswers = { ...answers, platform, start: platform === guess.platform ? answers.start : undefined };
   process.stdout.write('\nPress Enter to keep a value, or edit it.\n');
   next.start = await text(ask, 'Start command (clear it if you start the app yourself)', next.start);
-  if (platform === 'web') next.url = await text(ask, 'App URL', next.url ?? 'http://localhost:3000') ?? 'http://localhost:3000';
-  if (platform === 'electron') next.cdpPort = Number(await text(ask, 'CDP port that the app opens', String(next.cdpPort ?? 9222))) || 9222;
+  if (platform === 'web')
+    next.url = (await text(ask, 'App URL', next.url ?? 'http://localhost:3000')) ?? 'http://localhost:3000';
+  if (platform === 'electron')
+    next.cdpPort = Number(await text(ask, 'CDP port that the app opens', String(next.cdpPort ?? 9222))) || 9222;
   if (platform === 'ios' || platform === 'android') {
     const id = platform === guess.platform ? next.appId : detectAppId(root, platform)?.appId;
     next.appId = await text(ask, platform === 'ios' ? 'Bundle ID' : 'Package name', id);
   }
 
   const options = providerOptions(detected);
-  process.stdout.write('\nEach agent runs on an LLM. A local agent CLI uses your existing login, so you need no API key.\n');
+  process.stdout.write(
+    '\nEach agent runs on an LLM. A local agent CLI uses your existing login, so you need no API key.\n',
+  );
   if (!detected.clis.length && !detected.keys.length) {
-    process.stdout.write('Bugpatrol found no agent CLI and no API key. Get an OpenRouter or a Vercel AI Gateway key, then set it in your shell.\n');
+    process.stdout.write(
+      'Bugpatrol found no agent CLI and no API key. Get an OpenRouter or a Vercel AI Gateway key, then set it in your shell.\n',
+    );
   }
-  if (detected.piWithoutMcp) process.stdout.write('pi is installed, but it has no MCP. To use it, run: pi install npm:pi-mcp-adapter\n');
+  if (detected.piWithoutMcp)
+    process.stdout.write('pi is installed, but it has no MCP. To use it, run: pi install npm:pi-mcp-adapter\n');
   next.providers = { ...next.providers };
-  next.providers.explorer = await choose(ask, 'Explorer: it uses the app and reports what looks wrong.', options, next.providers.explorer);
-  next.providers.judge = await choose(ask, 'Judge: it decides which reports are real bugs.', options, next.providers.explorer);
-  next.providers.fixer = await choose(ask, 'Fixer: it writes the fixes (off until you turn it on).', options, next.providers.fixer);
+  next.providers.explorer = await choose(
+    ask,
+    'Explorer: it uses the app and reports what looks wrong.',
+    options,
+    next.providers.explorer,
+  );
+  next.providers.judge = await choose(
+    ask,
+    'Judge: it decides which reports are real bugs.',
+    options,
+    next.providers.explorer,
+  );
+  next.providers.fixer = await choose(
+    ask,
+    'Fixer: it writes the fixes (off until you turn it on).',
+    options,
+    next.providers.fixer,
+  );
 
   return next;
 }
@@ -541,11 +642,17 @@ export async function runInit(root: string, args: string[], log: (line: string) 
     const rl = createInterface({ input: process.stdin, output: process.stdout });
     try {
       const seed = safeDefaults(guess, detected, flags);
-      answers = await interview((question, prefill) => {
-        const answer = rl.question(question);
-        if (prefill) rl.write(prefill);
-        return answer;
-      }, root, guess, detected, seed);
+      answers = await interview(
+        (question, prefill) => {
+          const answer = rl.question(question);
+          if (prefill) rl.write(prefill);
+          return answer;
+        },
+        root,
+        guess,
+        detected,
+        seed,
+      );
     } finally {
       rl.close();
     }
@@ -557,16 +664,24 @@ export async function runInit(root: string, args: string[], log: (line: string) 
   for (const file of result.skipped) log(`Kept ${file}: it already exists`);
   if (!interactive) {
     // A value from a flag was not detected: do not say that it was.
-    const given: Array<[unknown, string]> = [[flags.platform, 'Platform'], [flags.start, 'Start command'],
-      [flags.url, 'Port'], [flags.appId, 'App ID']];
+    const given: Array<[unknown, string]> = [
+      [flags.platform, 'Platform'],
+      [flags.start, 'Start command'],
+      [flags.url, 'Port'],
+      [flags.appId, 'App ID'],
+    ];
     for (const note of guess.notes) {
       if (!given.some(([value, prefix]) => value !== undefined && note.startsWith(prefix))) log(`  ${note}`);
     }
   }
   for (const warning of result.warnings) log(`  warning: ${warning}`);
   log('\nNext steps:');
-  log('  1. Check .bugpatrol/bugpatrol.yml, and write .bugpatrol/instructions.md: what the app is, how to sign in, and what never to do.');
-  log('  2. Test the launch and the sign-in: `npx bugpatrol explore --steps 10 --goal "Sign in, then open the main screen"`');
+  log(
+    '  1. Check .bugpatrol/bugpatrol.yml, and write .bugpatrol/instructions.md: what the app is, how to sign in, and what never to do.',
+  );
+  log(
+    '  2. Test the launch and the sign-in: `npx bugpatrol explore --steps 10 --goal "Sign in, then open the main screen"`',
+  );
   log('  3. Start the patrol: `npx bugpatrol`. Watch it on `npx bugpatrol dashboard` (http://127.0.0.1:4311).');
 }
 

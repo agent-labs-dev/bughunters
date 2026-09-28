@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { RecipeResolution, StackProfile } from '@bugpatrol/core';
 
@@ -24,7 +24,12 @@ export function detectBringUp(root: string): BringUpCandidate[] {
     const content = readFileSync(workflow, 'utf8');
     const match = content.match(/run:\s*(?:pnpm|npm|yarn|bun)\s+(?:run\s+)?(dev|start|preview|serve)\b/);
     if (match) {
-      candidates.push({ command: match[0].replace(/^run:\s*/, ''), rung: 'precedent', source: workflow, confidence: 0.8 });
+      candidates.push({
+        command: match[0].replace(/^run:\s*/, ''),
+        rung: 'precedent',
+        source: workflow,
+        confidence: 0.8,
+      });
     }
   }
 
@@ -45,7 +50,12 @@ export function detectBringUp(root: string): BringUpCandidate[] {
     }
   }
   if (existsSync(join(root, 'docker-compose.yml')) || existsSync(join(root, 'compose.yaml'))) {
-    candidates.push({ command: 'docker compose up', rung: 'convention', source: 'docker-compose.yml', confidence: 0.5 });
+    candidates.push({
+      command: 'docker compose up',
+      rung: 'convention',
+      source: 'docker-compose.yml',
+      confidence: 0.5,
+    });
   }
   if (existsSync(join(root, 'Procfile'))) {
     candidates.push({ command: 'foreman start', rung: 'convention', source: 'Procfile', confidence: 0.3 });

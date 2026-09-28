@@ -1,4 +1,4 @@
-import { ConfigError, usageFrom, type AgentEvent, type RoleRuntime } from '@bugpatrol/core';
+import { type AgentEvent, ConfigError, type RoleRuntime, usageFrom } from '@bugpatrol/core';
 import { MODEL_KEYS, MODEL_ROUTES } from '@bugpatrol/decide';
 import type { EventSink, RoleOutcome, RoleTask, Runtime, ToolResult } from '../types.js';
 
@@ -37,12 +37,24 @@ function requestBody(use: ModelUse, task: RoleTask, messages: Message[], anthrop
   };
 }
 
-function parseResponse(payload: ResponsePayload, anthropic: boolean):
-  { text: string; calls: Call[]; assistantMessage: Message } {
-  const choice = (payload.choices as { message?: { content?: string; reasoning?: string;
-    tool_calls?: { id: string; function: { name: string; arguments: string } }[] } }[] | undefined)?.[0]?.message;
-  const blocks = payload.content as { type: string; text?: string; thinking?: string;
-    id?: string; name?: string; input?: Record<string, unknown> }[] | undefined;
+function parseResponse(
+  payload: ResponsePayload,
+  anthropic: boolean,
+): { text: string; calls: Call[]; assistantMessage: Message } {
+  const choice = (
+    payload.choices as
+      | {
+          message?: {
+            content?: string;
+            reasoning?: string;
+            tool_calls?: { id: string; function: { name: string; arguments: string } }[];
+          };
+        }[]
+      | undefined
+  )?.[0]?.message;
+  const blocks = payload.content as
+    | { type: string; text?: string; thinking?: string; id?: string; name?: string; input?: Record<string, unknown> }[]
+    | undefined;
   if (anthropic) {
     const text = (blocks ?? [])
       .filter((block) => block.type === 'text' || block.type === 'thinking')
@@ -98,7 +110,10 @@ export function firstLine(text: string): string {
 }
 
 function textOf(result: ToolResult): string {
-  return result.content.filter((part) => part.type === 'text').map((part) => part.text).join('\n');
+  return result.content
+    .filter((part) => part.type === 'text')
+    .map((part) => part.text)
+    .join('\n');
 }
 
 function prune(messages: Message[]): void {
@@ -112,8 +127,10 @@ function prune(messages: Message[]): void {
       images++;
       if (images > 2) {
         message.content = message.content.map((part: { type?: string }) =>
-          part.type === 'image_url' || part.type === 'image' ?
-            { type: 'text', text: '[earlier screenshot omitted]' } : part);
+          part.type === 'image_url' || part.type === 'image'
+            ? { type: 'text', text: '[earlier screenshot omitted]' }
+            : part,
+        );
       }
     }
   }
@@ -124,8 +141,10 @@ function prune(messages: Message[]): void {
       }
       if (message.role === 'user' && Array.isArray(message.content)) {
         message.content = message.content.map((part: { type?: string; content?: unknown }) =>
-          part.type === 'tool_result' && typeof part.content === 'string' ?
-            { ...part, content: part.content.slice(0, 300) } : part);
+          part.type === 'tool_result' && typeof part.content === 'string'
+            ? { ...part, content: part.content.slice(0, 300) }
+            : part,
+        );
       }
     }
   }
@@ -136,7 +155,10 @@ export class ModelRuntime implements Runtime {
   readonly label: string;
   private readonly request: typeof fetch;
 
-  constructor(private readonly use: ModelUse, options: { fetch?: typeof fetch } = {}) {
+  constructor(
+    private readonly use: ModelUse,
+    options: { fetch?: typeof fetch } = {},
+  ) {
     this.label = `model:${use.via}/${use.model}`;
     this.request = options.fetch ?? fetch;
   }
@@ -152,8 +174,12 @@ export class ModelRuntime implements Runtime {
       throw new ConfigError(`Missing endpoint for ${this.label}`);
     }
     const anthropic = this.use.via === 'anthropic';
-    const messages: Message[] = anthropic ? [{ role: 'user', content: task.prompt }] :
-      [{ role: 'system', content: task.system }, { role: 'user', content: task.prompt }];
+    const messages: Message[] = anthropic
+      ? [{ role: 'user', content: task.prompt }]
+      : [
+          { role: 'system', content: task.system },
+          { role: 'user', content: task.prompt },
+        ];
     const started = Date.now();
     const deadline = started + task.timeoutMs;
     let steps = 0;
@@ -183,8 +209,15 @@ export class ModelRuntime implements Runtime {
         return outcome('error', lastText, String(error));
       }
       steps++;
-      const usage = payload.usage as { cost?: number; input_tokens?: number; output_tokens?: number;
-        prompt_tokens?: number; completion_tokens?: number } | undefined;
+      const usage = payload.usage as
+        | {
+            cost?: number;
+            input_tokens?: number;
+            output_tokens?: number;
+            prompt_tokens?: number;
+            completion_tokens?: number;
+          }
+        | undefined;
       const stepCost = typeof usage?.cost === 'number' ? usage.cost : 0;
       costUsd += stepCost;
       const step = { tokens: usageFrom(usage), model: this.use.model ?? MODEL_ROUTES[this.use.via].model };
@@ -218,9 +251,16 @@ export class ModelRuntime implements Runtime {
     return outcome('max-steps', lastText);
   }
 
-  private async runCalls(task: RoleTask, calls: Call[], emit: EventSink, messages: Message[],
-    anthropic: boolean, deadline: number, stepCost: number, step: Pick<AgentEvent, 'tokens' | 'model'>):
-    Promise<{ done?: boolean; timeout?: boolean; output?: string }> {
+  private async runCalls(
+    task: RoleTask,
+    calls: Call[],
+    emit: EventSink,
+    messages: Message[],
+    anthropic: boolean,
+    deadline: number,
+    stepCost: number,
+    step: Pick<AgentEvent, 'tokens' | 'model'>,
+  ): Promise<{ done?: boolean; timeout?: boolean; output?: string }> {
     const anthroResults: Record<string, unknown>[] = [];
     const images: Record<string, unknown>[] = [];
     for (const [index, call] of calls.entries()) {
@@ -300,22 +340,27 @@ export class ModelRuntime implements Runtime {
     return {};
   }
 
-  private async call(endpoint: string, apiKey: string, anthropic: boolean,
-    body: unknown, deadline: number): Promise<ResponsePayload> {
+  private async call(
+    endpoint: string,
+    apiKey: string,
+    anthropic: boolean,
+    body: unknown,
+    deadline: number,
+  ): Promise<ResponsePayload> {
     for (let attempt = 0; attempt < 3; attempt++) {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), Math.max(1, deadline - Date.now()));
       try {
         const response = await this.request(endpoint, {
           method: 'POST',
-          headers: anthropic ? { 'content-type': 'application/json', 'x-api-key': apiKey,
-            'anthropic-version': '2023-06-01' } :
-            { 'content-type': 'application/json', authorization: `Bearer ${apiKey}` },
+          headers: anthropic
+            ? { 'content-type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' }
+            : { 'content-type': 'application/json', authorization: `Bearer ${apiKey}` },
           body: JSON.stringify(body),
           signal: controller.signal,
         });
         if (response.ok) {
-          return await response.json() as ResponsePayload;
+          return (await response.json()) as ResponsePayload;
         }
         if (response.status !== 429 && response.status < 500) {
           throw new Error(`Model returned ${response.status}: ${(await response.text()).slice(0, 400)}`);
@@ -324,8 +369,10 @@ export class ModelRuntime implements Runtime {
           throw new Error(`Model returned ${response.status}`);
         }
       } catch (error) {
-        if (attempt === 2 || (error instanceof Error &&
-          (/^Model returned 4(?!29)/.test(error.message) || error.name === 'AbortError'))) {
+        if (
+          attempt === 2 ||
+          (error instanceof Error && (/^Model returned 4(?!29)/.test(error.message) || error.name === 'AbortError'))
+        ) {
           throw error;
         }
       } finally {
@@ -334,8 +381,9 @@ export class ModelRuntime implements Runtime {
       if (Date.now() >= deadline) {
         throw new DOMException('Model timed out', 'AbortError');
       }
-      await new Promise((done) => setTimeout(done,
-        Math.min([1000, 3000, 9000][attempt] ?? 0, Math.max(0, deadline - Date.now()))));
+      await new Promise((done) =>
+        setTimeout(done, Math.min([1000, 3000, 9000][attempt] ?? 0, Math.max(0, deadline - Date.now()))),
+      );
     }
     throw new Error('Model request failed');
   }

@@ -14,11 +14,13 @@ const PLATFORM_NOTES: Record<Platform, string> = {
 };
 
 function lessonPart(lessons: Lesson[]): string {
-  return lessons.length ? `LESSONS FROM EARLIER RUNS
+  return lessons.length
+    ? `LESSONS FROM EARLIER RUNS
 These come from what went wrong before in this app. Follow them.
 ${lessons.map((lesson) => `- [${lesson.scope ?? 'app'}] ${lesson.text}`).join('\n')}
 
-` : '';
+`
+    : '';
 }
 
 /**
@@ -67,7 +69,12 @@ ${memoryPart('explorer')}${lessonPart(lessons)}APP GUIDE
 ${instructions.trim() || '(No guide was given. Explore carefully and do not change any data.)'}`;
 }
 
-export function explorerSystem(platform: Platform, instructions: string, lessons: Lesson[] = [], checks: string[] = []): string {
+export function explorerSystem(
+  platform: Platform,
+  instructions: string,
+  lessons: Lesson[] = [],
+  checks: string[] = [],
+): string {
   const automatic = checks.length
     ? `record_screen also runs automatic checks (${checks.join(', ')}) and sends what they find to the QA lead.
 Do not report those findings again with report_bug. Report what the checks cannot see.
@@ -156,18 +163,27 @@ export function explorerPrompt(input: {
     ? input.screens.map((screen) => `- ${screen.id}: ${screen.name}. ${screen.description}`).join('\n')
     : '(none yet)';
   const routines = input.routines.length
-    ? input.routines.map((routine) => {
-      const health = routine.lastReplay ? (routine.lastReplay.ok ? 'works' : routine.lastReplay.onFixBuild
-        ? 'BROKEN (seen on a fix build), repair it' : 'BROKEN, repair it') : 'not replayed';
-      return `- ${routine.id} (${routine.steps.length} steps, ${health}): ${routine.description}`;
-    }).join('\n')
+    ? input.routines
+        .map((routine) => {
+          const health = routine.lastReplay
+            ? routine.lastReplay.ok
+              ? 'works'
+              : routine.lastReplay.onFixBuild
+                ? 'BROKEN (seen on a fix build), repair it'
+                : 'BROKEN, repair it'
+            : 'not replayed';
+          return `- ${routine.id} (${routine.steps.length} steps, ${health}): ${routine.description}`;
+        })
+        .join('\n')
     : '(none yet)';
-  const goal = input.goal ?? (input.screens.length
-    ? 'Enter the app. If "enter-app" works, use run_routine for it. Then find the screens that are NOT in the '
-      + 'known list below, and record and test each one. On a known screen, use each control that an earlier '
-      + 'session did not try. The goal is every screen and every control of the app.'
-    : 'This is the first visit. Enter the app, then map every screen that you can reach, use every safe '
-      + 'control on each one, and report every problem.');
+  const goal =
+    input.goal ??
+    (input.screens.length
+      ? 'Enter the app. If "enter-app" works, use run_routine for it. Then find the screens that are NOT in the ' +
+        'known list below, and record and test each one. On a known screen, use each control that an earlier ' +
+        'session did not try. The goal is every screen and every control of the app.'
+      : 'This is the first visit. Enter the app, then map every screen that you can reach, use every safe ' +
+        'control on each one, and report every problem.');
   return `GOAL
 ${goal}
 
@@ -227,21 +243,37 @@ ${memoryPart('judge')}${lessonPart(lessons)}`;
 }
 
 export function judgePrompt(sessionIds: string[], candidates: Candidate[], issues: Issue[]): string {
-  const list = candidates.map((candidate) => {
-    const route = candidate.route ? ` Route: ${candidate.route.reason}` : '';
-    return `- ${candidate.id} [${candidate.source}, ${candidate.severity}] on ${candidate.screenId ?? 'unknown screen'}: `
-      + `${candidate.summary}.${route}`;
-  }).join('\n');
+  const list = candidates
+    .map((candidate) => {
+      const route = candidate.route ? ` Route: ${candidate.route.reason}` : '';
+      return (
+        `- ${candidate.id} [${candidate.source}, ${candidate.severity}] on ${candidate.screenId ?? 'unknown screen'}: ` +
+        `${candidate.summary}.${route}`
+      );
+    })
+    .join('\n');
   const open = issues.filter((issue) => issue.status !== 'dismissed' && issue.status !== 'fixed');
   const known = open.length
-    ? open.map((issue) => `- ${issue.id} [${issue.severity}]${issue.fixRejected ? ` [team rejected PR #${issue.fixRejected.pr}]` : ''}: ${issue.title}`).join('\n')
+    ? open
+        .map(
+          (issue) =>
+            `- ${issue.id} [${issue.severity}]${issue.fixRejected ? ` [team rejected PR #${issue.fixRejected.pr}]` : ''}: ${issue.title}`,
+        )
+        .join('\n')
     : '(none)';
-  const closed = issues.filter((issue) => issue.status === 'dismissed' || issue.status === 'fixed')
+  const closed = issues
+    .filter((issue) => issue.status === 'dismissed' || issue.status === 'fixed')
     .sort((a, b) => (b.closedBy?.at ?? b.lastSeenAt).localeCompare(a.closedBy?.at ?? a.lastSeenAt))
     .slice(0, 30);
-  const recent = closed.length ? closed.map((issue) => issue.status === 'dismissed'
-    ? `- ${issue.id} [dismissed: ${issue.closedBy?.reason ?? issue.judgement.reason}]: ${issue.title}`
-    : `- ${issue.id} [fixed]: ${issue.title}`).join('\n') : '(none)';
+  const recent = closed.length
+    ? closed
+        .map((issue) =>
+          issue.status === 'dismissed'
+            ? `- ${issue.id} [dismissed: ${issue.closedBy?.reason ?? issue.judgement.reason}]: ${issue.title}`
+            : `- ${issue.id} [fixed]: ${issue.title}`,
+        )
+        .join('\n')
+    : '(none)';
   return `Review the candidates from session(s) ${sessionIds.join(', ')}.
 
 CANDIDATES

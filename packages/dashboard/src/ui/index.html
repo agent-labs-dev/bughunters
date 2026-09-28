@@ -13,12 +13,12 @@
     <strong id="project-name">Bugpatrol</strong>
   </div>
   <nav class="tabs" id="tabs">
-    <button data-view="overview" class="active">Overview</button>
-    <button data-view="issues">Issues</button>
-    <button data-view="activity">Activity</button>
-    <button data-view="screens">Screens</button>
-    <button data-view="memory">Memory</button>
-    <button data-view="checks">Checks</button>
+    <button type="button" data-view="overview" class="active">Overview</button>
+    <button type="button" data-view="issues">Issues</button>
+    <button type="button" data-view="activity">Activity</button>
+    <button type="button" data-view="screens">Screens</button>
+    <button type="button" data-view="memory">Memory</button>
+    <button type="button" data-view="checks">Checks</button>
   </nav>
   <div class="status">
     <span id="live" class="live" title="Live connection to the local watcher">live</span>
@@ -30,7 +30,7 @@
 <main id="view"></main>
 
 <div id="lightbox" class="lightbox" hidden>
-  <button class="lightbox-close" aria-label="Close">&times;</button>
+  <button type="button" class="lightbox-close" aria-label="Close">&times;</button>
   <img id="lightbox-img" alt="">
   <p id="lightbox-caption"></p>
 </div>

@@ -1,13 +1,13 @@
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
-import { createServer } from 'node:net';
 import { createRequire } from 'node:module';
+import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import type { AgentEvent } from '@bugpatrol/core';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { describe, expect, it } from 'vitest';
-import type { AgentEvent } from '@bugpatrol/core';
 import { serveTools } from '../mcp-server.js';
 import type { RoleTask, Tool } from '../types.js';
 import { CliRuntime, parseCliOutput } from './cli.js';
@@ -113,11 +113,21 @@ console.log('cli complete');
 
 describe('CLI token usage', () => {
   it('reads the result, the usage, the list price, and the model from claude --output-format json', () => {
-    const out = JSON.stringify({ type: 'result', result: 'Filed 2 issues.', total_cost_usd: 0.12,
+    const out = JSON.stringify({
+      type: 'result',
+      result: 'Filed 2 issues.',
+      total_cost_usd: 0.12,
       usage: { input_tokens: 2, output_tokens: 40, cache_read_input_tokens: 1000, cache_creation_input_tokens: 500 },
-      modelUsage: { 'claude-haiku-4-5': { inputTokens: 10, outputTokens: 1 }, 'claude-sonnet-5': { inputTokens: 1492, outputTokens: 39 } } });
-    expect(parseCliOutput(out)).toEqual({ text: 'Filed 2 issues.', model: 'claude-sonnet-5',
-      tokens: { input: 1502, output: 40, cacheRead: 1000, cacheWrite: 500, listCostUsd: 0.12 } });
+      modelUsage: {
+        'claude-haiku-4-5': { inputTokens: 10, outputTokens: 1 },
+        'claude-sonnet-5': { inputTokens: 1492, outputTokens: 39 },
+      },
+    });
+    expect(parseCliOutput(out)).toEqual({
+      text: 'Filed 2 issues.',
+      model: 'claude-sonnet-5',
+      tokens: { input: 1502, output: 40, cacheRead: 1000, cacheWrite: 500, listCostUsd: 0.12 },
+    });
   });
 
   it('adds up each turn of codex exec --json, and keeps only the message text', () => {
@@ -129,7 +139,10 @@ describe('CLI token usage', () => {
       '{"type":"item.completed","item":{"id":"i2","type":"agent_message","text":"Done."}}',
       '{"type":"turn.completed","usage":{"input_tokens":500,"cached_input_tokens":0,"output_tokens":5}}',
     ].join('\n');
-    expect(parseCliOutput(out)).toEqual({ text: 'Looking at Settings.\nDone.', tokens: { input: 1500, output: 25, cacheRead: 800 } });
+    expect(parseCliOutput(out)).toEqual({
+      text: 'Looking at Settings.\nDone.',
+      tokens: { input: 1500, output: 25, cacheRead: 800 },
+    });
   });
 
   it('keeps plain text, with no usage', () => {
@@ -139,13 +152,24 @@ describe('CLI token usage', () => {
   it.skipIf(!canListen)('emits one usage event with the tokens and the model', async () => {
     const root = await mkdtemp(join(tmpdir(), 'bugpatrol-cli-usage-'));
     try {
-      const out = JSON.stringify({ result: 'ok', usage: { input_tokens: 7, output_tokens: 3 }, modelUsage: { m1: { inputTokens: 7, outputTokens: 3 } } });
+      const out = JSON.stringify({
+        result: 'ok',
+        usage: { input_tokens: 7, output_tokens: 3 },
+        modelUsage: { m1: { inputTokens: 7, outputTokens: 3 } },
+      });
       await writeFile(join(root, 'out.json'), out);
       const events: Omit<AgentEvent, 'at' | 'sessionId' | 'role'>[] = [];
-      const outcome = await new CliRuntime({ runtime: 'cli', command: `cat ${join(root, 'out.json')}` })
-        .run(task(root), (event) => { events.push(event); });
+      const outcome = await new CliRuntime({ runtime: 'cli', command: `cat ${join(root, 'out.json')}` }).run(
+        task(root),
+        (event) => {
+          events.push(event);
+        },
+      );
       expect(outcome).toMatchObject({ stop: 'done', summary: 'ok' });
-      expect(events.find((event) => event.kind === 'usage')).toMatchObject({ model: 'm1', tokens: { input: 7, output: 3 } });
+      expect(events.find((event) => event.kind === 'usage')).toMatchObject({
+        model: 'm1',
+        tokens: { input: 7, output: 3 },
+      });
       expect(events.some((event) => event.kind === 'thought' && event.summary.startsWith('{'))).toBe(false);
     } finally {
       await rm(root, { recursive: true, force: true });

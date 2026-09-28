@@ -1,6 +1,6 @@
 import type { Answer, DeciderName } from './decision.js';
-import type { FindingId, RunId } from './ids.js';
 import type { Severity } from './finding.js';
+import type { FindingId, RunId } from './ids.js';
 
 /**
  * The record of what Bugpatrol actually did on one screen, and why it concluded

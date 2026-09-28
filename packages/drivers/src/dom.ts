@@ -1,4 +1,4 @@
-import type { Locator as StableLocator, RoutineStep } from '@bugpatrol/core';
+import type { RoutineStep, Locator as StableLocator } from '@bugpatrol/core';
 import type { Locator, Page } from 'playwright';
 import type { DriverAction, Observation, UiElement } from './types.js';
 
@@ -6,9 +6,22 @@ import type { DriverAction, Observation, UiElement } from './types.js';
 export async function observeDom(page: Page): Promise<UiElement[]> {
   return page.evaluate(() => {
     const candidates = [
-      'a', 'button', 'input', 'textarea', 'select', '[role]', '[onclick]',
-      '[tabindex]:not([tabindex="-1"])', '[contenteditable]',
-      'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'label',
+      'a',
+      'button',
+      'input',
+      'textarea',
+      'select',
+      '[role]',
+      '[onclick]',
+      '[tabindex]:not([tabindex="-1"])',
+      '[contenteditable]',
+      'h1',
+      'h2',
+      'h3',
+      'h4',
+      'h5',
+      'h6',
+      'label',
     ].join(',');
     const result: UiElement[] = [];
 
@@ -35,9 +48,7 @@ export async function observeDom(page: Page): Promise<UiElement[]> {
       for (let node: Element | null = element; node; node = node.parentElement) {
         const current = node;
         const parent = current.parentElement;
-        const siblings = parent
-          ? Array.from(parent.children).filter((child) => child.tagName === current.tagName)
-          : [];
+        const siblings = parent ? Array.from(parent.children).filter((child) => child.tagName === current.tagName) : [];
         const index = siblings.indexOf(current) + 1;
         parts.unshift(`${current.tagName.toLowerCase()}${siblings.length > 1 ? `:nth-of-type(${index})` : ''}`);
         const selector = parts.join(' > ');
@@ -117,32 +128,39 @@ export async function observeDom(page: Page): Promise<UiElement[]> {
       const type = input.type?.toLowerCase();
       const interactive = !/^h[1-6]$/.test(tag) && tag !== 'label';
       const role = element.getAttribute('role') || implicitRole(tag, type);
-      const labelledBy = element.getAttribute('aria-labelledby')
+      const labelledBy = element
+        .getAttribute('aria-labelledby')
         ?.split(/\s+/)
         .map((id) => document.getElementById(id)?.textContent ?? '')
         .join(' ');
-      const isControl = element instanceof HTMLInputElement
-        || element instanceof HTMLTextAreaElement
-        || element instanceof HTMLSelectElement;
+      const isControl =
+        element instanceof HTMLInputElement ||
+        element instanceof HTMLTextAreaElement ||
+        element instanceof HTMLSelectElement;
       const associated = isControl
-        ? Array.from(element.labels ?? []).map((label) => label.textContent ?? '').join(' ')
+        ? Array.from(element.labels ?? [])
+            .map((label) => label.textContent ?? '')
+            .join(' ')
         : '';
       const text = trim(html.innerText || element.textContent);
       const name = trim(
-        element.getAttribute('aria-label')
-        || labelledBy
-        || associated
-        || element.getAttribute('placeholder')
-        || element.getAttribute('alt')
-        || element.getAttribute('title')
-        || text,
+        element.getAttribute('aria-label') ||
+          labelledBy ||
+          associated ||
+          element.getAttribute('placeholder') ||
+          element.getAttribute('alt') ||
+          element.getAttribute('title') ||
+          text,
       );
       if (!interactive && !text) {
         continue;
       }
-      const value = tag === 'input' || tag === 'textarea' || tag === 'select'
-        ? type === 'password' ? '••••' : input.value
-        : undefined;
+      const value =
+        tag === 'input' || tag === 'textarea' || tag === 'select'
+          ? type === 'password'
+            ? '••••'
+            : input.value
+          : undefined;
       result.push({
         ref: `e${result.length + 1}`,
         role,
@@ -155,9 +173,8 @@ export async function observeDom(page: Page): Promise<UiElement[]> {
         interactive,
         enabled: !input.disabled && element.getAttribute('aria-disabled') !== 'true',
         focused: document.activeElement === element,
-        checked: type === 'checkbox' || type === 'radio'
-          ? input.checked
-          : element.getAttribute('aria-checked') === 'true',
+        checked:
+          type === 'checkbox' || type === 'radio' ? input.checked : element.getAttribute('aria-checked') === 'true',
       });
     }
     return result;
@@ -190,10 +207,12 @@ export async function resolveTarget(
     choices.push(page.locator(`[data-testid="${escaped}"]`));
   }
   if (target.role && target.name) {
-    choices.push(page.getByRole(target.role as Parameters<Page['getByRole']>[0], {
-      name: target.name,
-      exact: true,
-    }));
+    choices.push(
+      page.getByRole(target.role as Parameters<Page['getByRole']>[0], {
+        name: target.name,
+        exact: true,
+      }),
+    );
   }
   if (target.text) {
     choices.push(page.getByText(target.text, { exact: true }));
@@ -237,7 +256,13 @@ export function stepFor(action: DriverAction, element?: UiElement, fallback?: St
       }
       return { kind: 'tap', target };
     case 'type':
-      return { kind: 'type', target, value: action.value, submit: action.submit, ...(action.append ? { append: true } : {}) };
+      return {
+        kind: 'type',
+        target,
+        value: action.value,
+        submit: action.submit,
+        ...(action.append ? { append: true } : {}),
+      };
     case 'scroll':
       return { kind: 'scroll', direction: action.direction, target };
     case 'press':

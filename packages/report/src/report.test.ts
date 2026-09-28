@@ -1,10 +1,10 @@
+import type { Finding, Run } from '@bugpatrol/core';
+import { id } from '@bugpatrol/core';
 import { describe, expect, it } from 'vitest';
 import { renderHtml } from './html.js';
-import { renderPrComment, STICKY_MARKER } from './pr-comment.js';
 import { toJUnit } from './junit.js';
+import { renderPrComment, STICKY_MARKER } from './pr-comment.js';
 import { toSarif } from './sarif.js';
-import { id } from '@bugpatrol/core';
-import type { Finding, Run } from '@bugpatrol/core';
 
 const run: Run = {
   id: id.run('run_1'),
@@ -15,7 +15,9 @@ const run: Run = {
   commit: 'abcdef1234567890',
   changedFiles: [id.file('src/Button.tsx')],
   plan: {
-    items: [{ target: { screenId: id.screen('/settings') }, reason: 'shared-component', viaFile: id.file('src/Button.tsx') }],
+    items: [
+      { target: { screenId: id.screen('/settings') }, reason: 'shared-component', viaFile: id.file('src/Button.tsx') },
+    ],
     mappingConfidence: 0.9,
     coverage: { screensSelected: 1, screensTotal: 12 },
   },
@@ -101,11 +103,14 @@ describe('exports', () => {
 
 describe('JUnit attribution and completeness', () => {
   it('attributes a finding only to its screen and viewport', () => {
-    const plan = { ...run.plan, items: [
-      { target: { screenId: id.screen('/settings'), viewport: 'desktop' }, reason: 'always-on' as const },
-      { target: { screenId: id.screen('/settings'), viewport: 'mobile' }, reason: 'always-on' as const },
-      { target: { screenId: id.screen('/other'), viewport: 'desktop' }, reason: 'always-on' as const },
-    ] };
+    const plan = {
+      ...run.plan,
+      items: [
+        { target: { screenId: id.screen('/settings'), viewport: 'desktop' }, reason: 'always-on' as const },
+        { target: { screenId: id.screen('/settings'), viewport: 'mobile' }, reason: 'always-on' as const },
+        { target: { screenId: id.screen('/other'), viewport: 'desktop' }, reason: 'always-on' as const },
+      ],
+    };
     const xml = toJUnit({ ...run, plan }, [{ ...finding, viewport: 'mobile' }]);
     expect(xml.match(/<failure /g)).toHaveLength(1);
     expect(xml).toContain('name="/settings @desktop" />');

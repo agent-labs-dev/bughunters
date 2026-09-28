@@ -1,11 +1,11 @@
+import { createReadStream, existsSync, type FSWatcher, realpathSync, statSync, watch } from 'node:fs';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
-import { createReadStream, existsSync, realpathSync, statSync, watch, type FSWatcher } from 'node:fs';
 import { extname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { paths } from '@bugpatrol/core';
-import { ProjectReader } from './project.js';
 import { AgentReader } from './agents.js';
 import { buildGraph } from './graph.js';
+import { ProjectReader } from './project.js';
 
 export type DashboardOptions = {
   root: string;
@@ -88,12 +88,16 @@ async function handle(
     return detail ? json(res, detail) : json(res, { error: 'no such session' }, 404);
   }
   if (path === '/api/appmap') return json(res, ctx.agents.screens());
-  if (path === '/api/routines') return json(res, ctx.agents.routines().map((routine) => ({
-    id: routine.id,
-    description: routine.description,
-    steps: routine.steps.length,
-    lastReplay: routine.lastReplay,
-  })));
+  if (path === '/api/routines')
+    return json(
+      res,
+      ctx.agents.routines().map((routine) => ({
+        id: routine.id,
+        description: routine.description,
+        steps: routine.steps.length,
+        lastReplay: routine.lastReplay,
+      })),
+    );
 
   if (path === '/api/state') {
     const runs = ctx.reader.listRuns();
@@ -176,7 +180,10 @@ export function resolveArtifactPath(root: string, requested: string): string | u
 
 function serveArtifact(res: ServerResponse, root: string, requested: string): void {
   const file = resolveArtifactPath(root, requested);
-  if (!file) return json(res, { error: 'not found' }, 404);
+  if (!file) {
+    json(res, { error: 'not found' }, 404);
+    return;
+  }
 
   res.writeHead(200, {
     'content-type': MIME[extname(file).toLowerCase()] ?? 'application/octet-stream',
@@ -190,7 +197,8 @@ function serveUi(res: ServerResponse, path: string): void {
   const file = resolve(UI_DIR, name);
   if (!file.startsWith(UI_DIR) || !existsSync(file) || !statSync(file).isFile()) {
     // Unknown paths fall through to the app shell so client-side routing works.
-    return serveUi(res, '/');
+    serveUi(res, '/');
+    return;
   }
   res.writeHead(200, { 'content-type': MIME[extname(file)] ?? 'text/plain', 'cache-control': 'no-cache' });
   createReadStream(file).pipe(res);
@@ -257,19 +265,24 @@ export function watchProject(root: string, onChange: () => void): { close(): voi
     watcher = existsSync(dir)
       ? watch(dir, { recursive: true }, changed)
       : watch(root, { recursive: false }, () => {
-        if (existsSync(dir)) attach();
-      });
+          if (existsSync(dir)) attach();
+        });
     watcher.on('error', () => {
       watcher.close();
       fallback = setInterval(changed, 5000);
     });
-    if (!existsSync(dir)) probe = setInterval(() => { if (existsSync(dir)) attach(); }, 100);
-    return { close() {
-      watcher.close();
-      if (timer) clearTimeout(timer);
-      if (probe) clearInterval(probe);
-      if (fallback) clearInterval(fallback);
-    } };
+    if (!existsSync(dir))
+      probe = setInterval(() => {
+        if (existsSync(dir)) attach();
+      }, 100);
+    return {
+      close() {
+        watcher.close();
+        if (timer) clearTimeout(timer);
+        if (probe) clearInterval(probe);
+        if (fallback) clearInterval(fallback);
+      },
+    };
   } catch {
     // Recursive watch is not available on every platform; the UI also polls.
     return undefined;
@@ -277,10 +290,15 @@ export function watchProject(root: string, onChange: () => void): { close(): voi
 }
 
 function json(res: ServerResponse, body: unknown, status = 200): void {
-  send(res, status, {
-    'content-type': 'application/json; charset=utf-8',
-    'cache-control': 'no-cache',
-  }, JSON.stringify(body));
+  send(
+    res,
+    status,
+    {
+      'content-type': 'application/json; charset=utf-8',
+      'cache-control': 'no-cache',
+    },
+    JSON.stringify(body),
+  );
 }
 
 function send(res: ServerResponse, status: number, headers: Record<string, string>, body: string): void {

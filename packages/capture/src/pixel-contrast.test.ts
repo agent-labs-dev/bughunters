@@ -1,15 +1,23 @@
-import { describe, expect, it } from 'vitest';
 import { PNG } from 'pngjs';
+import { describe, expect, it } from 'vitest';
 import { measurePixelContrast } from './pixel-contrast.js';
 
-function image(width: number, height: number, bg: number[], fg?: { x: number; y: number; w: number; h: number; c: number[] }): PNG {
+function image(
+  width: number,
+  height: number,
+  bg: number[],
+  fg?: { x: number; y: number; w: number; h: number; c: number[] },
+): PNG {
   const png = new PNG({ width, height });
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
       const inFg = fg && x >= fg.x && x < fg.x + fg.w && y >= fg.y && y < fg.y + fg.h;
       const c = inFg ? fg!.c : bg;
       const i = (y * width + x) * 4;
-      png.data[i] = c[0]!; png.data[i + 1] = c[1]!; png.data[i + 2] = c[2]!; png.data[i + 3] = 255;
+      png.data[i] = c[0]!;
+      png.data[i + 1] = c[1]!;
+      png.data[i + 2] = c[2]!;
+      png.data[i + 3] = 255;
     }
   }
   return png;
@@ -33,7 +41,9 @@ describe('measurePixelContrast', () => {
   });
 
   it('returns nothing for a box too small to measure', () => {
-    expect(measurePixelContrast(image(10, 10, [255, 255, 255]), { x: 0, y: 0, width: 1, height: 1 }, 1)).toBeUndefined();
+    expect(
+      measurePixelContrast(image(10, 10, [255, 255, 255]), { x: 0, y: 0, width: 1, height: 1 }, 1),
+    ).toBeUndefined();
   });
 
   it('clamps a box that runs off the image', () => {

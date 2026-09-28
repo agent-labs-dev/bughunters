@@ -1,10 +1,10 @@
+import type { Finding, Run } from '@bugpatrol/core';
+import { ExitCode, id } from '@bugpatrol/core';
 import { describe, expect, it } from 'vitest';
-import { parseSlashCommand } from './slash-commands.js';
-import { requiredPermissions } from './permissions.js';
 import { buildCheckRun } from './checks.js';
 import { buildIssue, labelsFor } from './issues.js';
-import { id, ExitCode } from '@bugpatrol/core';
-import type { Finding, Run } from '@bugpatrol/core';
+import { requiredPermissions } from './permissions.js';
+import { parseSlashCommand } from './slash-commands.js';
 
 const run: Run = {
   id: id.run('r1'),

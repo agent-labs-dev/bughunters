@@ -1,17 +1,22 @@
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { parseConfig, type Routine } from '@bugpatrol/core';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { replayRoutine, replaySteps } from './replay.js';
 import { AgentSession } from './session.js';
+import { FakeDriver, type FakeScreen } from './testing/fake-driver.js';
 import { Vars } from './vars.js';
 import { Workspace } from './workspace.js';
-import { FakeDriver, type FakeScreen } from './testing/fake-driver.js';
-import { replayRoutine, replaySteps } from './replay.js';
 
 const config = parseConfig({ version: 1, app: { connect: { url: 'fake://home' } } });
 const button = (ref: string, name: string) => ({
-  ref, role: 'button', name, box: { x: 10, y: 10, width: 40, height: 40 }, interactive: true, enabled: true,
+  ref,
+  role: 'button',
+  name,
+  box: { x: 10, y: 10, width: 40, height: 40 },
+  interactive: true,
+  enabled: true,
 });
 const screens: Record<string, FakeScreen> = {
   home: { elements: [button('e1', 'Open settings')], next: { e1: 'settings' } },
@@ -61,10 +66,14 @@ describe('replayRoutine end check', () => {
     const driver = new FakeDriver(screens);
     const session = new AgentSession(root, config, new Vars(), record.id, 'explorer', driver);
     await workspace.saveRoutine(routine());
-    expect((await replayRoutine(session, 'open-settings', { windowMs: 10, save: false, onFixBuild: true })).ok).toBe(false);
+    expect((await replayRoutine(session, 'open-settings', { windowMs: 10, save: false, onFixBuild: true })).ok).toBe(
+      false,
+    );
     expect((await workspace.readRoutine('open-settings'))?.lastReplay).toMatchObject({ ok: false, onFixBuild: true });
     await workspace.saveRoutine({ ...routine({ elements: ['Save', 'Cancel'] }), lastReplay: undefined });
-    expect((await replayRoutine(session, 'open-settings', { windowMs: 10, save: false, onFixBuild: true })).ok).toBe(true);
+    expect((await replayRoutine(session, 'open-settings', { windowMs: 10, save: false, onFixBuild: true })).ok).toBe(
+      true,
+    );
     expect((await workspace.readRoutine('open-settings'))?.lastReplay).toBeUndefined();
   });
   it('skips a missing step when the routine still ends where it should', async () => {
@@ -89,7 +98,9 @@ describe('replaySteps', () => {
     const record = await new Workspace(root).startSession('explorer');
     const driver = new FakeDriver(screens);
     const session = new AgentSession(root, config, new Vars(), record.id, 'explorer', driver);
-    const result = await replaySteps(session, [{ kind: 'tap', target: { role: 'button', name: 'Open settings' } }], { windowMs: 50 });
+    const result = await replaySteps(session, [{ kind: 'tap', target: { role: 'button', name: 'Open settings' } }], {
+      windowMs: 50,
+    });
     expect(result).toMatchObject({ ok: true, degraded: false });
     expect(driver.current).toBe('settings');
   });
@@ -98,10 +109,14 @@ describe('replaySteps', () => {
     const record = await new Workspace(root).startSession('explorer');
     const driver = new FakeDriver(screens);
     const session = new AgentSession(root, config, new Vars(), record.id, 'explorer', driver);
-    const result = await replaySteps(session, [
-      { kind: 'tap', target: { role: 'button', name: 'Missing' } },
-      { kind: 'tap', target: { role: 'button', name: 'Open settings' } },
-    ], { windowMs: 50 });
+    const result = await replaySteps(
+      session,
+      [
+        { kind: 'tap', target: { role: 'button', name: 'Missing' } },
+        { kind: 'tap', target: { role: 'button', name: 'Open settings' } },
+      ],
+      { windowMs: 50 },
+    );
     expect(result).toMatchObject({ ok: false, failedStep: 0 });
     expect(driver.current).toBe('home');
   });

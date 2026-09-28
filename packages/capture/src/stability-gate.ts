@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
-import type { Page } from 'playwright';
 import { InfrastructureError } from '@bugpatrol/core';
+import type { Page } from 'playwright';
 
 export type StabilityOptions = {
   consecutiveIdenticalFrames: number;

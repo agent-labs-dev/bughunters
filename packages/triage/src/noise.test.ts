@@ -1,8 +1,8 @@
-import { describe, expect, it } from 'vitest';
-import { applyNoiseControls, isQuarantined, flakeRate, DEFAULT_NOISE } from './noise.js';
-import type { RootCauseGroup } from './cluster.js';
-import { id } from '@bugpatrol/core';
 import type { Finding, Severity } from '@bugpatrol/core';
+import { id } from '@bugpatrol/core';
+import { describe, expect, it } from 'vitest';
+import type { RootCauseGroup } from './cluster.js';
+import { applyNoiseControls, DEFAULT_NOISE, flakeRate, isQuarantined } from './noise.js';
 
 function group(n: number, severity: Severity = 'minor'): RootCauseGroup {
   const finding = {
@@ -20,7 +20,13 @@ function group(n: number, severity: Severity = 'minor'): RootCauseGroup {
     suspectedFiles: [],
     status: 'open',
   } satisfies Finding;
-  return { id: id.group(`g${n}`), findings: [finding], screens: [], ruleIds: ['layout/overlap'], representative: finding };
+  return {
+    id: id.group(`g${n}`),
+    findings: [finding],
+    screens: [],
+    ruleIds: ['layout/overlap'],
+    representative: finding,
+  };
 }
 
 describe('applyNoiseControls', () => {

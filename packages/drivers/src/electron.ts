@@ -23,14 +23,16 @@ export class ElectronDriver extends WebDriver {
   }
 
   private async choosePage(): Promise<Page> {
-    const pages = this.context!.pages().filter((page) =>
-      !page.url().startsWith('devtools://') && page.url() !== 'about:blank');
+    const pages = this.context!.pages().filter(
+      (page) => !page.url().startsWith('devtools://') && page.url() !== 'about:blank',
+    );
     if (pages.length === 0) {
       throw new Error('Electron CDP connection has no app page');
     }
     for (const page of pages) {
-      const focused = await page.evaluate(() =>
-        document.hasFocus() && document.visibilityState === 'visible').catch(() => false);
+      const focused = await page
+        .evaluate(() => document.hasFocus() && document.visibilityState === 'visible')
+        .catch(() => false);
       if (focused) {
         return page;
       }

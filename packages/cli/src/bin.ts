@@ -1,17 +1,17 @@
 #!/usr/bin/env node
 import { readFileSync } from 'node:fs';
-import { ExitCode, loadConfig, BugpatrolError, findProjectRoot } from '@bugpatrol/core';
-import { USAGE, commandHelp } from './usage.js';
-import { legacyEnv, withDefaultCommand } from './argv.js';
-import { runChecks, doctorExitCode } from './commands/doctor.js';
-import { runInit } from './commands/init.js';
-import { runCommand, exitCodeForError } from './commands/run.js';
-import { parseRunFlags, formatRunSummary } from './commands/run-cli.js';
+import { cleanWorktrees, syncGitHub } from '@bugpatrol/agents';
+import { BugpatrolError, ExitCode, findProjectRoot, loadConfig } from '@bugpatrol/core';
 import { startDashboard } from '@bugpatrol/dashboard';
+import { legacyEnv, withDefaultCommand } from './argv.js';
 import { runAgentCommand } from './commands/agents.js';
+import { doctorExitCode, runChecks } from './commands/doctor.js';
+import { runInit } from './commands/init.js';
 import { runIssueCommand } from './commands/issue.js';
 import { runMemoryCommand } from './commands/memory.js';
-import { cleanWorktrees, syncGitHub } from '@bugpatrol/agents';
+import { exitCodeForError, runCommand } from './commands/run.js';
+import { formatRunSummary, parseRunFlags } from './commands/run-cli.js';
+import { commandHelp, USAGE } from './usage.js';
 
 legacyEnv(process.env);
 const [command, ...args] = withDefaultCommand(process.argv.slice(2));
@@ -23,7 +23,8 @@ declare const __BUGPATROL_VERSION__: string | undefined;
 function version(): string {
   if (typeof __BUGPATROL_VERSION__ !== 'undefined') return __BUGPATROL_VERSION__;
   try {
-    return (JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { version: string }).version;
+    return (JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { version: string })
+      .version;
   } catch {
     return '0.0.0-dev';
   }
@@ -91,8 +92,7 @@ try {
     case 'patrol':
     case 'replay': {
       const config = loadConfig(root);
-      await runAgentCommand(command, args, root, config,
-        (message) => process.stdout.write(`${message}\n`));
+      await runAgentCommand(command, args, root, config, (message) => process.stdout.write(`${message}\n`));
       break;
     }
 
@@ -135,10 +135,13 @@ try {
       const config = tryLoadConfig(root);
       let timer: ReturnType<typeof setInterval> | undefined;
       if (config?.agents.github.enabled) {
-        const sync = () => void syncGitHub(root, config, { onLog: console.error })
-          .catch((error) => console.error(`GitHub sync failed: ${String(error)}`));
+        const sync = () =>
+          void syncGitHub(root, config, { onLog: console.error }).catch((error) =>
+            console.error(`GitHub sync failed: ${String(error)}`),
+          );
         await syncGitHub(root, config, { onLog: console.error }).catch((error) =>
-          console.error(`GitHub sync failed: ${String(error)}`));
+          console.error(`GitHub sync failed: ${String(error)}`),
+        );
         timer = setInterval(sync, 5 * 60_000);
         timer.unref();
       }
@@ -171,8 +174,12 @@ try {
     case 'report':
     case 'export':
     case 'watch':
-      process.stderr.write(`\`bugpatrol ${command}${args.length ? ` ${args.join(' ')}` : ''}\` is not implemented yet.\n`);
-      process.stderr.write('See https://github.com/agent-labs-dev/bugpatrol/blob/main/docs/commands.md for the commands that work now.\n');
+      process.stderr.write(
+        `\`bugpatrol ${command}${args.length ? ` ${args.join(' ')}` : ''}\` is not implemented yet.\n`,
+      );
+      process.stderr.write(
+        'See https://github.com/agent-labs-dev/bugpatrol/blob/main/docs/commands.md for the commands that work now.\n',
+      );
       process.exit(ExitCode.Usage);
       break;
 

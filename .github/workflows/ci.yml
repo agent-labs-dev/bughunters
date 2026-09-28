@@ -21,6 +21,8 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - run: pnpm check --error-on-warnings
+      - run: pnpm knip
       - run: pnpm build
       # The npm package is a bundle of the workspace, so a break in the bundle
       # must fail here, not in a release.

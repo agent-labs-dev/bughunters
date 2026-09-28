@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest';
 import { decisionsSchema } from '@bugpatrol/core';
-import { resolveDecider, type DeciderEnv } from './index.js';
+import { describe, expect, it } from 'vitest';
+import { type DeciderEnv, resolveDecider } from './index.js';
 
 const model = decisionsSchema.parse({});
 
@@ -20,18 +20,36 @@ describe('resolveDecider', () => {
 
   it('uses a custom route only when both endpoint and key exist', () => {
     expect(resolve(model, { BUGPATROL_MODEL_ENDPOINT: 'https://example.test/chat/completions' }).via).toBe('none');
-    expect(resolve(model, { BUGPATROL_MODEL_ENDPOINT: 'https://example.test/chat/completions', BUGPATROL_MODEL_API_KEY: 'secret' }).via).toBe('model:custom');
+    expect(
+      resolve(model, {
+        BUGPATROL_MODEL_ENDPOINT: 'https://example.test/chat/completions',
+        BUGPATROL_MODEL_API_KEY: 'secret',
+      }).via,
+    ).toBe('model:custom');
   });
 
   it('applies the auto precedence', () => {
     const all = {
-      OPENROUTER_API_KEY: 'b', AI_GATEWAY_API_KEY: 'c',
-      OPENAI_API_KEY: 'd', ANTHROPIC_API_KEY: 'e', BUGPATROL_MODEL_ENDPOINT: 'https://example.test', BUGPATROL_MODEL_API_KEY: 'f',
+      OPENROUTER_API_KEY: 'b',
+      AI_GATEWAY_API_KEY: 'c',
+      OPENAI_API_KEY: 'd',
+      ANTHROPIC_API_KEY: 'e',
+      BUGPATROL_MODEL_ENDPOINT: 'https://example.test',
+      BUGPATROL_MODEL_API_KEY: 'f',
     };
     expect(resolve(model, all).via).toBe('model:openrouter');
     expect(resolve(model, { ...all, OPENROUTER_API_KEY: undefined }).via).toBe('model:vercel');
-    expect(resolve(model, { ...all, OPENROUTER_API_KEY: undefined, AI_GATEWAY_API_KEY: undefined }).via).toBe('model:openai');
-    expect(resolve(model, { ...all, OPENROUTER_API_KEY: undefined, AI_GATEWAY_API_KEY: undefined, OPENAI_API_KEY: undefined }).via).toBe('model:anthropic');
+    expect(resolve(model, { ...all, OPENROUTER_API_KEY: undefined, AI_GATEWAY_API_KEY: undefined }).via).toBe(
+      'model:openai',
+    );
+    expect(
+      resolve(model, {
+        ...all,
+        OPENROUTER_API_KEY: undefined,
+        AI_GATEWAY_API_KEY: undefined,
+        OPENAI_API_KEY: undefined,
+      }).via,
+    ).toBe('model:anthropic');
   });
 
   it('an explicit via ignores the other route keys', () => {

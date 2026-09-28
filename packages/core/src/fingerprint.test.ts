@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { fingerprint, normalizeRegionSignature, baselineKey } from './fingerprint.js';
+import { baselineKey, fingerprint, normalizeRegionSignature } from './fingerprint.js';
 
 describe('fingerprint', () => {
   it('is stable across runs for identical input', () => {
