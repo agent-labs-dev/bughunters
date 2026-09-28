@@ -36,11 +36,21 @@ const MIME: Record<string, string> = {
 export async function startDashboard(options: DashboardOptions): Promise<Dashboard> {
   const root = resolve(options.root);
   const host = options.host ?? '127.0.0.1';
+  if (!['127.0.0.1', 'localhost', '::1'].includes(host)) throw new Error('The dashboard must bind to a loopback address.');
   const reader = new ProjectReader(root);
   const agents = new AgentReader(root);
   const clients = new Set<ServerResponse>();
 
   const server = createServer((req, res) => {
+    const address = server.address();
+    const port = address && typeof address !== 'string' ? address.port : 0;
+    const authorities = ['127.0.0.1', 'localhost', '[::1]'].map((name) => `${name}:${port}`);
+    if (!authorities.includes(req.headers.host ?? '') ||
+      (req.headers.origin && req.headers.origin !== `http://${req.headers.host}`)) {
+      res.writeHead(403).end('Forbidden'); return;
+    }
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Referrer-Policy', 'no-referrer');
     handle(req, res, { root, reader, agents, clients }).catch((error) => {
       send(res, 500, { 'content-type': 'application/json' }, JSON.stringify({ error: String(error) }));
     });
@@ -48,7 +58,7 @@ export async function startDashboard(options: DashboardOptions): Promise<Dashboa
 
   const port = await listen(server, options.port ?? 4311, host);
   const watcher = watchProject(root, () => broadcast(clients, 'changed', { at: Date.now() }));
-  const url = `http://${host}:${port}`;
+  const url = `http://${host === '::1' ? '[::1]' : host}:${port}`;
   options.onReady?.(url);
 
   return {
@@ -188,7 +198,7 @@ function serveArtifact(res: ServerResponse, root: string, requested: string): vo
 function serveUi(res: ServerResponse, path: string): void {
   const name = path === '/' ? 'index.html' : path.replace(/^\//, '');
   const file = resolve(UI_DIR, name);
-  if (!file.startsWith(UI_DIR) || !existsSync(file) || !statSync(file).isFile()) {
+  if (!file.startsWith(UI_DIR + sep) || !existsSync(file) || !statSync(file).isFile()) {
     // Unknown paths fall through to the app shell so client-side routing works.
     return serveUi(res, '/');
   }

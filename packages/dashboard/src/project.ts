@@ -1,5 +1,6 @@
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
+import { confinedFile } from './files.js';
 import { paths, type AppModel, type Finding, type Intent, type LiveProgress, type Run, type RunTrace } from '@bugpatrol/core';
 
 export type RunRecord = {
@@ -54,14 +55,15 @@ export class ProjectReader {
   }
 
   readRun(runId: string): RunRecord | undefined {
+    if (!/^[a-zA-Z0-9_-]+$/.test(runId)) return undefined;
     const dir = join(paths.runs(this.root), runId);
-    const runFile = join(dir, 'run.json');
-    if (!existsSync(runFile)) return undefined;
+    const runFile = confinedFile(paths.runs(this.root), join(dir, 'run.json'));
+    if (!runFile) return undefined;
 
     try {
       const parsed = JSON.parse(readFileSync(runFile, 'utf8')) as { run: Run; findings: Finding[] };
-      const traceFile = join(dir, 'trace.json');
-      const trace = existsSync(traceFile)
+      const traceFile = confinedFile(paths.runs(this.root), join(dir, 'trace.json'));
+      const trace = traceFile
         ? (JSON.parse(readFileSync(traceFile, 'utf8')) as RunTrace)
         : undefined;
       return { id: runId, dir, run: parsed.run, findings: parsed.findings, trace, mtimeMs: safeMtime(dir) };
@@ -89,8 +91,8 @@ export class ProjectReader {
   }
 
   readAppModel(): AppModel | undefined {
-    const file = paths.appModel(this.root);
-    if (!existsSync(file)) return undefined;
+    const file = confinedFile(paths.dir(this.root), paths.appModel(this.root));
+    if (!file) return undefined;
     try {
       return JSON.parse(readFileSync(file, 'utf8')) as AppModel;
     } catch {
@@ -99,8 +101,8 @@ export class ProjectReader {
   }
 
   readIntents(): Intent[] {
-    const file = paths.intents(this.root);
-    if (!existsSync(file)) return [];
+    const file = confinedFile(paths.dir(this.root), paths.intents(this.root));
+    if (!file) return [];
     try {
       return (JSON.parse(readFileSync(file, 'utf8')) as { intents: Intent[] }).intents ?? [];
     } catch {
@@ -110,8 +112,8 @@ export class ProjectReader {
 
   /** Progress for a run currently in flight, if one is. */
   readLive(): LiveProgress | undefined {
-    const file = paths.live(this.root);
-    if (!existsSync(file)) return undefined;
+    const file = confinedFile(paths.dir(this.root), paths.live(this.root));
+    if (!file) return undefined;
     try {
       return JSON.parse(readFileSync(file, 'utf8')) as LiveProgress;
     } catch {
@@ -121,8 +123,8 @@ export class ProjectReader {
   }
 
   readConfigRaw(): string | undefined {
-    const file = paths.config(this.root);
-    return existsSync(file) ? readFileSync(file, 'utf8') : undefined;
+    const file = confinedFile(paths.dir(this.root), paths.config(this.root));
+    return file ? readFileSync(file, 'utf8') : undefined;
   }
 }
 

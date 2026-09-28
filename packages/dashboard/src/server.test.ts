@@ -64,3 +64,37 @@ describe('resolveArtifactPath', () => {
     expect(resolveArtifactPath(root, '.bugpatrol/runs/latest/missing.png')).toBeUndefined();
   });
 });
+
+describe('dashboard project isolation', () => {
+  it('rejects traversal and symlinked run records', async () => {
+    const { ProjectReader } = await import('./project.js');
+    const reader = new ProjectReader(root);
+    writeFileSync(join(outside, 'run.json'), JSON.stringify({ run: { id: 'outside' }, findings: [] }));
+    mkdirSync(join(root, '.bugpatrol/runs/gate'), { recursive: true });
+    symlinkSync(outside, join(root, '.bugpatrol/runs/gate/linked'));
+    expect(reader.readRun(outside)).toBeUndefined();
+    expect(reader.readRun('../../outside')).toBeUndefined();
+    expect(reader.readRun('linked')).toBeUndefined();
+    mkdirSync(join(root, '.bugpatrol/runs/gate/valid'));
+    symlinkSync(join(outside, 'run.json'), join(root, '.bugpatrol/runs/gate/valid/run.json'));
+    expect(reader.readRun('valid')).toBeUndefined();
+  });
+
+  it('rejects untrusted hosts and remote bindings', async () => {
+    const { startDashboard } = await import('./server.js');
+    const { request } = await import('node:http');
+    await expect(startDashboard({ root, host: '0.0.0.0' })).rejects.toThrow('loopback');
+    const dashboard = await startDashboard({ root, port: 0 });
+    try {
+      const status = await new Promise((resolve, reject) => {
+        const req = request(dashboard.url + '/api/state', { headers: { host: 'attacker.example' } }, (res) => {
+          res.resume(); res.once('end', () => resolve(res.statusCode));
+        });
+        req.once('error', reject); req.end();
+      });
+      expect(status).toBe(403);
+      expect((await fetch(dashboard.url + '/api/state')).status).toBe(200);
+      expect((await fetch(dashboard.url + '/api/state', { headers: { origin: 'https://attacker.example' } })).status).toBe(403);
+    } finally { await dashboard.close(); }
+  });
+});
