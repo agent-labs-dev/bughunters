@@ -31,7 +31,7 @@ npx bugpatrol run --no-models       # exit 1, with a diff image
 | 1 | A tier-1 regression: **the only code that blocks a merge** |
 | 2 | A configuration or usage error |
 | 3 | Recon is required, or the app model is not approved |
-| 4 | An infrastructure error: Bugpatrol could not test |
+| 4 | The test is not complete: an infrastructure error, missing evidence, no tested screen, or no decision budget left |
 
 ## Tiers
 

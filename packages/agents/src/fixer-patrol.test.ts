@@ -622,6 +622,25 @@ describe('patrol pull', () => {
     } finally { await rm(f.root, { recursive: true, force: true }); }
   });
 
+  it.each([['error', false], ['timeout', false], ['max-steps', true]] as const)(
+    'caches the commit after an explorer %s outcome: %s', async (stop, cached) => {
+      const f = await repoFixture();
+      try {
+        const config = parseConfig({ version: 1, app: { source: 'source', connect: { url: 'fake://home' } },
+          agents: { memory: { enabled: false }, judge: { enabled: false }, patrol: { pull: false } } });
+        let runs = 0;
+        const once = () => runPatrol({ root: f.root, config, once: true,
+          createDriver: () => new FakeDriver({ home: { elements: [] } }),
+          createRuntime: () => ({ label: 'scripted', async run() {
+            runs++; return { stop, steps: 0, costUsd: 0, error: 'synthetic failure' };
+          } }) });
+        expect((await once()).problems).toHaveLength(cached ? 0 : 1);
+        await once();
+        expect(runs).toBe(cached ? 1 : 2);
+        expect(Boolean((await f.workspace.readAgents()).patrol?.commit)).toBe(cached);
+      } finally { await rm(f.root, { recursive: true, force: true }); }
+    });
+
   it('skips --once on a tested commit unless forced, and shows no next patrol', async () => {
     const f = await repoFixture();
     try {
