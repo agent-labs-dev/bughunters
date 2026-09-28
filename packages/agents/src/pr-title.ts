@@ -4,7 +4,6 @@
  * default branch, and their release tools and hooks read that form.
  */
 export const PR_TYPES = ['fix', 'feat', 'perf', 'refactor', 'test', 'chore', 'docs', 'style'] as const;
-export type PrType = (typeof PR_TYPES)[number];
 
 const MAX = 72;
 const FORM = /^[a-z]+(\([a-z0-9][a-z0-9._/-]*\))?!?: \S.*$/;

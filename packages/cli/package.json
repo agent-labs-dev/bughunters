@@ -23,7 +23,6 @@
     "@bugpatrol/decide": "workspace:*",
     "@bugpatrol/diff": "workspace:*",
     "@bugpatrol/drivers": "workspace:*",
-    "@bugpatrol/github-app": "workspace:*",
     "@bugpatrol/invariants": "workspace:*",
     "@bugpatrol/recon": "workspace:*",
     "@bugpatrol/report": "workspace:*",

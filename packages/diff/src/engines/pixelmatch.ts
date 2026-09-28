@@ -68,7 +68,7 @@ export async function diffWithPixelmatch(req: DiffRequest): Promise<DiffResult> 
   return finalize('pixelmatch', changed, width, height, masks, started, req.diffOutPath);
 }
 
-export function finalize(
+function finalize(
   engine: DiffResult['engine'],
   changed: Array<{ x: number; y: number }>,
   width: number,

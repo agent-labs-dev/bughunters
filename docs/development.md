@@ -10,7 +10,11 @@ Node 22+ and pnpm 9+.
 pnpm install
 pnpm build
 pnpm test
+pnpm check   # Biome: lint and format. `pnpm check:fix` applies the fixes.
+pnpm knip    # Dead code: unused files, exports, and dependencies.
 ```
+
+CI runs `pnpm check --error-on-warnings` and `pnpm knip`. The pre-commit hook runs Biome on the staged files and then knip.
 
 To run the CLI from your checkout:
 

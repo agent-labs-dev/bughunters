@@ -74,7 +74,7 @@ function jsonLines<T>(file: string): T[] {
  * the reader checks the pid before it believes it. A record with no pid is
  * taken at its word.
  */
-export function processAlive(pid: number | undefined): boolean {
+function processAlive(pid: number | undefined): boolean {
   if (!pid) return true;
   try {
     process.kill(pid, 0);
@@ -406,7 +406,7 @@ export function usageReport(
   return { todayByRole, week, ...(weekTotal ? { weekTotal } : {}) };
 }
 
-export function isFeedEvent(event: AgentEvent): boolean {
+function isFeedEvent(event: AgentEvent): boolean {
   if (event.kind === 'thought' || event.kind === 'tool-call') return false;
   return event.summary.trim().length > 0;
 }

@@ -20,7 +20,6 @@
     "build": "tsc --build"
   },
   "dependencies": {
-    "@bugpatrol/core": "workspace:*",
-    "@bugpatrol/invariants": "workspace:*"
+    "@bugpatrol/core": "workspace:*"
   }
 }

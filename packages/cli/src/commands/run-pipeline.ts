@@ -88,7 +88,7 @@ const ALL_RULE_IDS: string[] = [
 ];
 
 export const PIXEL_DIFF_RULE = 'visual/pixel-diff';
-export const BASELINE_MISSING_RULE = 'visual/baseline-missing';
+const BASELINE_MISSING_RULE = 'visual/baseline-missing';
 
 export const newRunId = (): Run['id'] => id.run(`run_${Date.now().toString(36)}`);
 

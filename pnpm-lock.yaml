@@ -138,9 +138,6 @@ importers:
       '@bugpatrol/drivers':
         specifier: workspace:*
         version: link:../drivers
-      '@bugpatrol/github-app':
-        specifier: workspace:*
-        version: link:../github-app
       '@bugpatrol/invariants':
         specifier: workspace:*
         version: link:../invariants
@@ -171,9 +168,6 @@ importers:
       '@bugpatrol/core':
         specifier: workspace:*
         version: link:../core
-      '@bugpatrol/invariants':
-        specifier: workspace:*
-        version: link:../invariants
 
   packages/decide:
     dependencies:
@@ -223,9 +217,6 @@ importers:
       '@bugpatrol/core':
         specifier: workspace:*
         version: link:../core
-      '@bugpatrol/report':
-        specifier: workspace:*
-        version: link:../report
 
   packages/invariants:
     dependencies:
@@ -235,9 +226,6 @@ importers:
 
   packages/recon:
     dependencies:
-      '@bugpatrol/capture':
-        specifier: workspace:*
-        version: link:../capture
       '@bugpatrol/core':
         specifier: workspace:*
         version: link:../core
@@ -250,9 +238,6 @@ importers:
       '@bugpatrol/core':
         specifier: workspace:*
         version: link:../core
-      '@bugpatrol/triage':
-        specifier: workspace:*
-        version: link:../triage
 
   packages/triage:
     dependencies:

@@ -19,7 +19,6 @@
     "build": "tsc --build"
   },
   "dependencies": {
-    "@bugpatrol/core": "workspace:*",
-    "@bugpatrol/triage": "workspace:*"
+    "@bugpatrol/core": "workspace:*"
   }
 }
