@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import type { Page } from 'playwright';
-import { InfrastructureError } from '@bughunters/core';
+import { InfrastructureError } from '@bugpatrol/core';
 
 export type StabilityOptions = {
   consecutiveIdenticalFrames: number;
@@ -53,6 +53,6 @@ export async function waitForStableFrame(page: Page, options: StabilityOptions):
 
   throw new InfrastructureError(
     `The page at ${page.url()} never reached a stable frame within ${options.timeoutMs}ms (${frames} frames captured). ` +
-      'Bughunters could not test this screen; this is not reported as a product regression.',
+      'Bugpatrol could not test this screen; this is not reported as a product regression.',
   );
 }

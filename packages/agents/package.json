@@ -1,5 +1,5 @@
 {
-  "name": "@bughunters/agents",
+  "name": "@bugpatrol/agents",
   "version": "0.0.0",
   "private": true,
   "license": "Apache-2.0",
@@ -9,5 +9,5 @@
   "exports": { ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" } },
   "files": ["dist"],
   "scripts": { "build": "tsc --build" },
-  "dependencies": { "@bughunters/core": "workspace:*", "@bughunters/decide": "workspace:*", "@bughunters/diff": "workspace:*", "@bughunters/drivers": "workspace:*", "@bughunters/invariants": "workspace:*", "@modelcontextprotocol/sdk": "^1.20.0", "pngjs": "^7.0.0", "zod": "^3.23.8" }
+  "dependencies": { "@bugpatrol/core": "workspace:*", "@bugpatrol/decide": "workspace:*", "@bugpatrol/diff": "workspace:*", "@bugpatrol/drivers": "workspace:*", "@bugpatrol/invariants": "workspace:*", "@modelcontextprotocol/sdk": "^1.20.0", "pngjs": "^7.0.0", "zod": "^3.23.8" }
 }

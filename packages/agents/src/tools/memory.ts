@@ -1,4 +1,4 @@
-import type { Lesson, LessonRole } from '@bughunters/core';
+import type { Lesson, LessonRole } from '@bugpatrol/core';
 import type { AgentSession } from '../session.js';
 import type { Tool } from '../types.js';
 

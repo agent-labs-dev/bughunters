@@ -1,23 +1,23 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { parse as parseYaml } from 'yaml';
-import { bughuntersConfigSchema, type BughuntersConfig } from './schema.js';
+import { bugpatrolConfigSchema, type BugpatrolConfig } from './schema.js';
 import type { z } from 'zod';
 import type { runSchema } from './schema.js';
 import { ConfigError } from '../errors.js';
-import { BUGHUNTERS_DIR, CONFIG_FILENAME, legacyLayout, paths } from '../paths.js';
+import { BUGPATROL_DIR, CONFIG_FILENAME, legacyLayout, paths } from '../paths.js';
 
 /**
- * Config precedence: CLI flags > repo bughunters.yml > org defaults > detected
+ * Config precedence: CLI flags > repo bugpatrol.yml > org defaults > detected
  * defaults (spec 9.3). This loader handles the middle two; the CLI layers flags
  * on top of whatever comes back. `root` is the project root: the folder that
- * holds `.bughunters/`.
+ * holds `.bugpatrol/`.
  */
-export function loadConfig(root = process.cwd(), overrides: Partial<BughuntersConfig> = {}): BughuntersConfig {
+export function loadConfig(root = process.cwd(), overrides: Partial<BugpatrolConfig> = {}): BugpatrolConfig {
   const path = paths.config(root);
   if (!existsSync(path)) {
     const legacy = legacyLayout(root);
     if (legacy) throw new ConfigError(legacy);
-    throw new ConfigError(`No ${BUGHUNTERS_DIR}/${CONFIG_FILENAME} found in ${root} or above it. Run \`bughunters init\` first.`);
+    throw new ConfigError(`No ${BUGPATROL_DIR}/${CONFIG_FILENAME} found in ${root} or above it. Run \`bugpatrol init\` first.`);
   }
 
   let raw: unknown;
@@ -30,8 +30,8 @@ export function loadConfig(root = process.cwd(), overrides: Partial<BughuntersCo
   return parseConfig(mergeShallow(raw, overrides), path);
 }
 
-export function parseConfig(raw: unknown, source = '<inline>'): BughuntersConfig {
-  const result = bughuntersConfigSchema.safeParse(raw);
+export function parseConfig(raw: unknown, source = '<inline>'): BugpatrolConfig {
+  const result = bugpatrolConfigSchema.safeParse(raw);
   if (!result.success) {
     const issues = result.error.issues
       .map((i) => `  ${i.path.join('.') || '<root>'}: ${i.message}`)
@@ -41,7 +41,7 @@ export function parseConfig(raw: unknown, source = '<inline>'): BughuntersConfig
   return result.data;
 }
 
-function mergeShallow(raw: unknown, overrides: Partial<BughuntersConfig>): unknown {
+function mergeShallow(raw: unknown, overrides: Partial<BugpatrolConfig>): unknown {
   if (typeof raw !== 'object' || raw === null) return raw;
   return { ...(raw as Record<string, unknown>), ...overrides };
 }
@@ -70,12 +70,12 @@ export function resolveSecretRefs<T>(value: T, env: NodeJS.ProcessEnv = process.
 
 /**
  * The `run` block, for commands that start a web app themselves. Only
- * `bughunters run` and the web driver need it; other platforms start through
+ * `bugpatrol run` and the web driver need it; other platforms start through
  * `app.setup` (ADR 0005).
  */
-export function requireRun(config: BughuntersConfig): z.infer<typeof runSchema> {
+export function requireRun(config: BugpatrolConfig): z.infer<typeof runSchema> {
   if (!config.run) {
-    throw new ConfigError('This command needs a `run` block (command and url) in bughunters.yml.');
+    throw new ConfigError('This command needs a `run` block (command and url) in bugpatrol.yml.');
   }
   return config.run;
 }

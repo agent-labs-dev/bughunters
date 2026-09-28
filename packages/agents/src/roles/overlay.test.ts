@@ -2,41 +2,41 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { overlayBughunters } from './overlay.js';
+import { overlayBugpatrol } from './overlay.js';
 
-describe('overlayBughunters', () => {
+describe('overlayBugpatrol', () => {
   it('gives the retest the checkout scripts, and restores the worktree after it', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'bughunters-overlay-'));
-    const worktree = join(root, '.bughunters', 'runs', 'worktrees', 'iss_1');
+    const root = await mkdtemp(join(tmpdir(), 'bugpatrol-overlay-'));
+    const worktree = join(root, '.bugpatrol', 'runs', 'worktrees', 'iss_1');
     try {
-      await mkdir(join(root, '.bughunters', 'runs'), { recursive: true });
-      await writeFile(join(root, '.bughunters', 'mint.sh'), 'new script');
-      await writeFile(join(root, '.bughunters', 'added.sh'), 'only in the checkout');
-      await writeFile(join(root, '.bughunters', 'runs', 'agents.json'), '{}');
-      await mkdir(join(worktree, '.bughunters'), { recursive: true });
-      await writeFile(join(worktree, '.bughunters', 'mint.sh'), 'committed script');
+      await mkdir(join(root, '.bugpatrol', 'runs'), { recursive: true });
+      await writeFile(join(root, '.bugpatrol', 'mint.sh'), 'new script');
+      await writeFile(join(root, '.bugpatrol', 'added.sh'), 'only in the checkout');
+      await writeFile(join(root, '.bugpatrol', 'runs', 'agents.json'), '{}');
+      await mkdir(join(worktree, '.bugpatrol'), { recursive: true });
+      await writeFile(join(worktree, '.bugpatrol', 'mint.sh'), 'committed script');
 
-      const restore = await overlayBughunters(root, root, worktree);
-      expect(await readFile(join(worktree, '.bughunters', 'mint.sh'), 'utf8')).toBe('new script');
-      expect(await readFile(join(worktree, '.bughunters', 'added.sh'), 'utf8')).toBe('only in the checkout');
-      await expect(readFile(join(worktree, '.bughunters', 'runs', 'agents.json'))).rejects.toThrow();
+      const restore = await overlayBugpatrol(root, root, worktree);
+      expect(await readFile(join(worktree, '.bugpatrol', 'mint.sh'), 'utf8')).toBe('new script');
+      expect(await readFile(join(worktree, '.bugpatrol', 'added.sh'), 'utf8')).toBe('only in the checkout');
+      await expect(readFile(join(worktree, '.bugpatrol', 'runs', 'agents.json'))).rejects.toThrow();
 
       await restore();
-      expect(await readFile(join(worktree, '.bughunters', 'mint.sh'), 'utf8')).toBe('committed script');
-      await expect(readFile(join(worktree, '.bughunters', 'added.sh'))).rejects.toThrow();
+      expect(await readFile(join(worktree, '.bugpatrol', 'mint.sh'), 'utf8')).toBe('committed script');
+      await expect(readFile(join(worktree, '.bugpatrol', 'added.sh'))).rejects.toThrow();
     } finally {
       await rm(root, { recursive: true, force: true });
     }
   });
 
   it('does nothing when the config is outside the source repo', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'bughunters-overlay-'));
+    const root = await mkdtemp(join(tmpdir(), 'bugpatrol-overlay-'));
     try {
-      await mkdir(join(root, 'config', '.bughunters'), { recursive: true });
-      await writeFile(join(root, 'config', '.bughunters', 'mint.sh'), 'script');
+      await mkdir(join(root, 'config', '.bugpatrol'), { recursive: true });
+      await writeFile(join(root, 'config', '.bugpatrol', 'mint.sh'), 'script');
       await mkdir(join(root, 'wt'), { recursive: true });
-      await (await overlayBughunters(join(root, 'config'), join(root, 'app'), join(root, 'wt')))();
-      await expect(readFile(join(root, 'wt', '.bughunters', 'mint.sh'))).rejects.toThrow();
+      await (await overlayBugpatrol(join(root, 'config'), join(root, 'app'), join(root, 'wt')))();
+      await expect(readFile(join(root, 'wt', '.bugpatrol', 'mint.sh'))).rejects.toThrow();
     } finally {
       await rm(root, { recursive: true, force: true });
     }

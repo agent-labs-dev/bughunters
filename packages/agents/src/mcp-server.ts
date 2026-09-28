@@ -74,7 +74,7 @@ async function handle(
 }
 
 function buildServer(tools: Tool[], opts: Options, budget: { calls: number }): Server {
-  const server = new Server({ name: 'bughunters', version: '0.0.0' }, { capabilities: { tools: {} } });
+  const server = new Server({ name: 'bugpatrol', version: '0.0.0' }, { capabilities: { tools: {} } });
 
   server.setRequestHandler(ListToolsRequestSchema, async () => ({
     tools: tools.map((tool) => ({

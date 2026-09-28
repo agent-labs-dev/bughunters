@@ -1,29 +1,29 @@
 <p align="center">
-  <img src="assets/banner.png" alt="Bughunters: AI agents that explore your app, find bugs, and fix them." width="100%">
+  <img src="assets/banner.png" alt="Bugpatrol: AI agents that explore your app, find bugs, and fix them." width="100%">
 </p>
 
 <p align="center">
-  <a href="https://www.npmjs.com/package/bughunters"><img src="https://img.shields.io/npm/v/bughunters?color=a3e635&label=npm" alt="npm version"></a>
-  <a href="https://github.com/agent-labs-dev/bughunters/actions/workflows/ci.yml"><img src="https://github.com/agent-labs-dev/bughunters/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://www.npmjs.com/package/bugpatrol"><img src="https://img.shields.io/npm/v/bugpatrol?color=a3e635&label=npm" alt="npm version"></a>
+  <a href="https://github.com/agent-labs-dev/bugpatrol/actions/workflows/ci.yml"><img src="https://github.com/agent-labs-dev/bugpatrol/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue" alt="License: Apache-2.0"></a>
 </p>
 
-Bughunters is a QA team made of agents. It uses your app the way a tester does, finds bugs, fixes them, checks each fix in the running app, and opens the pull requests and issues for your team.
+Bugpatrol is a QA team made of agents. It uses your app the way a tester does, finds bugs, fixes them, checks each fix in the running app, and opens the pull requests and issues for your team.
 
 - An **explorer** agent runs the app, maps its screens, and reports what looks wrong.
 - A **judge** agent decides which reports are real bugs, and writes the issues.
 - A **fixer** agent writes a fix in its own git worktree. Then the explorer and the judge **retest** the fix in the running app.
-- Bughunters **publishes** to GitHub: a PR for each fix, and an issue for each major bug with no fix.
+- Bugpatrol **publishes** to GitHub: a PR for each fix, and an issue for each major bug with no fix.
 
 It works on web apps, desktop apps (Electron), and mobile apps (iOS and Android, native or React Native). It runs on your machine, and it can run all day as a patrol.
 
-The [Nebula](https://nebula.gg) team uses Bughunters every day to test our own web, desktop, and mobile apps. We made it open source, so that all teams can use it.
+The [Nebula](https://nebula.gg) team uses Bugpatrol every day to test our own web, desktop, and mobile apps. We made it open source, so that all teams can use it.
 
 ```bash
-npx bughunters patrol
+npx bugpatrol
 ```
 
-`patrol` runs the full cycle again and again: explore, judge, fix, retest, publish, and make CI green. The fixer and GitHub stay off until you turn them on.
+`npx bugpatrol` runs the patrol: the full cycle, again and again: explore, judge, fix, retest, publish, and make CI green. The fixer and GitHub stay off until you turn them on.
 
 ### How the patrol runs
 
@@ -31,7 +31,7 @@ Three LLM agents do the work: the explorer, the judge, and the fixer. The explor
 
 ```mermaid
 flowchart TB
-  start(["npx bughunters patrol"]) --> pull["Pull main and start the app"]
+  start(["npx bugpatrol"]) --> pull["Pull main and start the app"]
   pull --> explorer{{"1 · Explore<br/>LLM · Explorer uses the app"}}
   explorer -->|"bug reports"| judge
 
@@ -61,7 +61,7 @@ flowchart TB
 
 - The patrol does not stop by itself. Every 30 minutes, it pulls the latest `origin/main`.
 - The patrol explores and judges only when `main` has new commits. On the same commit, it skips these two steps, but it still finishes the open work: fixes, retests, publish, CI checks, and the GitHub sync. So a patrol that runs all day costs little when nobody merges code, and a fix never waits for the next merge.
-- Bughunters keeps the last tested commit in `.bughunters/runs/`, so a restart also skips a commit that it tested before. To test again with no new commit, for example after a config change, use `patrol --force`.
+- Bugpatrol keeps the last tested commit in `.bugpatrol/runs/`, so a restart also skips a commit that it tested before. To test again with no new commit, for example after a config change, use `patrol --force`.
 - You can change the wait with `agents.patrol.intervalMinutes`. To stop after a number of cycles, set `agents.patrol.cycles`. To run one cycle only, use `patrol --once`.
 - You can also run `patrol --once` from cron, for example every 30 minutes. Each run tests only a new commit. If the last patrol still runs, the new run does not start.
 - To use a different branch, set `agents.patrol.pull`.
@@ -71,10 +71,10 @@ When you turn on GitHub, the patrol opens GitHub issues and PRs automatically, i
 
 ## Set up with your agent
 
-1. Install the Bughunters skill in your repo:
+1. Install the Bugpatrol skill in your repo:
 
    ```bash
-   npx skills add agent-labs-dev/bughunters
+   npx skills add agent-labs-dev/bugpatrol
    ```
 
    The [skills CLI](https://github.com/vercel-labs/skills) installs the skill for Claude Code, Codex, Cursor, and many other agents. It also writes `skills-lock.json` at the repo root. Commit both, so your team gets the skill too.
@@ -82,20 +82,20 @@ When you turn on GitHub, the patrol opens GitHub issues and PRs automatically, i
 2. Give this prompt to your agent:
 
    ```text
-   Set up Bughunters for this repo.
+   Set up Bugpatrol for this repo.
    ```
 
-The [skill](skills/bughunters/SKILL.md) tells the agent what Bughunters does, how to configure it for your app, how to run it, and how to show you the results.
+The [skill](skills/bugpatrol/SKILL.md) tells the agent what Bugpatrol does, how to configure it for your app, how to run it, and how to show you the results.
 
 If your agent cannot install skills, give it the skill URL:
 
 ```text
-Read https://raw.githubusercontent.com/agent-labs-dev/bughunters/main/skills/bughunters/SKILL.md and set up Bughunters for this repo.
+Read https://raw.githubusercontent.com/agent-labs-dev/bugpatrol/main/skills/bugpatrol/SKILL.md and set up Bugpatrol for this repo.
 ```
 
 ## Set up by hand
 
-Bughunters needs two things from you: a command that launches your app on this machine, and a way to sign in (a test account, a seed script, or a dev auth bypass). [Getting started](docs/getting-started.md#before-you-start-launch-and-sign-in) tells more.
+Bugpatrol needs two things from you: a command that launches your app on this machine, and a way to sign in (a test account, a seed script, or a dev auth bypass). [Getting started](docs/getting-started.md#before-you-start-launch-and-sign-in) tells more.
 
 You need Node 22 or later, and `git`. Your app must be in a git repo with an `origin` remote, because each patrol cycle pulls `origin/main` and the fixer works in git worktrees. To open PRs and issues, you also need a logged-in [`gh`](https://cli.github.com) CLI.
 
@@ -108,54 +108,54 @@ PLAYWRIGHT_SKIP_BROWSER_GC=1 npx -y playwright@1.48.2 install chromium
 1. Run `init` in your repo. It finds your app and the LLMs on your machine, and asks which LLM each agent uses:
 
    ```bash
-   npx bughunters init
+   npx bugpatrol init
    ```
 
-   `init` puts all the Bughunters files in one `.bughunters/` folder:
+   `init` puts all the Bugpatrol files in one `.bugpatrol/` folder:
 
    ```text
-   .bughunters/
-     bughunters.yml     # the config: commit it
+   .bugpatrol/
+     bugpatrol.yml     # the config: commit it
      instructions.md    # the app guide for the explorer: commit it
      runs/              # sessions, issues, fixes, and screenshots: git ignores it
    ```
 
-2. Check `.bughunters/bughunters.yml`. It tells Bughunters how to start your app.
+2. Check `.bugpatrol/bugpatrol.yml`. It tells Bugpatrol how to start your app.
 
-3. Write `.bughunters/instructions.md`. It is a plain-English note for the explorer: what the app is, how to sign in, and what never to do.
-   Refer to secrets as `{{NAME}}`, and list their names in `app.secrets`. Bughunters never sends the real values to a model.
+3. Write `.bugpatrol/instructions.md`. It is a plain-English note for the explorer: what the app is, how to sign in, and what never to do.
+   Refer to secrets as `{{NAME}}`, and list their names in `app.secrets`. Bugpatrol never sends the real values to a model.
 
 4. Start the patrol, and look at the results:
 
    ```bash
-   npx bughunters patrol        # explore, judge, fix, retest, publish; then check for new commits every 30 minutes
-   npx bughunters dashboard     # http://127.0.0.1:4311
+   npx bugpatrol               # explore, judge, fix, retest, publish; then check for new commits every 30 minutes
+   npx bugpatrol dashboard     # http://127.0.0.1:4311
    ```
 
 To run one step at a time, use these commands:
 
 ```bash
-npx bughunters patrol --once  # one cycle, then stop (add --force to test the same commit again)
-npx bughunters explore        # the explorer maps the app and reports problems
-npx bughunters judge          # the judge files the real bugs as issues
-npx bughunters fix            # fix the worst issues, then retest each fix in the app
-npx bughunters publish        # open the PRs and issues
+npx bugpatrol --once         # one cycle, then stop (add --force to test the same commit again)
+npx bugpatrol explore        # the explorer maps the app and reports problems
+npx bugpatrol judge          # the judge files the real bugs as issues
+npx bugpatrol fix            # fix the worst issues, then retest each fix in the app
+npx bugpatrol publish        # open the PRs and issues
 ```
 
 The fixer and GitHub are off until you turn them on. [Getting started](docs/getting-started.md) shows each step in full, with Electron and mobile examples.
 
 ## The dashboard
 
-<img src="assets/dashboard.png" alt="The Bughunters dashboard: the agent cards, the issues that need attention, the live screen, the coverage, and the token usage." width="100%">
+<img src="assets/dashboard.png" alt="The Bugpatrol dashboard: the agent cards, the issues that need attention, the live screen, the coverage, and the token usage." width="100%">
 
-The dashboard shows what the agents do, live. Start it in the repo that has `.bughunters/`:
+The dashboard shows what the agents do, live. Start it in the repo that has `.bugpatrol/`:
 
 ```bash
-npx bughunters dashboard              # http://127.0.0.1:4311
-npx bughunters dashboard --port 5000  # use a different port
+npx bugpatrol dashboard              # http://127.0.0.1:4311
+npx bugpatrol dashboard --port 5000  # use a different port
 ```
 
-The dashboard reads the files in `.bughunters/runs/`, so it works during a patrol and after it. It has these pages:
+The dashboard reads the files in `.bugpatrol/runs/`, so it works during a patrol and after it. It has these pages:
 
 | Page | What it shows |
 | --- | --- |
@@ -169,7 +169,7 @@ The dashboard reads the files in `.bughunters/runs/`, so it works during a patro
 
 ## LLMs
 
-Bughunters has three LLM agents:
+Bugpatrol has three LLM agents:
 
 | Agent | What it does |
 | --- | --- |
@@ -202,21 +202,33 @@ Give the judge your strongest model, and give the explorer a fast, low-cost mode
 | Login | Any auth system: your own setup commands plus plain-English instructions |
 | Agent LLMs | Claude Code, Codex, Kimi CLI, pi, or any CLI agent; or an API key for OpenRouter, Vercel AI Gateway, OpenAI, Anthropic, or a custom endpoint |
 | GitHub | PRs, issues, and state sync through the `gh` CLI |
-| Output | A local dashboard, GitHub PRs and issues, and JSON files under `.bughunters/runs/` |
+| Output | A local dashboard, GitHub PRs and issues, and JSON files under `.bugpatrol/runs/` |
+
+## The earlier name: Bughunters
+
+Bugpatrol had the name Bughunters before. The old names continue to work:
+
+- `npx bughunters` installs and runs the same version of Bugpatrol. `npx bughunters patrol` is the same as `npx bugpatrol`.
+- A repo with `.bughunters/bughunters.yml` keeps that folder. Bugpatrol reads it when the repo has no `.bugpatrol/bugpatrol.yml`.
+- The `BUGHUNTERS_*` environment variables work when the `BUGPATROL_*` variable with the same name is not set.
+- The GitHub sync also finds the PRs and issues that have the `bughunters` label.
+- `data-bughunters-safe` and `data-bughunters-destructive` have the same effect as the `data-bugpatrol-*` attributes.
+
+To move a repo to the new names, rename `.bughunters/` to `.bugpatrol/` and `bughunters.yml` to `bugpatrol.yml`. Then change the `.gitignore` line to `.bugpatrol/runs/`.
 
 ## Documentation
 
 | Page | What it covers |
 | --- | --- |
-| [Getting started](docs/getting-started.md) | Add Bughunters to your repo, step by step |
+| [Getting started](docs/getting-started.md) | Add Bugpatrol to your repo, step by step |
 | [LLMs](docs/models.md) | What each agent does, and the providers for each agent |
-| [Configuration](docs/configuration.md) | All the settings in `.bughunters/bughunters.yml` |
+| [Configuration](docs/configuration.md) | All the settings in `.bugpatrol/bugpatrol.yml` |
 | [Commands](docs/commands.md) | All the CLI commands |
 | [GitHub](docs/github.md) | Set up the PRs and issues, look at the reports first, and sync the state back |
 | [The dashboard](docs/dashboard.md) | What each page shows, and the files behind it |
 | [How it works](docs/how-it-works.md) | The cycle, noise control, memory, GitHub, and safety |
-| [The deterministic gate](docs/deterministic-gate.md) | `bughunters run`: a merge gate for web apps that uses no agent |
-| [Development](docs/development.md) | Build Bughunters from source, the packages, and the examples |
+| [The deterministic gate](docs/deterministic-gate.md) | `bugpatrol run`: a merge gate for web apps that uses no agent |
+| [Development](docs/development.md) | Build Bugpatrol from source, the packages, and the examples |
 
 ## License
 

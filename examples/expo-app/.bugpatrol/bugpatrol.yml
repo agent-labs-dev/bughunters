@@ -1,15 +1,15 @@
-# Bughunters on an Expo app (React Native, with a development build) on the
+# Bugpatrol on an Expo app (React Native, with a development build) on the
 # booted iOS simulator, against a dev backend.
 #
 # The app's own E2E scripts make a test session through a test-only login
-# endpoint, and print a deep link that installs it. Bughunters captures the
+# endpoint, and print a deep link that installs it. Bugpatrol captures the
 # link as a secret: the explorer sees only {{E2E_LOGIN_LINK}}, and the driver
 # opens the real link.
 #
 # The development build must be on the simulator already (`npx expo run:ios`).
 # This example is a separate folder next to the app. Paths are relative to the
-# folder that holds .bughunters/. To keep the config in the app repo instead, put
-# .bughunters/ at the repo root, set source to ., and remove each cwd line.
+# folder that holds .bugpatrol/. To keep the config in the app repo instead, put
+# .bugpatrol/ at the repo root, set source to ., and remove each cwd line.
 version: 1
 
 app:
@@ -36,7 +36,7 @@ app:
   teardown: []
   connect:
     appId: com.example.myapp
-  instructions: .bughunters/instructions.md
+  instructions: .bugpatrol/instructions.md
 
 agents:
   # Needs a logged-in gh CLI with access to the app's repository.

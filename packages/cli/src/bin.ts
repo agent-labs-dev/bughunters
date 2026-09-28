@@ -1,25 +1,27 @@
 #!/usr/bin/env node
 import { readFileSync } from 'node:fs';
-import { ExitCode, loadConfig, BughuntersError, findProjectRoot } from '@bughunters/core';
+import { ExitCode, loadConfig, BugpatrolError, findProjectRoot } from '@bugpatrol/core';
 import { USAGE, commandHelp } from './usage.js';
+import { legacyEnv, withDefaultCommand } from './argv.js';
 import { runChecks, doctorExitCode } from './commands/doctor.js';
 import { runInit } from './commands/init.js';
 import { runCommand, exitCodeForError } from './commands/run.js';
 import { parseRunFlags, formatRunSummary } from './commands/run-cli.js';
-import { startDashboard } from '@bughunters/dashboard';
+import { startDashboard } from '@bugpatrol/dashboard';
 import { runAgentCommand } from './commands/agents.js';
 import { runIssueCommand } from './commands/issue.js';
 import { runMemoryCommand } from './commands/memory.js';
-import { cleanWorktrees, syncGitHub } from '@bughunters/agents';
+import { cleanWorktrees, syncGitHub } from '@bugpatrol/agents';
 
-const [command, ...args] = process.argv.slice(2);
-// The folder that holds .bughunters/, found from any subfolder the way git does.
+legacyEnv(process.env);
+const [command, ...args] = withDefaultCommand(process.argv.slice(2));
+// The folder that holds .bugpatrol/, found from any subfolder the way git does.
 const root = findProjectRoot(process.cwd());
 
-declare const __BUGHUNTERS_VERSION__: string | undefined;
+declare const __BUGPATROL_VERSION__: string | undefined;
 
 function version(): string {
-  if (typeof __BUGHUNTERS_VERSION__ !== 'undefined') return __BUGHUNTERS_VERSION__;
+  if (typeof __BUGPATROL_VERSION__ !== 'undefined') return __BUGPATROL_VERSION__;
   try {
     return (JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { version: string }).version;
   } catch {
@@ -105,7 +107,7 @@ try {
     }
 
     case 'github': {
-      if (args.length !== 1 || args[0] !== 'sync') throw new Error('Use bughunters github sync');
+      if (args.length !== 1 || args[0] !== 'sync') throw new Error('Use bugpatrol github sync');
       const config = loadConfig(root);
       const result = await syncGitHub(root, config, { onLog: console.error });
       await cleanWorktrees(root, config, { onLog: console.error });
@@ -115,7 +117,7 @@ try {
     }
 
     case 'worktrees': {
-      if (args.length !== 1 || args[0] !== 'clean') throw new Error('Use bughunters worktrees clean');
+      if (args.length !== 1 || args[0] !== 'clean') throw new Error('Use bugpatrol worktrees clean');
       const result = await cleanWorktrees(root, loadConfig(root), { onLog: console.error });
       process.stdout.write(`Removed: ${result.removed.length} worktree(s)\n`);
       for (const id of result.removed) process.stdout.write(`${id}\n`);
@@ -144,8 +146,8 @@ try {
         root,
         port,
         onReady: (url) => {
-          process.stdout.write(`Bughunters dashboard on ${url}\n`);
-          process.stdout.write('Watching .bughunters/runs/ — runs appear as they finish. Ctrl-C to stop.\n');
+          process.stdout.write(`Bugpatrol dashboard on ${url}\n`);
+          process.stdout.write('Watching .bugpatrol/runs/ — runs appear as they finish. Ctrl-C to stop.\n');
         },
       });
       // Deliberately does not exit: this is a server, and the watcher is the
@@ -169,8 +171,8 @@ try {
     case 'report':
     case 'export':
     case 'watch':
-      process.stderr.write(`\`bughunters ${command}${args.length ? ` ${args.join(' ')}` : ''}\` is not implemented yet.\n`);
-      process.stderr.write('See https://github.com/agent-labs-dev/bughunters/blob/main/docs/commands.md for the commands that work now.\n');
+      process.stderr.write(`\`bugpatrol ${command}${args.length ? ` ${args.join(' ')}` : ''}\` is not implemented yet.\n`);
+      process.stderr.write('See https://github.com/agent-labs-dev/bugpatrol/blob/main/docs/commands.md for the commands that work now.\n');
       process.exit(ExitCode.Usage);
       break;
 
@@ -179,11 +181,11 @@ try {
       process.exit(ExitCode.Usage);
   }
 } catch (error) {
-  if (error instanceof BughuntersError) {
+  if (error instanceof BugpatrolError) {
     process.stderr.write(`${error.message}\n`);
     process.exit(error.exitCode);
   }
-  // Anything unrecognised is treated as "Bughunters could not test", never as a
+  // Anything unrecognised is treated as "Bugpatrol could not test", never as a
   // product regression.
   process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
   process.exit(exitCodeForError(error));

@@ -1,4 +1,4 @@
-import type { RegionBox } from '@bughunters/core';
+import type { RegionBox } from '@bugpatrol/core';
 
 export type DiffEngineName = 'odiff' | 'pixelmatch';
 

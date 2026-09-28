@@ -1,4 +1,4 @@
-import { judgedRetests, type Candidate, type FixProposal, type Issue } from '@bughunters/core';
+import { judgedRetests, type Candidate, type FixProposal, type Issue } from '@bugpatrol/core';
 
 export type ReportInput = {
   kind: 'pr' | 'issue'; summary: string; issue: Issue; candidates: Candidate[];
@@ -38,7 +38,7 @@ export function buildReport(input: ReportInput): string {
         `| ${shot.screenId ?? 'Screen'} | ${image(shot.before ?? retest.before, 240)} | ${image(shot.after ?? retest.after, 240)} |`);
       parts.push('## Verified in the app', `${verdict} — ${retest.reason}`,
         '| Screen | Before | After |\n| --- | --- | --- |\n' + rows.join('\n'),
-        'Bughunters started the app from this branch, repeated the flow, and compared the screens.');
+        'Bugpatrol started the app from this branch, repeated the flow, and compared the screens.');
     } else parts.push(`Not verified in the app: ${fix.retests?.at(-1)?.reason ?? 'retest disabled'}`);
   }
   if (kind === 'issue' && fix && ['declined', 'failed'].includes(fix.status))
@@ -50,7 +50,7 @@ export function buildReport(input: ReportInput): string {
   parts.push('## Why this matters', `${repeats ? '' : `${reason}\n\n`}Severity: ${issue.severity}. `
     + `Seen ${issue.occurrences} time(s), first ${day(issue.firstSeenAt)}, last ${day(issue.lastSeenAt)}.`);
   if (kind === 'pr' && input.closes) parts.push(`Closes #${input.closes}`);
-  parts.push('---', `<sub>Filed by Bughunters · ${issue.id}${fix ? ` · ${fix.id}` : ''}</sub>`);
+  parts.push('---', `<sub>Filed by Bugpatrol · ${issue.id}${fix ? ` · ${fix.id}` : ''}</sub>`);
   const text = input.redact(parts.join('\n\n'));
-  return text.length <= 60_000 ? text : `${text.slice(0, 60_000)}\n\n…(cut; the full report is in the Bughunters dashboard)`;
+  return text.length <= 60_000 ? text : `${text.slice(0, 60_000)}\n\n…(cut; the full report is in the Bugpatrol dashboard)`;
 }

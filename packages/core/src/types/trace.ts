@@ -3,7 +3,7 @@ import type { FindingId, RunId } from './ids.js';
 import type { Severity } from './finding.js';
 
 /**
- * The record of what Bughunters actually did on one screen, and why it concluded
+ * The record of what Bugpatrol actually did on one screen, and why it concluded
  * what it concluded.
  *
  * This exists because "trust me, it is a regression" is not good enough. Spec
@@ -94,7 +94,7 @@ export type RunTrace = {
  * Progress written DURING a run, one update per captured screen.
  *
  * The run artifacts are only written when the run completes, so without this
- * the dashboard has nothing to show while Bughunters is actually working -- and
+ * the dashboard has nothing to show while Bugpatrol is actually working -- and
  * watching it walk the app is most of the value of having a dashboard at all.
  */
 export type LiveProgress = {

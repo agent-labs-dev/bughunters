@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { parseConfig, type FixProposal, type Issue } from '@bughunters/core';
+import { parseConfig, type FixProposal, type Issue } from '@bugpatrol/core';
 import { runPublisher } from './publish.js';
 import { Workspace } from '../workspace.js';
 import type { Gh } from '../github.js';
@@ -11,7 +11,7 @@ import type { Runtime } from '../types.js';
 let roots: string[] = [];
 afterEach(async () => { await Promise.all(roots.map((root) => rm(root, { recursive: true, force: true }))); roots = []; });
 async function fixture(severity: Issue['severity'] = 'major', status: Issue['status'] = 'new') {
-  const root = await mkdtemp(join(tmpdir(), 'bughunters-publish-')); roots.push(root);
+  const root = await mkdtemp(join(tmpdir(), 'bugpatrol-publish-')); roots.push(root);
   const workspace = new Workspace(root);
   const issue: Issue = { version: 1, id: 'iss_1', fingerprint: 'fp', title: 'Broken screen', body: 'What happened',
     severity, status, candidateIds: [], evidence: {}, judgement: { by: 'judge', reason: 'Visible failure', at: 'now' },
@@ -113,7 +113,7 @@ describe('runPublisher', () => {
     expect(await runPublisher(f.root, f.config, { gh: fakeGh(calls), createRuntime, dryRun: true })).toMatchObject([
       { kind: 'issue' }]);
     expect(calls).toEqual([]);
-    expect(await readFile(join(f.root, '.bughunters/runs/publish/iss_1.md'), 'utf8')).toContain('## What happened');
+    expect(await readFile(join(f.root, '.bugpatrol/runs/publish/iss_1.md'), 'utf8')).toContain('## What happened');
     expect((await f.workspace.readIssue(f.issue.id))?.github).toBeUndefined();
   });
 });

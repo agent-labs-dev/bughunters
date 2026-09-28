@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises';
-import { instructionsPath } from '@bughunters/core';
+import { instructionsPath } from '@bugpatrol/core';
 import type { Runtime, RoleOutcome, Tool } from '../types.js';
 import type { AgentSession } from '../session.js';
 import { explorerTools } from '../tools/explorer.js';
@@ -17,7 +17,7 @@ const STOP_REASONS: Record<RoleOutcome['stop'], string> = {
 
 /**
  * The finish tool's text when the explorer wrote one. Otherwise a sentence
- * Bughunters writes itself: the model's last thought at a step limit is a note to
+ * Bugpatrol writes itself: the model's last thought at a step limit is a note to
  * itself ("I'll open Settings next"), not a summary of the session.
  */
 function sessionSummary(outcome: RoleOutcome, screens: number, candidates: number): string {

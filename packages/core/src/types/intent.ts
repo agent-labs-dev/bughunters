@@ -15,7 +15,7 @@ export type IntentDecision =
   | 'exclude-screen';
 
 /**
- * The Intent Ledger is Bughunters's institutional memory: the answer to a tool that
+ * The Intent Ledger is Bugpatrol's institutional memory: the answer to a tool that
  * keeps flagging deliberate behaviour until people stop reading it. Entries
  * suppress matching findings AND are injected into the tier-2 state so the
  * decider recognises a known-intended class rather than rediscovering it.

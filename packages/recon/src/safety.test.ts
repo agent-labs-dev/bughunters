@@ -24,10 +24,18 @@ describe('classifyAction', () => {
 
   it('honours an explicit repo annotation', async () => {
     const r = await classifyAction(
-      { selector: '#x', text: 'Apply', dataAttributes: { bughuntersSafe: 'true' } },
+      { selector: '#x', text: 'Apply', dataAttributes: { bugpatrolSafe: 'true' } },
       { origin: 'http://localhost:3000' },
     );
     expect(r.class).toBe('safe-action');
+  });
+
+  it('honours the annotation names from before the rename', async () => {
+    const safe = await classifyAction({ selector: '#x', text: 'Delete', dataAttributes: { bughuntersSafe: 'true' } },
+      { origin: 'http://localhost:3000' });
+    const destructive = await classifyAction({ selector: '#x', text: 'Apply', dataAttributes: { bughuntersDestructive: 'true' } },
+      { origin: 'http://localhost:3000' });
+    expect([safe.class, destructive.class]).toEqual(['safe-action', 'destructive']);
   });
 });
 

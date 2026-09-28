@@ -8,7 +8,7 @@ So determinism is not a configuration surface. It is a **contract**, and every c
 
 **Baselines are captured in exactly the same pinned image that later runs the comparison.**
 
-If the image digest changes, baselines are invalidated and re-captured rather than silently producing diffs. Where competing tools tell users to "generate baselines on a machine that matches CI", Bughunters makes the question structurally impossible to get wrong.
+If the image digest changes, baselines are invalidated and re-captured rather than silently producing diffs. Where competing tools tell users to "generate baselines on a machine that matches CI", Bugpatrol makes the question structurally impossible to get wrong.
 
 | Enforced | How | Where |
 | -------- | --- | ----- |
@@ -43,7 +43,7 @@ If the image digest changes, baselines are invalidated and re-captured rather th
 
 This is the difference between "we waited 2 seconds" and "the frame is stable".
 
-Polling sleeps are the single most common cause of intermittent visual failures in existing tools. Bughunters does not use them. Capture is only taken once **two consecutive frames are byte-identical**, with a bounded retry and a hard timeout.
+Polling sleeps are the single most common cause of intermittent visual failures in existing tools. Bugpatrol does not use them. Capture is only taken once **two consecutive frames are byte-identical**, with a bounded retry and a hard timeout.
 
 On timeout it raises an **infrastructure error**, not a diff. Reporting "this screen never settled" is honest. Reporting it as a regression is not.
 
@@ -83,7 +83,7 @@ Every existing tool exposes a tolerance knob, and every one of them has a user w
 
 **The principle: a diff score is never the only number reported.** Raw pixel delta, perceptual score, masked percentage and region count all travel together, so a human can see when a green result is green because the test got weaker rather than because the app got better.
 
-## Bughunters's own acceptance test
+## Bugpatrol's own acceptance test
 
 Three consecutive runs against an unchanged commit must produce zero diffs across every screen and viewport. It runs on every commit — see `.github/workflows/determinism.yml`.
 

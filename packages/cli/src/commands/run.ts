@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
-  BughuntersError,
+  BugpatrolError,
   BaselineStore,
   ExitCode,
   InfrastructureError,
@@ -10,16 +10,16 @@ import {
   paths,
   shortHash,
   type AppModel,
-  type BughuntersConfig,
+  type BugpatrolConfig,
   type ExitCodeValue,
   type LiveProgress,
   type RunMode,
   type ViewportConfig,
-} from '@bughunters/core';
-import { captureScreen, openSession, watchConsole } from '@bughunters/capture';
-import { startApp } from '@bughunters/capture';
-import { diff } from '@bughunters/diff';
-import type { ScreenSnapshot } from '@bughunters/invariants';
+} from '@bugpatrol/core';
+import { captureScreen, openSession, watchConsole } from '@bugpatrol/capture';
+import { startApp } from '@bugpatrol/capture';
+import { diff } from '@bugpatrol/diff';
+import type { ScreenSnapshot } from '@bugpatrol/invariants';
 import { executeRun, type CapturedScreen, type RunResult } from './run-pipeline.js';
 
 export { executeRun } from './run-pipeline.js';
@@ -29,7 +29,7 @@ export type ScreenTarget = { id: string; url: string };
 
 export type RunCommandOptions = {
   root: string;
-  config: BughuntersConfig;
+  config: BugpatrolConfig;
   mode: RunMode;
   commit: string;
   noModels: boolean;
@@ -39,13 +39,13 @@ export type RunCommandOptions = {
 };
 
 /**
- * The full `bughunters run`: bring the app up, capture every selected screen at
+ * The full `bugpatrol run`: bring the app up, capture every selected screen at
  * every viewport, compare against the baseline, then hand the results to the
  * pipeline.
  *
  * Bring-up and capture failures surface as InfrastructureError and exit 4.
- * They are never reported as regressions -- "Bughunters could not test" is a
- * different statement from "Bughunters found a bug" (spec 5.1).
+ * They are never reported as regressions -- "Bugpatrol could not test" is a
+ * different statement from "Bugpatrol found a bug" (spec 5.1).
  */
 export async function runCommand(options: RunCommandOptions): Promise<RunResult> {
   const { config, root } = options;
@@ -134,7 +134,7 @@ export async function runCommand(options: RunCommandOptions): Promise<RunResult>
 }
 
 /**
- * Writes `.bughunters/runs/gate/live.json` as the run proceeds.
+ * Writes `.bugpatrol/runs/gate/live.json` as the run proceeds.
  *
  * Every write is best-effort: a dashboard that cannot be updated must never be
  * the reason a run fails. The file is rewritten whole rather than appended, so
@@ -206,7 +206,7 @@ async function captureOne(args: {
   target: ScreenTarget;
   viewport: ViewportConfig;
   session: Awaited<ReturnType<typeof openSession>>;
-  config: BughuntersConfig;
+  config: BugpatrolConfig;
   store: BaselineStore;
   runDir: string;
   root: string;
@@ -286,7 +286,7 @@ async function captureOne(args: {
  * than implying it swept the app.
  */
 export function resolveTargets(
-  config: BughuntersConfig,
+  config: BugpatrolConfig,
   model: AppModel | undefined,
   options: { only?: string[]; mode: RunMode },
 ): ScreenTarget[] {
@@ -311,7 +311,7 @@ function loadAppModel(root: string): AppModel | undefined {
   try {
     return JSON.parse(readFileSync(file, 'utf8')) as AppModel;
   } catch (cause) {
-    throw new BughuntersError(`${file} is not valid JSON`, ExitCode.Usage, { cause });
+    throw new BugpatrolError(`${file} is not valid JSON`, ExitCode.Usage, { cause });
   }
 }
 
@@ -349,6 +349,6 @@ export function slugify(value: string): string {
 
 export function exitCodeForError(error: unknown): ExitCodeValue {
   if (error instanceof InfrastructureError) return ExitCode.Infrastructure;
-  if (error instanceof BughuntersError) return error.exitCode;
+  if (error instanceof BugpatrolError) return error.exitCode;
   return ExitCode.Infrastructure;
 }

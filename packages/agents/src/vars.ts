@@ -1,4 +1,4 @@
-import type { AppConfig } from '@bughunters/core';
+import type { AppConfig } from '@bugpatrol/core';
 
 /** Captures and allowlisted secrets share one redaction and interpolation path. */
 export class Vars {

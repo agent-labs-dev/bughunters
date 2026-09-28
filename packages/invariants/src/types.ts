@@ -1,4 +1,4 @@
-import type { ElementGeometry, Severity } from '@bughunters/core';
+import type { ElementGeometry, Severity } from '@bugpatrol/core';
 
 /** A single captured screen state, in one viewport, ready for evaluation. */
 export type ScreenLink = {

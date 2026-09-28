@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { Question } from '@bughunters/core';
+import type { Question } from '@bugpatrol/core';
 import { normalizeAnswers } from './answers.js';
 
 const questions: Record<string, Question> = {

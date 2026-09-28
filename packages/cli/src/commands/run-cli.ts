@@ -1,4 +1,4 @@
-import { ConfigError, ExitCode, describeExit, type RunMode } from '@bughunters/core';
+import { ConfigError, ExitCode, describeExit, type RunMode } from '@bugpatrol/core';
 import type { RunResult } from './run-pipeline.js';
 
 export type RunFlags = {
@@ -9,7 +9,7 @@ export type RunFlags = {
 };
 
 /**
- * `bughunters run [--all | --smoke | --screens a,b] [--no-models] [--commit sha]`
+ * `bugpatrol run [--all | --smoke | --screens a,b] [--no-models] [--commit sha]`
  *
  * Unknown flags are rejected rather than ignored: a mistyped `--smoek` that
  * silently runs the default mode is the kind of thing that gets noticed three
@@ -47,7 +47,7 @@ export function parseRunFlags(args: string[]): RunFlags {
           flags.only = arg.slice('--screens='.length).split(',').map((s) => s.trim()).filter(Boolean);
           break;
         }
-        throw new ConfigError(`Unknown flag for \`bughunters run\`: ${arg}`);
+        throw new ConfigError(`Unknown flag for \`bugpatrol run\`: ${arg}`);
     }
   }
 

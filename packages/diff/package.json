@@ -1,5 +1,5 @@
 {
-  "name": "@bughunters/diff",
+  "name": "@bugpatrol/diff",
   "version": "0.0.0",
   "private": true,
   "license": "Apache-2.0",
@@ -10,7 +10,7 @@
   "files": ["dist"],
   "scripts": { "build": "tsc --build" },
   "dependencies": {
-    "@bughunters/core": "workspace:*",
+    "@bugpatrol/core": "workspace:*",
     "odiff-bin": "^3.2.1",
     "pixelmatch": "^6.0.0",
     "pngjs": "^7.0.0"

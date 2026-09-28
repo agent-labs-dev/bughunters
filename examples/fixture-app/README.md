@@ -1,6 +1,6 @@
 # fixture-app
 
-Bughunters's own test subject. Two screens, one nav edge, one destructive action, and every source of non-determinism a real app has — a clock, `Math.random`, a sticky footer, relative timestamps.
+Bugpatrol's own test subject. Two screens, one nav edge, one destructive action, and every source of non-determinism a real app has — a clock, `Math.random`, a sticky footer, relative timestamps.
 
 ```bash
 pnpm dev                    # clean
@@ -20,4 +20,4 @@ Every break also trips `visual/pixel-diff`, because every one of them changes
 pixels. That is correct rather than noise — `BREAK=color` changes *only* pixels,
 and it exists to prove the pixel diff catches what no invariant can describe.
 
-`Delete account` carries no `data-bughunters-safe` attribute, so the crawler must classify it as destructive and skip it.
+`Delete account` carries no `data-bugpatrol-safe` attribute, so the crawler must classify it as destructive and skip it.

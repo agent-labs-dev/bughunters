@@ -5,8 +5,8 @@ import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
-import { sha256, type Locator, type Platform } from '@bughunters/core';
-import type { ScreenSnapshot } from '@bughunters/invariants';
+import { sha256, type Locator, type Platform } from '@bugpatrol/core';
+import type { ScreenSnapshot } from '@bugpatrol/invariants';
 import { locatorFor, stepFor } from './dom.js';
 import type { ActResult, Driver, DriverAction, Observation, UiElement } from './types.js';
 
@@ -297,7 +297,7 @@ export class MaestroDriver implements Driver {
       args: ['mcp'],
       stderr: 'pipe',
     });
-    this.client = new Client({ name: 'bughunters-drivers', version: '0.0.0' });
+    this.client = new Client({ name: 'bugpatrol-drivers', version: '0.0.0' });
     await this.client.connect(this.transport);
     this.deviceId = this.options.device ?? await this.defaultDevice();
   }
@@ -359,7 +359,7 @@ export class MaestroDriver implements Driver {
       });
       return Buffer.from(stdout);
     }
-    const dir = await mkdtemp(join(tmpdir(), 'bughunters-maestro-'));
+    const dir = await mkdtemp(join(tmpdir(), 'bugpatrol-maestro-'));
     const file = join(dir, 'screen.png');
     try {
       await exec('xcrun', ['simctl', 'io', this.deviceId!, 'screenshot', file]);

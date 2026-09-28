@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { buildTestPlan, buildFileIndex, smokeSet } from './change-map.js';
-import { id } from '@bughunters/core';
-import type { AppModel, Screen } from '@bughunters/core';
+import { id } from '@bugpatrol/core';
+import type { AppModel, Screen } from '@bugpatrol/core';
 
 function screen(path: string, files: string[]): Screen {
   return {

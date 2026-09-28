@@ -2,7 +2,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { lstat, mkdir, readFile, readdir, realpath, symlink, writeFile } from 'node:fs/promises';
 import { basename, dirname, join, relative, resolve, sep } from 'node:path';
-import { judgedRetests, paths, type FixProposal, type Issue, type RoutineStep } from '@bughunters/core';
+import { judgedRetests, paths, type FixProposal, type Issue, type RoutineStep } from '@bugpatrol/core';
 import type { AgentSession } from '../session.js';
 import type { RoleOutcome, Runtime, Tool } from '../types.js';
 import { fixerSystem } from '../prompts.js';
@@ -230,7 +230,7 @@ export async function runFixer(
     // A stop request ends the queue between fixes, never inside one.
     if (session.cancelled) break;
     const oldFix = fixes.find((fix) => fix.issueId === issue.id);
-    const baseBranch = `bughunters/fix-${issue.id}`;
+    const baseBranch = `bugpatrol/fix-${issue.id}`;
     let branch = baseBranch;
     if (oldFix?.worktreeRemovedAt
       && (await branchExists(source, oldFix.branch) || await branchExists(source, baseBranch))) {
@@ -343,7 +343,7 @@ export async function runFixer(
           text: `The commit hook rejected a commit: ${committed.reason}. Make the change pass it.`.slice(0, 200) }]);
         // The diff is the proposal; a commit is only a convenience. A repo's
         // commit hook (scope rules, lint) must never throw a good fix away,
-        // and Bughunters never bypasses a hook with --no-verify.
+        // and Bugpatrol never bypasses a hook with --no-verify.
         proposal.error = `Left uncommitted in the worktree: ${committed.reason}`;
       } else {
         proposal.commit = await git(worktree, 'rev-parse', 'HEAD');

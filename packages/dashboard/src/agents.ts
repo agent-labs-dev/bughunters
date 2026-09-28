@@ -2,7 +2,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { addUsage, loadConfig, paths, usageOf, type AgentEvent, type AgentRole, type AgentStatus, type AgentsFile, type AppMap,
   type Candidate, type FixProposal, type Issue, type MemoryFile, type Routine, type SessionSummary,
-  type TokenUsage } from '@bughunters/core';
+  type TokenUsage } from '@bugpatrol/core';
 
 const roles: AgentRole[] = ['explorer', 'judge', 'fixer'];
 const severity = { critical: 0, major: 1, minor: 2, cosmetic: 3 };

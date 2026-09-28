@@ -22,19 +22,19 @@ importers:
 
   packages/agents:
     dependencies:
-      '@bughunters/core':
+      '@bugpatrol/core':
         specifier: workspace:*
         version: link:../core
-      '@bughunters/decide':
+      '@bugpatrol/decide':
         specifier: workspace:*
         version: link:../decide
-      '@bughunters/diff':
+      '@bugpatrol/diff':
         specifier: workspace:*
         version: link:../diff
-      '@bughunters/drivers':
+      '@bugpatrol/drivers':
         specifier: workspace:*
         version: link:../drivers
-      '@bughunters/invariants':
+      '@bugpatrol/invariants':
         specifier: workspace:*
         version: link:../invariants
       '@modelcontextprotocol/sdk':
@@ -48,6 +48,12 @@ importers:
         version: 3.25.76
 
   packages/bughunters:
+    dependencies:
+      bugpatrol:
+        specifier: workspace:*
+        version: link:../bugpatrol
+
+  packages/bugpatrol:
     dependencies:
       '@modelcontextprotocol/sdk':
         specifier: ^1.20.0
@@ -71,7 +77,7 @@ importers:
         specifier: ^3.23.8
         version: 3.25.76
     devDependencies:
-      '@bughunters/cli':
+      '@bugpatrol/cli':
         specifier: workspace:*
         version: link:../cli
       esbuild:
@@ -80,10 +86,10 @@ importers:
 
   packages/capture:
     dependencies:
-      '@bughunters/core':
+      '@bugpatrol/core':
         specifier: workspace:*
         version: link:../core
-      '@bughunters/invariants':
+      '@bugpatrol/invariants':
         specifier: workspace:*
         version: link:../invariants
       playwright:
@@ -99,40 +105,40 @@ importers:
 
   packages/cli:
     dependencies:
-      '@bughunters/agents':
+      '@bugpatrol/agents':
         specifier: workspace:*
         version: link:../agents
-      '@bughunters/capture':
+      '@bugpatrol/capture':
         specifier: workspace:*
         version: link:../capture
-      '@bughunters/core':
+      '@bugpatrol/core':
         specifier: workspace:*
         version: link:../core
-      '@bughunters/dashboard':
+      '@bugpatrol/dashboard':
         specifier: workspace:*
         version: link:../dashboard
-      '@bughunters/decide':
+      '@bugpatrol/decide':
         specifier: workspace:*
         version: link:../decide
-      '@bughunters/diff':
+      '@bugpatrol/diff':
         specifier: workspace:*
         version: link:../diff
-      '@bughunters/drivers':
+      '@bugpatrol/drivers':
         specifier: workspace:*
         version: link:../drivers
-      '@bughunters/github-app':
+      '@bugpatrol/github-app':
         specifier: workspace:*
         version: link:../github-app
-      '@bughunters/invariants':
+      '@bugpatrol/invariants':
         specifier: workspace:*
         version: link:../invariants
-      '@bughunters/recon':
+      '@bugpatrol/recon':
         specifier: workspace:*
         version: link:../recon
-      '@bughunters/report':
+      '@bugpatrol/report':
         specifier: workspace:*
         version: link:../report
-      '@bughunters/triage':
+      '@bugpatrol/triage':
         specifier: workspace:*
         version: link:../triage
       yaml:
@@ -150,25 +156,25 @@ importers:
 
   packages/dashboard:
     dependencies:
-      '@bughunters/core':
+      '@bugpatrol/core':
         specifier: workspace:*
         version: link:../core
-      '@bughunters/invariants':
+      '@bugpatrol/invariants':
         specifier: workspace:*
         version: link:../invariants
 
   packages/decide:
     dependencies:
-      '@bughunters/core':
+      '@bugpatrol/core':
         specifier: workspace:*
         version: link:../core
-      '@bughunters/invariants':
+      '@bugpatrol/invariants':
         specifier: workspace:*
         version: link:../invariants
 
   packages/diff:
     dependencies:
-      '@bughunters/core':
+      '@bugpatrol/core':
         specifier: workspace:*
         version: link:../core
       odiff-bin:
@@ -187,10 +193,10 @@ importers:
 
   packages/drivers:
     dependencies:
-      '@bughunters/core':
+      '@bugpatrol/core':
         specifier: workspace:*
         version: link:../core
-      '@bughunters/invariants':
+      '@bugpatrol/invariants':
         specifier: workspace:*
         version: link:../invariants
       '@modelcontextprotocol/sdk':
@@ -202,46 +208,46 @@ importers:
 
   packages/github-app:
     dependencies:
-      '@bughunters/core':
+      '@bugpatrol/core':
         specifier: workspace:*
         version: link:../core
-      '@bughunters/report':
+      '@bugpatrol/report':
         specifier: workspace:*
         version: link:../report
 
   packages/invariants:
     dependencies:
-      '@bughunters/core':
+      '@bugpatrol/core':
         specifier: workspace:*
         version: link:../core
 
   packages/recon:
     dependencies:
-      '@bughunters/capture':
+      '@bugpatrol/capture':
         specifier: workspace:*
         version: link:../capture
-      '@bughunters/core':
+      '@bugpatrol/core':
         specifier: workspace:*
         version: link:../core
-      '@bughunters/decide':
+      '@bugpatrol/decide':
         specifier: workspace:*
         version: link:../decide
 
   packages/report:
     dependencies:
-      '@bughunters/core':
+      '@bugpatrol/core':
         specifier: workspace:*
         version: link:../core
-      '@bughunters/triage':
+      '@bugpatrol/triage':
         specifier: workspace:*
         version: link:../triage
 
   packages/triage:
     dependencies:
-      '@bughunters/core':
+      '@bugpatrol/core':
         specifier: workspace:*
         version: link:../core
-      '@bughunters/decide':
+      '@bugpatrol/decide':
         specifier: workspace:*
         version: link:../decide
 

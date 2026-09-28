@@ -1,6 +1,6 @@
 import { mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { dirname, join, relative, sep } from 'node:path';
-import { BUGHUNTERS_DIR, DATA_DIR } from '@bughunters/core';
+import { DATA_DIR, paths } from '@bugpatrol/core';
 
 async function files(dir: string, skip: string): Promise<string[]> {
   const out: string[] = [];
@@ -20,18 +20,18 @@ async function files(dir: string, skip: string): Promise<string[]> {
 }
 
 /**
- * Puts the checkout's `.bughunters/` files (not `runs/`) into a fix worktree
+ * Puts the checkout's `.bugpatrol/` files (not `runs/`) into a fix worktree
  * for a retest, and returns a function that restores the worktree.
  *
  * The retest runs the setup commands in the worktree, so a script such as
- * `.bughunters/mint-user.sh` comes from the worktree's commit. A change to it
+ * `.bugpatrol/mint-user.sh` comes from the worktree's commit. A change to it
  * that is not committed yet would be missing. The restore puts the worktree
  * back as it was, so the fix commit never carries these files.
  */
-export async function overlayBughunters(root: string, source: string, worktree: string): Promise<() => Promise<void>> {
+export async function overlayBugpatrol(root: string, source: string, worktree: string): Promise<() => Promise<void>> {
   const where = relative(source, root);
   if (where.startsWith('..') || where.split(sep)[0] === '..') return async () => {};
-  const from = join(root, BUGHUNTERS_DIR);
+  const from = paths.dir(root);
   const saved: Array<{ path: string; content?: Buffer }> = [];
   for (const file of await files(from, join(from, DATA_DIR))) {
     const target = join(worktree, where, relative(root, file));

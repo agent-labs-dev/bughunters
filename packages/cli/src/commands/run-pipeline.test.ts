@@ -2,20 +2,20 @@ import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest';
 import { mkdtempSync, rmSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { parseConfig, ExitCode, type BughuntersConfig } from '@bughunters/core';
-import type { ScreenSnapshot } from '@bughunters/invariants';
-import type { CrossCheckResult, DiffResult } from '@bughunters/diff';
+import { parseConfig, ExitCode, type BugpatrolConfig } from '@bugpatrol/core';
+import type { ScreenSnapshot } from '@bugpatrol/invariants';
+import type { CrossCheckResult, DiffResult } from '@bugpatrol/diff';
 import { executeRun, PIXEL_DIFF_RULE, type CapturedScreen } from './run-pipeline.js';
 
 let root: string;
 
 beforeEach(() => {
-  root = mkdtempSync(join(tmpdir(), 'bughunters-pipeline-'));
-  mkdirSync(join(root, '.bughunters'), { recursive: true });
+  root = mkdtempSync(join(tmpdir(), 'bugpatrol-pipeline-'));
+  mkdirSync(join(root, '.bugpatrol'), { recursive: true });
 });
 afterEach(() => rmSync(root, { recursive: true, force: true }));
 
-const config: BughuntersConfig = parseConfig({
+const config: BugpatrolConfig = parseConfig({
   version: 1,
   run: { command: 'noop', url: 'http://localhost:3000' },
 });

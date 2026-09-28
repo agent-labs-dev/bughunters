@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync, mkdirSync, chmodSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { instructionsPath, loadConfig, parseConfig } from '@bughunters/core';
+import { instructionsPath, loadConfig, parseConfig } from '@bugpatrol/core';
 import { parse } from 'yaml';
 import {
   defaultAnswers, detectApp, detectAppId, interview, detectProviders, parseInitFlags, providerOptions, renderConfig,
@@ -10,7 +10,7 @@ import {
 } from './init.js';
 
 function fixtureRepo(pkg: Record<string, unknown> = {}): string {
-  const root = mkdtempSync(join(tmpdir(), 'bughunters-init-'));
+  const root = mkdtempSync(join(tmpdir(), 'bugpatrol-init-'));
   writeFileSync(join(root, 'package.json'), JSON.stringify({ scripts: { dev: 'vite' }, ...pkg }));
   writeFileSync(join(root, 'pnpm-lock.yaml'), '');
   writeFileSync(join(root, 'vite.config.ts'), '');
@@ -20,7 +20,7 @@ function fixtureRepo(pkg: Record<string, unknown> = {}): string {
 
 /** A PATH that holds only the named programs. */
 function fakePath(...programs: string[]): string {
-  const dir = mkdtempSync(join(tmpdir(), 'bughunters-path-'));
+  const dir = mkdtempSync(join(tmpdir(), 'bugpatrol-path-'));
   for (const program of programs) {
     writeFileSync(join(dir, program), '#!/bin/sh\n');
     chmodSync(join(dir, program), 0o755);
@@ -76,7 +76,7 @@ describe('detectAppId', () => {
     expect(detectAppId(expo, 'ios')).toEqual({ appId: 'com.acme.cfg', source: 'app.config.ts' });
     expect(detectAppId(expo, 'android')).toEqual({ appId: 'com.acme.droid', source: 'app.config.ts' });
 
-    const native = mkdtempSync(join(tmpdir(), 'bughunters-native-'));
+    const native = mkdtempSync(join(tmpdir(), 'bugpatrol-native-'));
     mkdirSync(join(native, 'ios', 'Acme.xcodeproj'), { recursive: true });
     writeFileSync(join(native, 'ios', 'Acme.xcodeproj', 'project.pbxproj'),
       'PRODUCT_BUNDLE_IDENTIFIER = com.acme.AcmeTests;\nPRODUCT_BUNDLE_IDENTIFIER = com.acme.app;\n');
@@ -87,7 +87,7 @@ describe('detectAppId', () => {
   });
 
   it('detects a native Android app with no package.json, and reads a Vite port', () => {
-    const native = mkdtempSync(join(tmpdir(), 'bughunters-native-'));
+    const native = mkdtempSync(join(tmpdir(), 'bugpatrol-native-'));
     mkdirSync(join(native, 'app'), { recursive: true });
     writeFileSync(join(native, 'app', 'build.gradle'), "defaultConfig { applicationId 'com.acme.plain' }");
     expect(detectApp(native)).toMatchObject({ platform: 'android', appId: 'com.acme.plain', start: undefined });
@@ -181,35 +181,35 @@ describe('renderConfig', () => {
 });
 
 describe('writeInitialConfig', () => {
-  it('writes the config and the app guide in .bughunters/, and ignores only the local data', () => {
+  it('writes the config and the app guide in .bugpatrol/, and ignores only the local data', () => {
     const root = fixtureRepo();
     writeFileSync(join(root, '.gitignore'), 'node_modules');
     const result = writeInitialConfig(root, answers());
-    expect(result.written).toEqual(['.bughunters/bughunters.yml', '.bughunters/instructions.md', '.gitignore']);
-    expect(readFileSync(join(root, '.gitignore'), 'utf8')).toBe('node_modules\n# Bughunters: local data and screenshots of the real app\n.bughunters/runs/\n');
-    expect(readFileSync(join(root, '.bughunters', 'instructions.md'), 'utf8')).toContain('Never do these things');
-    expect(existsSync(join(root, 'bughunters.yml'))).toBe(false);
+    expect(result.written).toEqual(['.bugpatrol/bugpatrol.yml', '.bugpatrol/instructions.md', '.gitignore']);
+    expect(readFileSync(join(root, '.gitignore'), 'utf8')).toBe('node_modules\n# Bugpatrol: local data and screenshots of the real app\n.bugpatrol/runs/\n');
+    expect(readFileSync(join(root, '.bugpatrol', 'instructions.md'), 'utf8')).toContain('Never do these things');
+    expect(existsSync(join(root, 'bugpatrol.yml'))).toBe(false);
     const config = loadConfig(root);
-    expect(instructionsPath(root, config.app.instructions)).toBe(join(root, '.bughunters', 'instructions.md'));
+    expect(instructionsPath(root, config.app.instructions)).toBe(join(root, '.bugpatrol', 'instructions.md'));
   });
 
   it('never overwrites a file, and adds the .gitignore line once', () => {
     const root = fixtureRepo();
-    mkdirSync(join(root, '.bughunters'));
-    writeFileSync(join(root, '.bughunters', 'bughunters.yml'), '# mine\n');
-    writeFileSync(join(root, '.bughunters', 'instructions.md'), '# mine\n');
-    writeFileSync(join(root, '.gitignore'), '.bughunters/runs/\n');
+    mkdirSync(join(root, '.bugpatrol'));
+    writeFileSync(join(root, '.bugpatrol', 'bugpatrol.yml'), '# mine\n');
+    writeFileSync(join(root, '.bugpatrol', 'instructions.md'), '# mine\n');
+    writeFileSync(join(root, '.gitignore'), '.bugpatrol/runs/\n');
     const result = writeInitialConfig(root, answers());
     expect(result.written).toEqual([]);
-    expect(result.skipped).toEqual(['.bughunters/bughunters.yml', '.bughunters/instructions.md']);
-    expect(readFileSync(join(root, '.bughunters', 'bughunters.yml'), 'utf8')).toBe('# mine\n');
+    expect(result.skipped).toEqual(['.bugpatrol/bugpatrol.yml', '.bugpatrol/instructions.md']);
+    expect(readFileSync(join(root, '.bugpatrol', 'bugpatrol.yml'), 'utf8')).toBe('# mine\n');
   });
 
-  it('changes an old line that ignores all of .bughunters/, so the config is committed', () => {
+  it('changes an old line that ignores all of .bugpatrol/, so the config is committed', () => {
     const root = fixtureRepo();
-    writeFileSync(join(root, '.gitignore'), 'dist\n.bughunters/\n.env\n');
+    writeFileSync(join(root, '.gitignore'), 'dist\n.bugpatrol/\n.env\n');
     writeInitialConfig(root, answers());
-    expect(readFileSync(join(root, '.gitignore'), 'utf8')).toBe('dist\n.bughunters/runs/\n.env\n');
+    expect(readFileSync(join(root, '.gitignore'), 'utf8')).toBe('dist\n.bugpatrol/runs/\n.env\n');
   });
 
   it('warns about a key that the config needs and the shell does not have', () => {
@@ -275,7 +275,7 @@ describe('writeGateConfig', () => {
     expect(config.surfaces.fixPRs).toBe(false);
     expect(config.production.allowMutations).toBe(false);
     expect(config.tolerance.default).toBe('exact');
-    expect(() => readFileSync(join(root, '.github', 'workflows', 'bughunters.yml'))).toThrow();
+    expect(() => readFileSync(join(root, '.github', 'workflows', 'bugpatrol.yml'))).toThrow();
   });
 
   it('marks what it could not determine with TODO rather than guessing silently', () => {

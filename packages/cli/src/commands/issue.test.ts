@@ -2,13 +2,13 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import type { Candidate, Issue } from '@bughunters/core';
-import { Workspace } from '@bughunters/agents';
+import type { Candidate, Issue } from '@bugpatrol/core';
+import { Workspace } from '@bugpatrol/agents';
 import { runIssueCommand } from './issue.js';
 
 let root: string;
 beforeEach(async () => {
-  root = await mkdtemp(join(tmpdir(), 'bughunters-issue-'));
+  root = await mkdtemp(join(tmpdir(), 'bugpatrol-issue-'));
 });
 afterEach(async () => {
   await rm(root, { recursive: true, force: true });
@@ -32,7 +32,7 @@ async function seed(): Promise<{ workspace: Workspace; issue: Issue; candidate: 
   return { workspace, issue, candidate };
 }
 
-describe('bughunters issue', () => {
+describe('bugpatrol issue', () => {
   it('dismisses an issue and records its fingerprints so it does not come back', async () => {
     const { workspace } = await seed();
     const lines: string[] = [];

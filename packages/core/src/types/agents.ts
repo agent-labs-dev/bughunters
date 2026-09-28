@@ -2,7 +2,7 @@ import type { TokenUsage } from './usage.js';
 import type { Severity } from './finding.js';
 
 /**
- * The agent layer (ADR 0005). Everything here is written to `.bughunters/` as
+ * The agent layer (ADR 0005). Everything here is written to `.bugpatrol/` as
  * plain JSON so the dashboard can render it and a human can audit it.
  */
 
@@ -25,7 +25,7 @@ export type MemoryFile = { version: 1; lessons: Lesson[] };
 export type Platform = 'web' | 'electron' | 'ios' | 'android';
 
 /**
- * How Bughunters finds an element again on a later run. The locator is tried
+ * How Bugpatrol finds an element again on a later run. The locator is tried
  * first; the point is the last resort, and a replay that needed it is
  * reported as degraded.
  */
@@ -87,7 +87,7 @@ export type ScreenTransition = {
 
 /** A screen the explorer found. `appmap.json` holds these. */
 export type AppMapScreen = {
-  /** Kebab-case, stable. The explorer names it; Bughunters de-duplicates it. */
+  /** Kebab-case, stable. The explorer names it; Bugpatrol de-duplicates it. */
   id: string;
   name: string;
   description: string;

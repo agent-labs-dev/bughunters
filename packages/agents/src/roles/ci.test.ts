@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { describe, expect, it } from 'vitest';
-import { parseConfig, type FixProposal } from '@bughunters/core';
+import { parseConfig, type FixProposal } from '@bugpatrol/core';
 import type { Gh } from '../github.js';
 import type { Runtime } from '../types.js';
 import { Workspace } from '../workspace.js';
@@ -14,19 +14,19 @@ const git = async (cwd: string, ...args: string[]) =>
   (await promisify(execFile)('git', args, { cwd })).stdout.trim();
 
 async function fixture() {
-  const root = await mkdtemp(join(tmpdir(), 'bughunters-ci-'));
+  const root = await mkdtemp(join(tmpdir(), 'bugpatrol-ci-'));
   await git(root, 'init', '-q', '--bare', 'origin.git');
   await git(root, 'clone', '-q', join(root, 'origin.git'), 'wt');
   const worktree = join(root, 'wt');
   await git(worktree, 'config', 'user.email', 'test@example.com');
   await git(worktree, 'config', 'user.name', 'Test');
-  await git(worktree, 'checkout', '-q', '-b', 'bughunters/fix-iss_1');
+  await git(worktree, 'checkout', '-q', '-b', 'bugpatrol/fix-iss_1');
   await writeFile(join(worktree, 'app.ts'), 'export const x = 1;\n');
   await git(worktree, 'add', '-A');
   await git(worktree, 'commit', '-q', '-m', 'fix: the bug');
-  await git(worktree, 'push', '-q', '-u', 'origin', 'bughunters/fix-iss_1');
+  await git(worktree, 'push', '-q', '-u', 'origin', 'bugpatrol/fix-iss_1');
   const fix: FixProposal = { version: 1, id: 'fix_iss_1', issueId: 'iss_1', status: 'proposed', runtime: 'cli:claude',
-    repo: worktree, branch: 'bughunters/fix-iss_1', worktree, startedAt: '', commit: await git(worktree, 'rev-parse', 'HEAD'),
+    repo: worktree, branch: 'bugpatrol/fix-iss_1', worktree, startedAt: '', commit: await git(worktree, 'rev-parse', 'HEAD'),
     pr: { number: 7, url: 'https://github.com/o/r/pull/7', draft: true, state: 'open' } };
   await new Workspace(root).saveFix(fix);
   const config = parseConfig({ version: 1, app: { connect: { url: 'http://x' } },
@@ -74,7 +74,7 @@ describe('watchCi', () => {
       expect(prompts[0]).toContain('Error: expected 2, got 1');
       const fix = (await new Workspace(f.root).listFixes())[0]!;
       expect(fix.ci).toMatchObject({ state: 'passed', attempts: 1 });
-      expect(await git(f.worktree, 'rev-parse', 'origin/bughunters/fix-iss_1')).toBe(fix.commit);
+      expect(await git(f.worktree, 'rev-parse', 'origin/bugpatrol/fix-iss_1')).toBe(fix.commit);
       expect(await git(f.worktree, 'log', '-1', '--format=%s')).toBe('fix: pass the CI checks');
     } finally {
       await rm(f.root, { recursive: true, force: true });

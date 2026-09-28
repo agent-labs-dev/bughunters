@@ -2,7 +2,7 @@ import { execFile } from 'node:child_process';
 import { access } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { promisify } from 'node:util';
-import type { BughuntersConfig, FixProposal } from '@bughunters/core';
+import type { BugpatrolConfig, FixProposal } from '@bugpatrol/core';
 import { defaultGh, ghReady, resolveRepo, type Gh } from '../github.js';
 import { fixerSystem } from '../prompts.js';
 import { createRuntime as makeRuntime } from '../runtime/index.js';
@@ -81,12 +81,12 @@ ${log || '(no log is available)'}
 }
 
 /**
- * Watches the CI checks of each open Bughunters PR. A failed check goes to the
- * fixer with its log. Bughunters commits the new change on the same branch
+ * Watches the CI checks of each open Bugpatrol PR. A failed check goes to the
+ * fixer with its log. Bugpatrol commits the new change on the same branch
  * and pushes it (never with force), so the PR runs its checks again. After
  * `ci.attempts` tries, it gives up and says so, and a person takes over.
  */
-export async function watchCi(root: string, config: BughuntersConfig, deps: CiDeps = {}): Promise<{ problems: string[] }> {
+export async function watchCi(root: string, config: BugpatrolConfig, deps: CiDeps = {}): Promise<{ problems: string[] }> {
   const problems: string[] = [];
   const settings = config.agents.github.ci;
   if (!config.agents.github.enabled || !settings.enabled) return { problems };
@@ -159,7 +159,7 @@ export async function watchCi(root: string, config: BughuntersConfig, deps: CiDe
 }
 
 /** One fixer attempt on a failed check. True when a new commit went to the PR branch. */
-async function fixCi(root: string, config: BughuntersConfig, fix: FixProposal, failed: Check[], log: string,
+async function fixCi(root: string, config: BugpatrolConfig, fix: FixProposal, failed: Check[], log: string,
   deps: CiDeps): Promise<boolean> {
   try {
     await access(fix.worktree);

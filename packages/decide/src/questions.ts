@@ -1,4 +1,4 @@
-import type { Question } from '@bughunters/core';
+import type { Question } from '@bugpatrol/core';
 
 /**
  * The full per-screen question set. All of these are evaluated against the same

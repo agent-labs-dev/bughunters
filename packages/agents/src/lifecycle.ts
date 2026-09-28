@@ -1,11 +1,11 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import { resolve } from 'node:path';
-import { InfrastructureError, type AppCommand, type AppConfig } from '@bughunters/core';
+import { InfrastructureError, type AppCommand, type AppConfig } from '@bugpatrol/core';
 import { Vars } from './vars.js';
 
 type Options = { root: string; vars: Vars; emit?: (summary: string) => void; source?: string };
 
-/** Shell commands belong to the app configuration. A source override swaps commands rooted at app.source into the worktree; every command receives BUGHUNTERS_SOURCE. Output is redacted. */
+/** Shell commands belong to the app configuration. A source override swaps commands rooted at app.source into the worktree; every command receives BUGPATROL_SOURCE (and BUGHUNTERS_SOURCE, its name before the rename). Output is redacted. */
 export async function startApp(app: AppConfig, opts: Options): Promise<{ vars: Vars; stop(): Promise<void> }> {
   const children: ChildProcess[] = [];
   const report = (message: string) => opts.emit?.(opts.vars.redact(message) as string);
@@ -16,7 +16,8 @@ export async function startApp(app: AppConfig, opts: Options): Promise<{ vars: V
     const shell = opts.vars.resolve(command.run);
     const configuredCwd = resolve(opts.root, opts.vars.resolve(command.cwd ?? '.'));
     const cwd = opts.source && configuredCwd === configuredSource ? opts.source : configuredCwd;
-    const env = { ...process.env, ...Object.fromEntries(opts.vars.entries()), BUGHUNTERS_SOURCE: effectiveSource };
+    const env = { ...process.env, ...Object.fromEntries(opts.vars.entries()), BUGPATROL_SOURCE: effectiveSource,
+      BUGHUNTERS_SOURCE: effectiveSource };
     const started = Date.now();
     const child = spawn('/bin/sh', ['-c', shell], {
       cwd,

@@ -1,6 +1,6 @@
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { paths, type AppModel, type Finding, type Intent, type LiveProgress, type Run, type RunTrace } from '@bughunters/core';
+import { paths, type AppModel, type Finding, type Intent, type LiveProgress, type Run, type RunTrace } from '@bugpatrol/core';
 
 export type RunRecord = {
   id: string;
@@ -27,19 +27,19 @@ export type RunSummary = {
 };
 
 /**
- * Reads the `.bughunters/` directory that the CLI writes. The dashboard is a
+ * Reads the `.bugpatrol/` directory that the CLI writes. The dashboard is a
  * READER: it never mutates run state, so a browser tab left open cannot
  * corrupt a run or race the CLI writing one.
  */
 export class ProjectReader {
   constructor(private readonly root: string) {}
 
-  get bughuntersDir(): string {
+  get bugpatrolDir(): string {
     return paths.dir(this.root);
   }
 
   hasProject(): boolean {
-    return existsSync(paths.config(this.root)) || existsSync(this.bughuntersDir);
+    return existsSync(paths.config(this.root)) || existsSync(this.bugpatrolDir);
   }
 
   /** Newest first. `latest/` holds loose capture artifacts, not a run. */

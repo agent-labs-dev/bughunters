@@ -1,11 +1,11 @@
 {
-  "name": "@bughunters/cli",
+  "name": "@bugpatrol/cli",
   "version": "0.0.0",
   "private": true,
   "license": "Apache-2.0",
   "type": "module",
   "bin": {
-    "bughunters": "./dist/bin.js"
+    "bugpatrol": "./dist/bin.js"
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -17,18 +17,18 @@
     "build": "tsc --build"
   },
   "dependencies": {
-    "@bughunters/agents": "workspace:*",
-    "@bughunters/capture": "workspace:*",
-    "@bughunters/core": "workspace:*",
-    "@bughunters/decide": "workspace:*",
-    "@bughunters/diff": "workspace:*",
-    "@bughunters/drivers": "workspace:*",
-    "@bughunters/github-app": "workspace:*",
-    "@bughunters/invariants": "workspace:*",
-    "@bughunters/recon": "workspace:*",
-    "@bughunters/report": "workspace:*",
-    "@bughunters/triage": "workspace:*",
+    "@bugpatrol/agents": "workspace:*",
+    "@bugpatrol/capture": "workspace:*",
+    "@bugpatrol/core": "workspace:*",
+    "@bugpatrol/decide": "workspace:*",
+    "@bugpatrol/diff": "workspace:*",
+    "@bugpatrol/drivers": "workspace:*",
+    "@bugpatrol/github-app": "workspace:*",
+    "@bugpatrol/invariants": "workspace:*",
+    "@bugpatrol/recon": "workspace:*",
+    "@bugpatrol/report": "workspace:*",
+    "@bugpatrol/triage": "workspace:*",
     "yaml": "^2.5.1",
-    "@bughunters/dashboard": "workspace:*"
+    "@bugpatrol/dashboard": "workspace:*"
   }
 }

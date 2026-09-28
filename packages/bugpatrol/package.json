@@ -1,0 +1,26 @@
+{
+  "name": "bugpatrol",
+  "version": "0.1.0",
+  "description": "AI agents that explore your app, find bugs, and fix them.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "bin": { "bugpatrol": "./dist/bin.js" },
+  "engines": { "node": ">=22" },
+  "files": ["dist", "src/ui"],
+  "repository": { "type": "git", "url": "git+https://github.com/agent-labs-dev/bugpatrol.git" },
+  "publishConfig": { "access": "public" },
+  "scripts": { "build": "node build.mjs" },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.20.0",
+    "odiff-bin": "^3.2.1",
+    "pixelmatch": "^6.0.0",
+    "playwright": "1.48.2",
+    "pngjs": "^7.0.0",
+    "yaml": "^2.5.1",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@bugpatrol/cli": "workspace:*",
+    "esbuild": "^0.28.2"
+  }
+}

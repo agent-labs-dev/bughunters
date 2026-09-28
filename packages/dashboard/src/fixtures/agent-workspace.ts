@@ -1,14 +1,14 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { AgentEvent, AgentsFile, AppMap, Candidate, FixProposal, Issue, Routine,
-  SessionSummary } from '@bughunters/core';
+  SessionSummary } from '@bugpatrol/core';
 
 // A valid one-pixel PNG keeps the fixture self-contained, with no image package.
 const PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/lXcAAAAASUVORK5CYII=';
 
 /** Write a complete desktop patrol workspace for human UI review and API tests. */
 export function writeAgentFixture(root: string): void {
-  const dir = join(root, '.bughunters', 'runs');
+  const dir = join(root, '.bugpatrol', 'runs');
   const now = new Date();
   const at = (minutes: number): string => new Date(now.getTime() - minutes * 60_000).toISOString();
   const save = (relative: string, value: unknown): void => {
@@ -16,7 +16,7 @@ export function writeAgentFixture(root: string): void {
     mkdirSync(join(file, '..'), { recursive: true });
     writeFileSync(file, JSON.stringify(value, null, 2));
   };
-  const shot = (session: string, name: string): string => `.bughunters/runs/sessions/${session}/${name}.png`;
+  const shot = (session: string, name: string): string => `.bugpatrol/runs/sessions/${session}/${name}.png`;
   const screens = ['home', 'settings', 'billing', 'projects', 'profile'].map((id, index) => ({
     id,
     name: id[0]!.toUpperCase() + id.slice(1),
@@ -110,7 +110,7 @@ export function writeAgentFixture(root: string): void {
   }));
   for (const issue of issues) save(`issues/${issue.id}.json`, issue);
   const fix: FixProposal = { version: 1, id: 'fix-settings', issueId: 'iss-settings', status: 'proposed',
-    runtime: 'cli: claude', repo: 'acme-desktop', branch: 'bughunters/fix-settings',
+    runtime: 'cli: claude', repo: 'acme-desktop', branch: 'bugpatrol/fix-settings',
     worktree: '/tmp/acme-fix-settings', diffStat: 'src/settings.css | 2 +-',
     diff: 'diff --git a/src/settings.css b/src/settings.css\n-old padding\n+new padding',
     summary: 'Give the account name enough room.', startedAt: at(22), endedAt: at(8), costUsd: 0.014 };

@@ -1,14 +1,14 @@
 # The deterministic gate (web)
 
-For web apps, `bughunters run` is a merge gate that uses no agent. The agents explore freely. The gate replays frozen artifacts and compares them with pinned baselines, so it gives the same result on the same commit. Only this gate can fail a CI check. The agents never block a merge ([ADR 0001](adr/0001-split-the-brain-from-the-gate.md)).
+For web apps, `bugpatrol run` is a merge gate that uses no agent. The agents explore freely. The gate replays frozen artifacts and compares them with pinned baselines, so it gives the same result on the same commit. Only this gate can fail a CI check. The agents never block a merge ([ADR 0001](adr/0001-split-the-brain-from-the-gate.md)).
 
 ## Try it
 
 ```bash
 PLAYWRIGHT_SKIP_BROWSER_GC=1 npx -y playwright@1.48.2 install chromium
-npx bughunters init --gate           # write a starter .bughunters/bughunters.yml; correct each TODO value
-npx bughunters run --no-models       # capture the baselines
-npx bughunters run --no-models       # compare: clean
+npx bugpatrol init --gate           # write a starter .bugpatrol/bugpatrol.yml; correct each TODO value
+npx bugpatrol run --no-models       # capture the baselines
+npx bugpatrol run --no-models       # compare: clean
 ```
 
 `--no-models` makes a full run with no network traffic.
@@ -16,11 +16,11 @@ npx bughunters run --no-models       # compare: clean
 To see the gate find a defect, use the fixture app in this repo:
 
 ```bash
-git clone https://github.com/agent-labs-dev/bughunters && cd bughunters/examples/fixture-app
-npx bughunters run --no-models       # capture the baselines
-npx bughunters run --no-models       # compare: clean
+git clone https://github.com/agent-labs-dev/bugpatrol && cd bugpatrol/examples/fixture-app
+npx bugpatrol run --no-models       # capture the baselines
+npx bugpatrol run --no-models       # compare: clean
 BREAK=color node server.js &         # add one known defect
-npx bughunters run --no-models       # exit 1, with a diff image
+npx bugpatrol run --no-models       # exit 1, with a diff image
 ```
 
 ## Exit codes
@@ -31,7 +31,7 @@ npx bughunters run --no-models       # exit 1, with a diff image
 | 1 | A tier-1 regression: **the only code that blocks a merge** |
 | 2 | A configuration or usage error |
 | 3 | Recon is required, or the app model is not approved |
-| 4 | An infrastructure error: Bughunters could not test |
+| 4 | An infrastructure error: Bugpatrol could not test |
 
 ## Tiers
 
@@ -47,6 +47,6 @@ To check the determinism guarantee (three runs, one commit, zero diffs), run `ba
 
 ## More
 
-- [Technical specification](spec/bughunters-technical-spec.md): the gate in full
+- [Technical specification](spec/bugpatrol-technical-spec.md): the gate in full
 - [The determinism contract](determinism-contract.md): what the gate guarantees, and how
 - [The detection rubric](detection-rubric.md): each automatic check and what it finds

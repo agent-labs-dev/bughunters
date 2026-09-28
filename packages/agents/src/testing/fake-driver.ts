@@ -1,7 +1,7 @@
 import { PNG } from 'pngjs';
-import type { Locator, Platform } from '@bughunters/core';
-import type { Driver, DriverAction, Observation, ActResult, UiElement } from '@bughunters/drivers';
-import type { ScreenSnapshot } from '@bughunters/invariants';
+import type { Locator, Platform } from '@bugpatrol/core';
+import type { Driver, DriverAction, Observation, ActResult, UiElement } from '@bugpatrol/drivers';
+import type { ScreenSnapshot } from '@bugpatrol/invariants';
 
 export type FakeScreen = {
   elements: UiElement[]; next?: Record<string, string>; color?: number;

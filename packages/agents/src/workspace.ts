@@ -21,7 +21,7 @@ import {
   type Routine,
   type SessionSummary,
   type TriageFile,
-} from '@bughunters/core';
+} from '@bugpatrol/core';
 import type { EventSink } from './types.js';
 import { Vars } from './vars.js';
 

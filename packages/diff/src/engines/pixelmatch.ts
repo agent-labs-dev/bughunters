@@ -6,7 +6,7 @@ import { boundingRegions, maskedPixelCount, isMasked } from '../mask-accounting.
 
 /**
  * The reference implementation. ISC-licensed, pixel-exact, a few hundred lines.
- * Bughunters uses it as the cross-check on an odiff disagreement rather than as the
+ * Bugpatrol uses it as the cross-check on an odiff disagreement rather than as the
  * primary, because it is roughly 6.6x slower on full-page screenshots and this
  * tool is meant to run constantly (spec 5.2).
  */

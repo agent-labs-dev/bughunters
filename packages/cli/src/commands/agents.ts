@@ -1,7 +1,7 @@
-import { ConfigError, InfrastructureError, formatUsage, type AgentRole, type BughuntersConfig } from '@bughunters/core';
-import { createDriver } from '@bughunters/drivers';
+import { ConfigError, InfrastructureError, formatUsage, type AgentRole, type BugpatrolConfig } from '@bugpatrol/core';
+import { createDriver } from '@bugpatrol/drivers';
 import { AgentSession, Vars, Workspace, createRuntime, pendingCandidates, replayRoutine, runExplorer, runJudge, runtimeProblem,
-  applyRetest, runFixCycle, runPatrol, runPublisher, watchCi, retestFix, startApp, syncGitHub } from '@bughunters/agents';
+  applyRetest, runFixCycle, runPatrol, runPublisher, watchCi, retestFix, startApp, syncGitHub } from '@bugpatrol/agents';
 
 type AgentFlags = Record<string, string | string[] | boolean | number>;
 
@@ -74,7 +74,7 @@ export function parseAgentFlags(command: string, args: string[]): AgentFlags {
 }
 
 /** The roles each command runs. A retest runs the explorer and the judge. */
-function rolesFor(command: string, config: BughuntersConfig): AgentRole[] {
+function rolesFor(command: string, config: BugpatrolConfig): AgentRole[] {
   switch (command) {
     case 'explore': return ['explorer'];
     case 'judge': case 'publish': return ['judge'];
@@ -87,7 +87,7 @@ function rolesFor(command: string, config: BughuntersConfig): AgentRole[] {
 }
 
 /** Every role needs an LLM: stop before the app starts when one cannot reach it. */
-export function preflight(command: string, config: BughuntersConfig, env: NodeJS.ProcessEnv = process.env): void {
+export function preflight(command: string, config: BugpatrolConfig, env: NodeJS.ProcessEnv = process.env): void {
   const problems = rolesFor(command, config)
     .map((role) => runtimeProblem(role, config.agents[role].use, env))
     .filter((problem): problem is string => Boolean(problem));
@@ -99,7 +99,7 @@ export async function runAgentCommand(
   command: string,
   args: string[],
   root: string,
-  config: BughuntersConfig,
+  config: BugpatrolConfig,
   log: (message: string) => void,
 ): Promise<void> {
   const flags = parseAgentFlags(command, args);
@@ -115,27 +115,27 @@ export async function runAgentCommand(
   }
   if (command === 'ci') {
     if (!config.agents.github.enabled) {
-      throw new ConfigError('GitHub is off. Set agents.github.enabled: true in .bughunters/bughunters.yml.');
+      throw new ConfigError('GitHub is off. Set agents.github.enabled: true in .bugpatrol/bugpatrol.yml.');
     }
     const { problems } = await watchCi(root, config, { onLog: log, wait: Boolean(flags.wait),
       issueIds: flags.issue as string[] | undefined });
     const fixes = (await workspace.listFixes()).filter((fix) => fix.pr && fix.ci
       && (!flags.issue || (flags.issue as string[]).includes(fix.issueId)));
-    if (!fixes.length) log('No open Bughunters PR has CI checks yet.');
+    if (!fixes.length) log('No open Bugpatrol PR has CI checks yet.');
     for (const fix of fixes) log(`  PR #${fix.pr!.number}  ${fix.ci!.state.padEnd(8)} ${fix.issueId}  ${fix.pr!.url}`);
     if (problems.length) process.exitCode = 1;
     return;
   }
   if (command === 'publish') {
     if (!flags.dryRun && !config.agents.github.enabled) {
-      throw new ConfigError('GitHub is off. Set agents.github.enabled: true in .bughunters/bughunters.yml, '
-        + 'or run `bughunters publish --dry-run` to write the reports to .bughunters/runs/publish/ only.');
+      throw new ConfigError('GitHub is off. Set agents.github.enabled: true in .bugpatrol/bugpatrol.yml, '
+        + 'or run `bugpatrol publish --dry-run` to write the reports to .bugpatrol/runs/publish/ only.');
     }
     const outcomes = await runPublisher(root, config, { onLog: log,
       issueIds: flags.issue as string[] | undefined, dryRun: Boolean(flags.dryRun) });
     if (!flags.dryRun) await syncGitHub(root, config, { onLog: log });
     if (!outcomes.length) {
-      log(`Nothing to publish. Bughunters opens a PR for each fix that has no PR yet, and a GitHub issue for each open `
+      log(`Nothing to publish. Bugpatrol opens a PR for each fix that has no PR yet, and a GitHub issue for each open `
         + `issue at ${config.agents.github.issueMinSeverity} or worse that has no fix and no GitHub issue.`);
       return;
     }
@@ -157,7 +157,7 @@ export async function runAgentCommand(
       .slice(0, 5)
       .map((item) => item.id);
     const ids = flags.session as string[] | undefined ?? recent;
-    if (!ids.length) throw new ConfigError('No explorer session has candidates to judge. Run `bughunters explore` first.');
+    if (!ids.length) throw new ConfigError('No explorer session has candidates to judge. Run `bugpatrol explore` first.');
     const record = await workspace.startSession('judge');
     const session = new AgentSession(root, config, vars, record.id, 'judge', undefined, log);
     const pending = await pendingCandidates(session, ids);
@@ -169,8 +169,8 @@ export async function runAgentCommand(
   }
   if (command === 'fix') {
     if (!config.agents.fixer.enabled) {
-      throw new ConfigError('The fixer is off. Set agents.fixer.enabled: true in .bughunters/bughunters.yml. '
-        + 'The fixer writes code, but only in its own git worktree under .bughunters/runs/worktrees/.');
+      throw new ConfigError('The fixer is off. Set agents.fixer.enabled: true in .bugpatrol/bugpatrol.yml. '
+        + 'The fixer writes code, but only in its own git worktree under .bugpatrol/runs/worktrees/.');
     }
     const proposals = await runFixCycle(root, config, { onLog: log,
       issueIds: flags.issue as string[] | undefined,
@@ -181,7 +181,7 @@ export async function runAgentCommand(
       return;
     }
     for (const fix of proposals) log(`  ${fix.status.padEnd(9)} ${fix.issueId}  ${fix.branch}`);
-    log(`${proposals.length} fix proposal(s). Run \`bughunters publish\` to open the PRs.`);
+    log(`${proposals.length} fix proposal(s). Run \`bugpatrol publish\` to open the PRs.`);
     return;
   }
   if (command === 'retest') {
@@ -233,7 +233,7 @@ export async function runAgentCommand(
     });
     // The session-end event already printed the summary.
     await logUsage(workspace, record.id, log);
-    log('Next: run `bughunters judge` to file the real bugs as issues, or open `bughunters dashboard`.');
+    log('Next: run `bugpatrol judge` to file the real bugs as issues, or open `bugpatrol dashboard`.');
   } finally {
     try {
       try {

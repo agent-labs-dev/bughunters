@@ -1,4 +1,4 @@
-import type { ToleranceConfig } from '@bughunters/core';
+import type { ToleranceConfig } from '@bugpatrol/core';
 import type { DiffResult } from './types.js';
 
 export type ToleranceVerdict = {

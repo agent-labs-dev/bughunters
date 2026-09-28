@@ -1,5 +1,5 @@
-# A fully-populated .bughunters/bughunters.yml, for reference.
-# `bughunters init` writes a smaller version with detected values and TODO markers.
+# A fully-populated .bugpatrol/bugpatrol.yml, for reference.
+# `bugpatrol init` writes a smaller version with detected values and TODO markers.
 version: 1
 
 run:
@@ -15,10 +15,10 @@ run:
 auth:
   kind: form
   loginUrl: /login
-  credentials: ${BUGHUNTERS_TEST_USER}
+  credentials: ${BUGPATROL_TEST_USER}
   steps:
-    - fill: { selector: "#email", value: "${BUGHUNTERS_TEST_EMAIL}" }
-    - fill: { selector: "#password", value: "${BUGHUNTERS_TEST_PASSWORD}" }
+    - fill: { selector: "#email", value: "${BUGPATROL_TEST_EMAIL}" }
+    - fill: { selector: "#password", value: "${BUGPATROL_TEST_PASSWORD}" }
     - click: { selector: "button[type=submit]" }
     - expect: { url: "/dashboard" }
 
@@ -56,7 +56,7 @@ tolerance:
       reason: "Canvas-rendered; sub-pixel AA varies within the pinned image"
 
 determinism:
-  image: "ghcr.io/agent-labs-dev/bughunters-runner@sha256:0000000000000000000000000000000000000000000000000000000000000000"
+  image: "ghcr.io/agent-labs-dev/bugpatrol-runner@sha256:0000000000000000000000000000000000000000000000000000000000000000"
   freezeClockAt: "2026-01-01T00:00:00.000Z"
   timezone: UTC
   locale: en-US

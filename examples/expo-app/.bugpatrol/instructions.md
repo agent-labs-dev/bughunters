@@ -30,7 +30,7 @@ not report it, unless it covers a control that you need.
 - The channels list, a channel's chat, and each of its tabs.
 - The inbox, the workspace switcher, and settings.
 - Sheets, menus, and empty states.
-- In a channel, you may send one short message, such as `Bughunters test message`.
+- In a channel, you may send one short message, such as `Bugpatrol test message`.
 
 ## Never do these things
 

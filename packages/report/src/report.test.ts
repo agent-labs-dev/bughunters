@@ -3,8 +3,8 @@ import { renderHtml } from './html.js';
 import { renderPrComment, STICKY_MARKER } from './pr-comment.js';
 import { toJUnit } from './junit.js';
 import { toSarif } from './sarif.js';
-import { id } from '@bughunters/core';
-import type { Finding, Run } from '@bughunters/core';
+import { id } from '@bugpatrol/core';
+import type { Finding, Run } from '@bugpatrol/core';
 
 const run: Run = {
   id: id.run('run_1'),
@@ -95,6 +95,6 @@ describe('exports', () => {
 
   it('carries the fingerprint so SARIF consumers can dedupe across runs', () => {
     const sarif = JSON.parse(toSarif([finding]));
-    expect(sarif.runs[0].results[0].partialFingerprints.bughuntersFingerprint).toBe('fp_abc');
+    expect(sarif.runs[0].results[0].partialFingerprints.bugpatrolFingerprint).toBe('fp_abc');
   });
 });

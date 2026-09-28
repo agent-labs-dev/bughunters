@@ -1,4 +1,4 @@
-# Config for Bughunters's own fixture app. Used by scripts/determinism-check.sh.
+# Config for Bugpatrol's own fixture app. Used by scripts/determinism-check.sh.
 version: 1
 
 run:

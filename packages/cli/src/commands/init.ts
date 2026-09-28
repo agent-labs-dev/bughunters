@@ -3,11 +3,11 @@ import { appendFileSync, existsSync, readFileSync, readdirSync, writeFileSync, m
 import { join, relative } from 'node:path';
 import { createInterface } from 'node:readline/promises';
 import {
-  BUGHUNTERS_DIR, CLI_AGENTS, CONFIG_FILENAME, ConfigError, DATA_DIR, cliPreset, legacyLayout, paths,
+  BUGPATROL_DIR, CLI_AGENTS, CONFIG_FILENAME, ConfigError, DATA_DIR, cliPreset, layout, legacyLayout, paths,
   type AgentRole, type CliAgent, type StackProfile,
-} from '@bughunters/core';
-import { onPath } from '@bughunters/agents';
-import { detectStack, detectBringUp } from '@bughunters/recon';
+} from '@bugpatrol/core';
+import { onPath } from '@bugpatrol/agents';
+import { detectStack, detectBringUp } from '@bugpatrol/recon';
 
 export type Platform = 'web' | 'electron' | 'ios' | 'android';
 export const PLATFORMS: Platform[] = ['web', 'electron', 'ios', 'android'];
@@ -192,7 +192,7 @@ export function detectApp(root: string): AppGuess {
     else notes.push('App ID: not found. Enter the bundle ID or the package name.');
     // A native app has no dev server: the user installs it on the device.
     const start = deps.expo ? 'npx expo start' : deps['react-native'] ? 'npx react-native start' : undefined;
-    if (!start) notes.push('Install the app on the simulator or the emulator before you run Bughunters.');
+    if (!start) notes.push('Install the app on the simulator or the emulator before you run Bugpatrol.');
     return { platform, start, appId: id?.appId, notes };
   }
 
@@ -241,18 +241,18 @@ function useLine(role: AgentRole, provider: Provider, piPermissionModes = false)
   return provider;
 }
 
-/** The starter bughunters.yml. Every value that init could not know has a comment. */
+/** The starter bugpatrol.yml. Every value that init could not know has a comment. */
 export function renderConfig(answers: InitAnswers): string {
   const { platform } = answers;
   const lines = [
     'version: 1',
     '',
-    `# Written by \`bughunters init\` on ${new Date().toISOString().slice(0, 10)}. Correct any value that is wrong.`,
-    '# Docs: https://github.com/agent-labs-dev/bughunters/blob/main/docs/configuration.md',
+    `# Written by \`bugpatrol init\` on ${new Date().toISOString().slice(0, 10)}. Correct any value that is wrong.`,
+    '# Docs: https://github.com/agent-labs-dev/bugpatrol/blob/main/docs/configuration.md',
     '',
     'app:',
     `  platform: ${platform}`,
-    '# Paths are relative to the project root: the folder that holds .bughunters/.',
+    '# Paths are relative to the project root: the folder that holds .bugpatrol/.',
     '  source: .                          # the repo that the fixer edits',
   ];
   if (answers.start) {
@@ -264,7 +264,7 @@ export function renderConfig(answers: InitAnswers): string {
       `      timeoutMs: ${platform === 'web' ? 120000 : 180000}`,
     );
   } else {
-    lines.push('  setup: []                          # empty: start the app yourself before you run Bughunters');
+    lines.push('  setup: []                          # empty: start the app yourself before you run Bugpatrol');
   }
   lines.push('  connect:');
   if (platform === 'web') lines.push(`    url: ${answers.url ?? 'http://localhost:3000'}`);
@@ -274,7 +274,7 @@ export function renderConfig(answers: InitAnswers): string {
     lines.push('    # device: <simulator UDID or emulator serial>   # default: the booted one');
   }
   lines.push(
-    '  instructions: .bughunters/instructions.md   # plain English for the explorer: sign in, main flows, never-do list',
+    '  instructions: .bugpatrol/instructions.md   # plain English for the explorer: sign in, main flows, never-do list',
     '  secrets: []                        # env var names the explorer may use as {{NAME}}, e.g. [TEST_PASSWORD]',
     '',
     '# Each agent runs on an LLM: a local agent CLI (claude, codex, kimi, pi) or an API key.',
@@ -284,7 +284,7 @@ export function renderConfig(answers: InitAnswers): string {
     '  judge:                             # decides which reports are real bugs, and writes the issues',
     `    use: ${useLine('judge', answers.providers.judge, answers.piPermissionModes)}`,
     '  fixer:                             # writes a fix in its own git worktree',
-    '    enabled: false                   # turn on when you want Bughunters to fix bugs',
+    '    enabled: false                   # turn on when you want Bugpatrol to fix bugs',
     `    use: ${useLine('fixer', answers.providers.fixer, answers.piPermissionModes)}`,
     '  github:',
     '    enabled: false                   # turn on to open PRs and issues (needs the gh CLI)',
@@ -315,22 +315,25 @@ Example: Sign in with the email {{TEST_EMAIL}} and the password {{TEST_PASSWORD}
 
 /**
  * Git-ignores the local data, and only the local data: the config and the app
- * guide in .bughunters/ are committed. A line from an older version that
- * ignores all of .bughunters/ is changed to the data folder. True when the
+ * guide in .bugpatrol/ are committed. A line from an older version that
+ * ignores all of .bugpatrol/ is changed to the data folder. True when the
  * file changed.
  */
 function ignoreData(root: string): boolean {
   const gitignore = join(root, '.gitignore');
   const ignored = existsSync(gitignore) ? readFileSync(gitignore, 'utf8') : '';
   const lines = ignored.split('\n');
-  if (lines.some((line) => /^\/?\.bughunters\/runs\/?$/.test(line.trim()))) return false;
-  const whole = lines.findIndex((line) => /^\/?\.bughunters\/?$/.test(line.trim()));
+  // A repo from before the rename keeps .bughunters/, and its ignore line.
+  const { dir } = layout(root);
+  const line = `${dir}/${DATA_DIR}/`;
+  if (lines.some((each) => new RegExp(`^/?\\${dir}/${DATA_DIR}/?$`).test(each.trim()))) return false;
+  const whole = lines.findIndex((each) => new RegExp(`^/?\\${dir}/?$`).test(each.trim()));
   if (whole >= 0) {
-    lines[whole] = IGNORE_LINE;
+    lines[whole] = line;
     writeFileSync(gitignore, lines.join('\n'));
     return true;
   }
-  appendFileSync(gitignore, `${ignored && !ignored.endsWith('\n') ? '\n' : ''}# Bughunters: local data and screenshots of the real app\n${IGNORE_LINE}\n`);
+  appendFileSync(gitignore, `${ignored && !ignored.endsWith('\n') ? '\n' : ''}# Bugpatrol: local data and screenshots of the real app\n${line}\n`);
   return true;
 }
 
@@ -342,34 +345,33 @@ function relativeConfig(root: string): string {
   return shown && !shown.startsWith('..') ? shown : paths.config(root);
 }
 
-const IGNORE_LINE = `${BUGHUNTERS_DIR}/${DATA_DIR}/`;
 
 /**
- * Writes .bughunters/bughunters.yml, .bughunters/instructions.md, and the
- * .gitignore line for .bughunters/runs/. Never overwrites a file.
+ * Writes .bugpatrol/bugpatrol.yml, .bugpatrol/instructions.md, and the
+ * .gitignore line for .bugpatrol/runs/. Never overwrites a file.
  */
 export function writeInitialConfig(root: string, answers: InitAnswers): InitResult {
   const result: InitResult = { written: [], skipped: [], warnings: [] };
   mkdirSync(paths.dir(root), { recursive: true });
   const configPath = paths.config(root);
-  const configName = `${BUGHUNTERS_DIR}/${CONFIG_FILENAME}`;
+  const configName = `${BUGPATROL_DIR}/${CONFIG_FILENAME}`;
   if (existsSync(configPath)) result.skipped.push(configName);
   else {
     writeFileSync(configPath, renderConfig(answers));
     result.written.push(configName);
   }
   const guidePath = join(paths.dir(root), 'instructions.md');
-  if (existsSync(guidePath)) result.skipped.push(`${BUGHUNTERS_DIR}/instructions.md`);
+  if (existsSync(guidePath)) result.skipped.push(`${BUGPATROL_DIR}/instructions.md`);
   else {
     writeFileSync(guidePath, INSTRUCTIONS);
-    result.written.push(`${BUGHUNTERS_DIR}/instructions.md`);
+    result.written.push(`${BUGPATROL_DIR}/instructions.md`);
   }
   if (ignoreData(root)) result.written.push('.gitignore');
 
   for (const provider of new Set(Object.values(answers.providers))) {
     if (provider in KEY_PROVIDERS && !process.env[KEY_PROVIDERS[provider as KeyProvider].env]) {
       const route = KEY_PROVIDERS[provider as KeyProvider];
-      result.warnings.push(`Set ${route.env} before you run Bughunters. Get a key at ${route.url}`);
+      result.warnings.push(`Set ${route.env} before you run Bugpatrol. Get a key at ${route.url}`);
     }
   }
   return result;
@@ -444,11 +446,11 @@ export function defaultAnswers(guess: AppGuess, detected: Detected, flags: InitF
   const missing = (Object.keys(providers) as AgentRole[]).filter((role) => !providers[role]);
   if (missing.length) {
     throw new ConfigError([
-      'Bughunters needs an LLM for each agent, and it found none on this machine.',
+      'Bugpatrol needs an LLM for each agent, and it found none on this machine.',
       'Install an agent CLI (claude, codex, kimi, or pi), or set an API key:',
       `  OpenRouter:        export OPENROUTER_API_KEY=...   (${KEY_PROVIDERS.openrouter.url})`,
       `  Vercel AI Gateway: export AI_GATEWAY_API_KEY=...   (${KEY_PROVIDERS.vercel.url})`,
-      'Or name one: bughunters init --agent claude',
+      'Or name one: bugpatrol init --agent claude',
     ].join('\n'));
   }
   return {
@@ -486,7 +488,7 @@ async function text(ask: Ask, question: string, prefill?: string): Promise<strin
 /** Asks for each value, with the detected guess as the default. */
 export async function interview(ask: Ask, root: string, guess: AppGuess, detected: Detected, answers: InitAnswers): Promise<InitAnswers> {
   if (guess.notes.length) {
-    process.stdout.write('\nBughunters looked at the repo:\n');
+    process.stdout.write('\nBugpatrol looked at the repo:\n');
     for (const note of guess.notes) process.stdout.write(`  ${note}\n`);
   }
   const platform = await choose(ask, 'Which kind of app is it?',
@@ -504,7 +506,7 @@ export async function interview(ask: Ask, root: string, guess: AppGuess, detecte
   const options = providerOptions(detected);
   process.stdout.write('\nEach agent runs on an LLM. A local agent CLI uses your existing login, so you need no API key.\n');
   if (!detected.clis.length && !detected.keys.length) {
-    process.stdout.write('Bughunters found no agent CLI and no API key. Get an OpenRouter or a Vercel AI Gateway key, then set it in your shell.\n');
+    process.stdout.write('Bugpatrol found no agent CLI and no API key. Get an OpenRouter or a Vercel AI Gateway key, then set it in your shell.\n');
   }
   if (detected.piWithoutMcp) process.stdout.write('pi is installed, but it has no MCP. To use it, run: pi install npm:pi-mcp-adapter\n');
   next.providers = { ...next.providers };
@@ -515,7 +517,7 @@ export async function interview(ask: Ask, root: string, guess: AppGuess, detecte
   return next;
 }
 
-/** `bughunters init`: interactive in a terminal; `--yes` (or no terminal) takes the detected defaults. */
+/** `bugpatrol init`: interactive in a terminal; `--yes` (or no terminal) takes the detected defaults. */
 export async function runInit(root: string, args: string[], log: (line: string) => void): Promise<void> {
   const flags = parseInitFlags(args);
   if (flags.gate) {
@@ -523,7 +525,7 @@ export async function runInit(root: string, args: string[], log: (line: string) 
     log(`Wrote ${result.configPath}`);
     if (result.stack.framework) log(`Detected ${result.stack.framework}`);
     for (const note of result.notes) log(`  note: ${note}`);
-    log('\nNext: review the TODO markers, then run `bughunters doctor`.');
+    log('\nNext: review the TODO markers, then run `bugpatrol doctor`.');
     return;
   }
   if (existsSync(paths.config(root))) {
@@ -563,9 +565,9 @@ export async function runInit(root: string, args: string[], log: (line: string) 
   }
   for (const warning of result.warnings) log(`  warning: ${warning}`);
   log('\nNext steps:');
-  log('  1. Check .bughunters/bughunters.yml, and write .bughunters/instructions.md: what the app is, how to sign in, and what never to do.');
-  log('  2. Test the launch and the sign-in: `npx bughunters explore --steps 10 --goal "Sign in, then open the main screen"`');
-  log('  3. Start the patrol: `npx bughunters patrol`. Watch it on `npx bughunters dashboard` (http://127.0.0.1:4311).');
+  log('  1. Check .bugpatrol/bugpatrol.yml, and write .bugpatrol/instructions.md: what the app is, how to sign in, and what never to do.');
+  log('  2. Test the launch and the sign-in: `npx bugpatrol explore --steps 10 --goal "Sign in, then open the main screen"`');
+  log('  3. Start the patrol: `npx bugpatrol`. Watch it on `npx bugpatrol dashboard` (http://127.0.0.1:4311).');
 }
 
 /** Interactive mode may start with no provider: the user picks one from the list. */
@@ -578,7 +580,7 @@ function safeDefaults(guess: AppGuess, detected: Detected, flags: InitFlags): In
 }
 
 /**
- * `bughunters init --gate`: bughunters.yml for the deterministic web gate,
+ * `bugpatrol init --gate`: bugpatrol.yml for the deterministic web gate,
  * with detected defaults and a TODO marker on anything it could not determine.
  * Detection is a first guess, never a silent decision -- everything is written
  * to the file with its provenance so a human can see WHY a value was chosen
@@ -595,9 +597,9 @@ export function writeGateConfig(root: string): { configPath: string; stack: Stac
 
   const config = `version: 1
 
-# Written by \`bughunters init --gate\` on ${new Date().toISOString().slice(0, 10)}.
+# Written by \`bugpatrol init --gate\` on ${new Date().toISOString().slice(0, 10)}.
 # Every value below is a DETECTED GUESS with its provenance in a comment.
-# Correct anything that is wrong; Bughunters will not overwrite your edits.
+# Correct anything that is wrong; Bugpatrol will not overwrite your edits.
 
 run:
   ${best ? `command: ${best.command}   # detected from ${best.source} (rung: ${best.rung})` : 'command: TODO   # could not detect - set this'}
@@ -637,7 +639,7 @@ tolerance:
   regions: []
 
 determinism:
-  image: ""                    # TODO pin by digest, e.g. ghcr.io/agent-labs-dev/bughunters-runner@sha256:...
+  image: ""                    # TODO pin by digest, e.g. ghcr.io/agent-labs-dev/bugpatrol-runner@sha256:...
   freezeClockAt: "2026-01-01T00:00:00.000Z"
   timezone: UTC
   locale: en-US

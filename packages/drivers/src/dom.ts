@@ -1,4 +1,4 @@
-import type { Locator as StableLocator, RoutineStep } from '@bughunters/core';
+import type { Locator as StableLocator, RoutineStep } from '@bugpatrol/core';
 import type { Locator, Page } from 'playwright';
 import type { DriverAction, Observation, UiElement } from './types.js';
 

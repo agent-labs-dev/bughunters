@@ -2,13 +2,13 @@ import { describe, expect, it } from 'vitest';
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { parseConfig } from '@bughunters/core';
+import { parseConfig } from '@bugpatrol/core';
 import { runChecks } from './doctor.js';
 
 function project(): string {
-  const root = mkdtempSync(join(tmpdir(), 'bughunters-doctor-'));
-  mkdirSync(join(root, '.bughunters'));
-  writeFileSync(join(root, '.bughunters', 'bughunters.yml'), 'version: 1\n');
+  const root = mkdtempSync(join(tmpdir(), 'bugpatrol-doctor-'));
+  mkdirSync(join(root, '.bugpatrol'));
+  writeFileSync(join(root, '.bugpatrol', 'bugpatrol.yml'), 'version: 1\n');
   return root;
 }
 

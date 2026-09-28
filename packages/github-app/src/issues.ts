@@ -1,4 +1,4 @@
-import type { Finding } from '@bughunters/core';
+import type { Finding } from '@bugpatrol/core';
 import { LABELS } from './permissions.js';
 
 export type IssuePayload = { title: string; body: string; labels: string[] };
@@ -38,7 +38,7 @@ export function buildIssue(finding: Finding, context: { expected?: string; repor
     `severity \`${finding.severity}\` · confidence \`${finding.confidence.toFixed(2)}\` · tier \`${finding.tier}\` · fingerprint \`${finding.fingerprint}\``,
     '',
     `---`,
-    `If this is intended, comment \`/bughunters accept ${finding.id} --reason "why"\` and Bughunters will not raise it again.`,
+    `If this is intended, comment \`/bugpatrol accept ${finding.id} --reason "why"\` and Bugpatrol will not raise it again.`,
   ]
     .filter(Boolean)
     .join('\n');
@@ -62,7 +62,7 @@ export function labelsFor(finding: Finding): string[] {
 
 /**
  * A question is a first-class outcome, not a failure of the tool. The answer
- * becomes a Ledger entry, which is how Bughunters gets QUIETER over time instead of
+ * becomes a Ledger entry, which is how Bugpatrol gets QUIETER over time instead of
  * louder -- the property every tool in this category currently lacks.
  */
 export function buildQuestion(finding: Finding, question: string): IssuePayload {
@@ -76,9 +76,9 @@ export function buildQuestion(finding: Finding, question: string): IssuePayload 
       finding.evidence.diff ? `\nDiff: ${finding.evidence.diff}` : '',
       '',
       `**Answer with one of:**`,
-      `- \`/bughunters accept ${finding.id} --reason "this is intended"\``,
-      `- \`/bughunters mute ${finding.fingerprint} --expires 30d\``,
-      `- \`/bughunters explain ${finding.id}\` to see the underlying evidence`,
+      `- \`/bugpatrol accept ${finding.id} --reason "this is intended"\``,
+      `- \`/bugpatrol mute ${finding.fingerprint} --expires 30d\``,
+      `- \`/bugpatrol explain ${finding.id}\` to see the underlying evidence`,
       '',
       '_Nothing is blocked while this question is open._',
     ]

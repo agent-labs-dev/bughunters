@@ -1,8 +1,8 @@
 import { execFile } from 'node:child_process';
 import { resolve } from 'node:path';
 import { promisify } from 'node:util';
-import { type BughuntersConfig } from '@bughunters/core';
-import { createDriver as makeDriver, type Driver } from '@bughunters/drivers';
+import { type BugpatrolConfig } from '@bugpatrol/core';
+import { createDriver as makeDriver, type Driver } from '@bugpatrol/drivers';
 import { createRuntime } from './runtime/index.js';
 import { Workspace } from './workspace.js';
 import { Vars } from './vars.js';
@@ -27,7 +27,7 @@ async function git(cwd: string, ...args: string[]): Promise<string> {
  * cycle tests the latest code. A detached HEAD works in a linked worktree, where
  * another worktree can hold the branch. A failure keeps the current checkout.
  */
-export async function pullSource(root: string, config: BughuntersConfig,
+export async function pullSource(root: string, config: BugpatrolConfig,
   onLog?: (message: string) => void): Promise<boolean> {
   const target = config.agents.patrol.pull;
   if (!target) return false;
@@ -52,7 +52,7 @@ export async function pullSource(root: string, config: BughuntersConfig,
 }
 
 /** The HEAD commit of the source repository, or undefined when it has uncommitted changes. */
-export async function sourceCommit(root: string, config: BughuntersConfig): Promise<string | undefined> {
+export async function sourceCommit(root: string, config: BugpatrolConfig): Promise<string | undefined> {
   const source = resolve(root, config.app.source);
   try {
     if (await git(source, 'status', '--porcelain', '--untracked-files=no')) return undefined;
@@ -80,7 +80,7 @@ function wait(minutes: number): Promise<void> {
 
 export type PatrolOptions = {
   root: string;
-  config: BughuntersConfig;
+  config: BugpatrolConfig;
   once?: boolean;
   /** Run the first cycle also when the commit did not change. */
   force?: boolean;

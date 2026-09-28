@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { bughuntersConfigSchema, type FixProposal, type Retest } from '@bughunters/core';
+import { bugpatrolConfigSchema, type FixProposal, type Retest } from '@bugpatrol/core';
 import { applyRetest } from './retest.js';
 
-const config = bughuntersConfigSchema.parse({ version: 1, app: { platform: 'electron' } });
+const config = bugpatrolConfigSchema.parse({ version: 1, app: { platform: 'electron' } });
 const fix = (): FixProposal => ({ version: 1, id: 'fix_1', issueId: 'iss_1', status: 'retesting', runtime: 'cli',
   repo: '/repo', branch: 'b', worktree: '/wt', startedAt: '2026-01-01T00:00:00.000Z' });
 const retest = (outcome: Retest['outcome']): Retest => ({ attempt: 1, outcome, reason: '', at: '2026-01-01T00:00:00.000Z' });

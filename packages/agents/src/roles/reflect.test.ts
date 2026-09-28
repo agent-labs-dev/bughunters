@@ -2,7 +2,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { parseConfig } from '@bughunters/core';
+import { parseConfig } from '@bugpatrol/core';
 import type { Runtime } from '../types.js';
 import { Vars } from '../vars.js';
 import { Workspace } from '../workspace.js';
@@ -12,7 +12,7 @@ const config = parseConfig({ version: 1, app: { connect: { url: 'fake://home' } 
 
 describe('reflection', () => {
   it('sends failed taps and repeated types to a fake runtime and saves redacted lessons', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'bughunters-reflect-'));
+    const root = await mkdtemp(join(tmpdir(), 'bugpatrol-reflect-'));
     try {
       const workspace = new Workspace(root);
       const session = await workspace.startSession('explorer');
@@ -43,7 +43,7 @@ describe('reflection', () => {
   });
 
   it('does not call a runtime for a clean session', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'bughunters-reflect-'));
+    const root = await mkdtemp(join(tmpdir(), 'bugpatrol-reflect-'));
     try {
       const workspace = new Workspace(root);
       const session = await workspace.startSession('explorer');

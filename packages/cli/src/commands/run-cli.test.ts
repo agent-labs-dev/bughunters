@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { parseRunFlags } from './run-cli.js';
-import { ConfigError } from '@bughunters/core';
+import { ConfigError } from '@bugpatrol/core';
 
 describe('parseRunFlags', () => {
   it('defaults to changed-only with models enabled', () => {

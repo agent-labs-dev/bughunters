@@ -1,6 +1,6 @@
 # Getting started
 
-This guide adds Bughunters to your repo, step by step. For a faster setup, install the [Bughunters skill](../skills/bughunters/SKILL.md) with `npx skills add agent-labs-dev/bughunters`, and ask your coding agent to set up Bughunters. The skill does these steps for you.
+This guide adds Bugpatrol to your repo, step by step. For a faster setup, install the [Bugpatrol skill](../skills/bugpatrol/SKILL.md) with `npx skills add agent-labs-dev/bugpatrol`, and ask your coding agent to set up Bugpatrol. The skill does these steps for you.
 
 ## Requirements
 
@@ -17,15 +17,15 @@ This guide adds Bughunters to your repo, step by step. For a faster setup, insta
 - For Electron: an app build that opens a CDP port (`--remote-debugging-port`).
 - For GitHub: a logged-in [`gh`](https://cli.github.com) CLI.
 
-You do not need to install Bughunters. Run each command with `npx bughunters`. You can also add it to your project:
+You do not need to install Bugpatrol. Run each command with `npx bugpatrol`. You can also add it to your project:
 
 ```bash
-npm install --save-dev bughunters     # then: npx bughunters ...
+npm install --save-dev bugpatrol     # then: npx bugpatrol ...
 ```
 
 ## Before you start: launch and sign in
 
-Bughunters needs two things from you:
+Bugpatrol needs two things from you:
 
 1. **A way to launch the app on this machine.** This is usually the command that you use for local work, for example `npm run dev`. The app must start with no manual steps. For mobile, the app must be installed on the simulator or the emulator.
 2. **A way to sign in**, if the app has a sign-in. Use one of these, best first:
@@ -40,7 +40,7 @@ The explorer cannot get through a one-time code, a CAPTCHA, or a third-party SSO
 Run this command in your repo:
 
 ```bash
-npx bughunters init
+npx bugpatrol init
 ```
 
 `init` finds your app and the LLMs on your machine, and it asks you some questions. It puts each detected value on the input line. Push Enter to keep the value, or edit it:
@@ -48,11 +48,11 @@ npx bughunters init
 1. The kind of app (web, Electron, iOS, or Android), the command that starts it, and its URL or app ID. `init` reads these from `package.json`, the Vite config, `.env`, `app.json`, `app.config.ts`, the Xcode project, and the Gradle files.
 2. The LLM for each agent: the explorer, the judge, and the fixer. An installed agent CLI (Claude Code, Codex, Kimi CLI, or pi) comes first, because it needs no API key. If you have no CLI, `init` recommends an OpenRouter or a Vercel AI Gateway key, and shows where to get one.
 
-`init` puts all the Bughunters files in one `.bughunters/` folder, and it never overwrites a file:
+`init` puts all the Bugpatrol files in one `.bugpatrol/` folder, and it never overwrites a file:
 
 ```text
-.bughunters/
-  bughunters.yml     # the config: commit it
+.bugpatrol/
+  bugpatrol.yml     # the config: commit it
   instructions.md    # the app guide for the explorer: commit it
   runs/              # the local data and screenshots: init adds it to .gitignore
 ```
@@ -60,13 +60,13 @@ npx bughunters init
 To use the detected values with no questions, add `--yes`. To select the LLM, add `--agent`:
 
 ```bash
-npx bughunters init --yes --agent claude     # claude | codex | kimi | pi | openrouter | vercel | openai | anthropic
-npx bughunters init --yes --explorer claude --judge claude --fixer codex
+npx bugpatrol init --yes --agent claude     # claude | codex | kimi | pi | openrouter | vercel | openai | anthropic
+npx bugpatrol init --yes --explorer claude --judge claude --fixer codex
 ```
 
-## 2. Check how Bughunters starts your app
+## 2. Check how Bugpatrol starts your app
 
-Open `.bughunters/bughunters.yml`, and correct the values that `init` could not know. All paths in the file are relative to the project root, the folder that holds `.bughunters/`. You can run Bughunters from any folder in the project.
+Open `.bugpatrol/bugpatrol.yml`, and correct the values that `init` could not know. All paths in the file are relative to the project root, the folder that holds `.bugpatrol/`. You can run Bugpatrol from any folder in the project.
 
 This example is a web app with a dev server:
 
@@ -82,7 +82,7 @@ app:
       readyWhen: 'Local:|ready'      # wait until the output matches this regex
   connect:
     url: http://localhost:3000
-  instructions: .bughunters/instructions.md
+  instructions: .bugpatrol/instructions.md
 ```
 
 This example is an Electron app:
@@ -100,14 +100,14 @@ app:
     - run: ./scripts/stop-test-app.sh
   connect:
     cdp: http://127.0.0.1:${CDP_PORT}
-  instructions: .bughunters/instructions.md
+  instructions: .bugpatrol/instructions.md
 ```
 
-For iOS and Android, set `platform: ios` or `platform: android`, and set `connect.appId` to the bundle ID or the package name. Bughunters uses the booted simulator or the running emulator. To select a different device, set `connect.device`. The [examples](development.md#examples) show a full Electron setup and a full iOS setup.
+For iOS and Android, set `platform: ios` or `platform: android`, and set `connect.appId` to the bundle ID or the package name. Bugpatrol uses the booted simulator or the running emulator. To select a different device, set `connect.device`. The [examples](development.md#examples) show a full Electron setup and a full iOS setup.
 
 ## 3. Write the app guide
 
-`.bughunters/instructions.md` is plain English for the explorer. `init` writes a template. Write it like a note to a new tester:
+`.bugpatrol/instructions.md` is plain English for the explorer. `init` writes a template. Write it like a note to a new tester:
 
 ```markdown
 # My App
@@ -117,7 +117,7 @@ My App is a chat workspace. The sidebar lists the channels.
 Sign in with the email {{TEST_EMAIL}} and the password {{TEST_PASSWORD}}.
 
 ## Onboarding
-Type `Bughunters` as the first name. For the username, type `bughunters-{{RUN_TAG}}`.
+Type `Bugpatrol` as the first name. For the username, type `bugpatrol-{{RUN_TAG}}`.
 
 ## Never do these things
 - Do not delete the workspace. Do not invite a person by email.
@@ -130,7 +130,7 @@ app:
   secrets: [TEST_EMAIL, TEST_PASSWORD]
 ```
 
-Secrets and captured values reach the model only as `{{NAME}}` placeholders. Bughunters puts in the real value only when it acts on the app. It hides the value in all logs.
+Secrets and captured values reach the model only as `{{NAME}}` placeholders. Bugpatrol puts in the real value only when it acts on the app. It hides the value in all logs.
 
 ## 4. Check the model keys
 
@@ -140,18 +140,18 @@ If an agent uses an API key, set the key in your shell:
 export OPENROUTER_API_KEY=...
 ```
 
-Before an agent command starts the app, Bughunters checks each agent's LLM. If a key or a CLI is missing, it stops and tells you what to do. Refer to [LLMs](models.md) for all the providers.
+Before an agent command starts the app, Bugpatrol checks each agent's LLM. If a key or a CLI is missing, it stops and tells you what to do. Refer to [LLMs](models.md) for all the providers.
 
 ## 5. Explore, and look at the results
 
 ```bash
-npx bughunters explore        # one explorer session: it signs in, maps screens, reports problems
-npx bughunters judge          # the judge decides which reports are real and files the issues
-npx bughunters dashboard      # http://127.0.0.1:4311
-npx bughunters issue list     # the same issues, in the terminal
+npx bugpatrol explore        # one explorer session: it signs in, maps screens, reports problems
+npx bugpatrol judge          # the judge decides which reports are real and files the issues
+npx bugpatrol dashboard      # http://127.0.0.1:4311
+npx bugpatrol issue list     # the same issues, in the terminal
 ```
 
-The first session maps the app and learns **routines**. A routine is a path that Bughunters can replay later with no model, for example `enter-app`. Each later session starts from what it already knows.
+The first session maps the app and learns **routines**. A routine is a path that Bugpatrol can replay later with no model, for example `enter-app`. Each later session starts from what it already knows.
 
 ## 6. Let it fix bugs
 
@@ -161,17 +161,17 @@ agents:
     enabled: true
     commitMessage: 'fix(app): {title}'     # match your commit hook
     retest: { prepare: npm ci }            # installs the dependencies in each new worktree
-    verify: npm run typecheck && npm test  # Bughunters runs this after each fix
+    verify: npm run typecheck && npm test  # Bugpatrol runs this after each fix
     use: claude                            # or codex, kimi, pi, or an API key
 ```
 
-Set `verify` to the checks that a fix must pass. Bughunters runs the command itself, because the `claude` fixer preset can edit files but cannot run commands. If `verify` fails, the fix fails, and the fixer gets a lesson with the error.
+Set `verify` to the checks that a fix must pass. Bugpatrol runs the command itself, because the `claude` fixer preset can edit files but cannot run commands. If `verify` fails, the fix fails, and the fixer gets a lesson with the error.
 
 ```bash
-npx bughunters fix            # fix the worst open issues, then retest each fix in the app
+npx bugpatrol fix            # fix the worst open issues, then retest each fix in the app
 ```
 
-Each fix gets a branch `bughunters/fix-<issue>` and a git worktree under `.bughunters/runs/worktrees/`. Bughunters links your ignored `.env` files into each worktree. Then it starts the app from the worktree, and the explorer repeats the flow. The judge compares the before and after screenshots. If the bug is still there, the fixer tries again with the judge's feedback.
+Each fix gets a branch `bugpatrol/fix-<issue>` and a git worktree under `.bugpatrol/runs/worktrees/`. Bugpatrol links your ignored `.env` files into each worktree. Then it starts the app from the worktree, and the explorer repeats the flow. The judge compares the before and after screenshots. If the bug is still there, the fixer tries again with the judge's feedback.
 
 ## 7. Publish to GitHub
 
@@ -181,17 +181,17 @@ agents:
 ```
 
 ```bash
-npx bughunters publish --dry-run   # write the reports to .bughunters/runs/publish/ and look at them
-npx bughunters publish             # open the PRs and issues
+npx bugpatrol publish --dry-run   # write the reports to .bugpatrol/runs/publish/ and look at them
+npx bugpatrol publish             # open the PRs and issues
 ```
 
-[GitHub](github.md) tells what Bughunters publishes, what it changes in the repo, and how it syncs the state back.
+[GitHub](github.md) tells what Bugpatrol publishes, what it changes in the repo, and how it syncs the state back.
 
 ## 8. Run it all day
 
 ```bash
-npx bughunters patrol              # setup → explore → judge → teardown → fix → retest → publish, then repeat
-npx bughunters patrol --once       # one cycle
+npx bugpatrol                     # setup → explore → judge → teardown → fix → retest → publish, then repeat
+npx bugpatrol --once              # one cycle
 ```
 
 ## Next steps

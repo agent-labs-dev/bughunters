@@ -12,7 +12,7 @@ export type TokenUsage = {
   cacheWrite?: number;
   /** The provider's list price for these tokens, when it reports one (claude does). Not always what the user pays. */
   listCostUsd?: number;
-  /** True when Bughunters counted characters because the provider reported no usage. */
+  /** True when Bugpatrol counted characters because the provider reported no usage. */
   estimated?: boolean;
 };
 

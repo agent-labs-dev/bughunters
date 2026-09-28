@@ -1,5 +1,5 @@
 {
-  "name": "@bughunters/capture",
+  "name": "@bugpatrol/capture",
   "version": "0.0.0",
   "private": true,
   "license": "Apache-2.0",
@@ -19,8 +19,8 @@
     "build": "tsc --build"
   },
   "dependencies": {
-    "@bughunters/core": "workspace:*",
-    "@bughunters/invariants": "workspace:*",
+    "@bugpatrol/core": "workspace:*",
+    "@bugpatrol/invariants": "workspace:*",
     "playwright": "1.48.2",
     "pngjs": "^7.0.0"
   },

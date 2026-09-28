@@ -1,6 +1,6 @@
 import { PNG } from 'pngjs';
-import { contrastRatio, parseColor, requiredContrast } from '@bughunters/invariants';
-import type { ElementGeometry } from '@bughunters/core';
+import { contrastRatio, parseColor, requiredContrast } from '@bugpatrol/invariants';
+import type { ElementGeometry } from '@bugpatrol/core';
 
 type Box = { x: number; y: number; width: number; height: number };
 

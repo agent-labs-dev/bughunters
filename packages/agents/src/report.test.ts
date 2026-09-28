@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { FixProposal, Issue } from '@bughunters/core';
+import type { FixProposal, Issue } from '@bugpatrol/core';
 import { buildReport } from './report.js';
 
 const issue: Issue = { version: 1, id: 'iss_1', fingerprint: 'fp', title: 'Broken screen',
@@ -24,7 +24,7 @@ describe('buildReport', () => {
     expect(body).toContain('| Screen | Before | After |');
     expect(body.match(/width="240"/g)).toHaveLength(4);
     expect(body).toContain('Closes #7');
-    expect(body).toContain('<sub>Filed by Bughunters · iss_1 · fix_1</sub>');
+    expect(body).toContain('<sub>Filed by Bugpatrol · iss_1 · fix_1</sub>');
     expect(body).not.toContain('SECRET');
     expect(body).toContain('{{TOKEN}}');
   });
@@ -36,6 +36,6 @@ describe('buildReport', () => {
   it('cuts reports below the GitHub body limit', () => {
     const body = buildReport({ ...base, kind: 'issue', issue: { ...issue, body: 'x'.repeat(70_000) } });
     expect(body.length).toBeLessThan(65_536);
-    expect(body).toContain('…(cut; the full report is in the Bughunters dashboard)');
+    expect(body).toContain('…(cut; the full report is in the Bugpatrol dashboard)');
   });
 });

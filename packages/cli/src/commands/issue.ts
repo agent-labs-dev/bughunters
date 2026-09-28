@@ -1,16 +1,16 @@
 import { execFileSync } from 'node:child_process';
-import { ConfigError, type BughuntersConfig, type Issue } from '@bughunters/core';
-import { Workspace, closeOnGitHub, dismissedFingerprints } from '@bughunters/agents';
+import { ConfigError, type BugpatrolConfig, type Issue } from '@bugpatrol/core';
+import { Workspace, closeOnGitHub, dismissedFingerprints } from '@bugpatrol/agents';
 
 /**
- * `bughunters issue list | dismiss <id> --reason "..." [--by name] | reopen <id>`
+ * `bugpatrol issue list | dismiss <id> --reason "..." [--by name] | reopen <id>`
  *
  * The judge is a model, and a model is sometimes wrong. A human override is
  * the last word: a dismissed issue closes, and its fingerprints go into
  * triage.json, so the same finding does not come back on the next patrol.
  */
 export async function runIssueCommand(args: string[], root: string, log: (line: string) => void,
-  config?: BughuntersConfig): Promise<void> {
+  config?: BugpatrolConfig): Promise<void> {
   const [action, id, ...rest] = args;
   const workspace = new Workspace(root);
 
@@ -22,19 +22,19 @@ export async function runIssueCommand(args: string[], root: string, log: (line: 
       const github = [issue.github && `#${issue.github.number}`, pr && `PR #${pr.number}`].filter(Boolean).join(' ');
       log(`${issue.id}  ${issue.severity.padEnd(8)} ${issue.status.padEnd(12)} x${String(issue.occurrences).padEnd(3)} ${github.padEnd(15)} ${issue.title}`);
     }
-    if (issues.length === 0) log('No issues. Run `bughunters explore`, then `bughunters judge`.');
+    if (issues.length === 0) log('No issues. Run `bugpatrol explore`, then `bugpatrol judge`.');
     else log(`\n${issues.length} issue(s). Status: new = filed by the judge, not on GitHub; filed = on GitHub; `
       + 'fix-proposed = a fix waits for review; fixed; dismissed.');
     return;
   }
 
-  if (!id) throw new ConfigError(`bughunters issue ${action} needs an issue id`);
+  if (!id) throw new ConfigError(`bugpatrol issue ${action} needs an issue id`);
   const issue = await workspace.readIssue(id);
-  if (!issue) throw new ConfigError(`No issue ${id}. Run \`bughunters issue list\`.`);
+  if (!issue) throw new ConfigError(`No issue ${id}. Run \`bugpatrol issue list\`.`);
 
   if (action === 'dismiss') {
     const reason = flagValue(rest, '--reason');
-    if (!reason) throw new ConfigError('bughunters issue dismiss needs --reason "why this is not a problem"');
+    if (!reason) throw new ConfigError('bugpatrol issue dismiss needs --reason "why this is not a problem"');
     const by = flagValue(rest, '--by') ?? author();
     const at = new Date().toISOString();
     const dismissed: Issue = { ...issue, status: 'dismissed', closedBy: { by, reason, at } };

@@ -1,14 +1,14 @@
-# Bughunters on an Electron app, against a dev backend.
+# Bugpatrol on an Electron app, against a dev backend.
 #
 # The app's own E2E harness does the parts that only the app's team knows:
 # it makes a test user through a test-only login endpoint, and it starts the
-# dev app with the session token and a CDP port. Bughunters reads the run id
+# dev app with the session token and a CDP port. Bugpatrol reads the run id
 # and the port from the output, connects over CDP, and the explorer does
 # everything after that.
 #
 # This example is a separate folder next to the app. Paths are relative to the
-# folder that holds .bughunters/. To keep the config in the app repo instead, put
-# .bughunters/ at the repo root, set source to ., and remove each cwd line.
+# folder that holds .bugpatrol/. To keep the config in the app repo instead, put
+# .bugpatrol/ at the repo root, set source to ., and remove each cwd line.
 version: 1
 
 app:
@@ -36,7 +36,7 @@ app:
       cwd: ../../../my-electron-app
   connect:
     cdp: http://127.0.0.1:${CDP_PORT}
-  instructions: .bughunters/instructions.md
+  instructions: .bugpatrol/instructions.md
 
 agents:
   # Needs a logged-in gh CLI with access to the app's repository.

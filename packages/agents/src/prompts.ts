@@ -1,8 +1,8 @@
-import type { AppMapScreen, Candidate, Issue, Lesson, Platform, Routine } from '@bughunters/core';
+import type { AppMapScreen, Candidate, Issue, Lesson, Platform, Routine } from '@bugpatrol/core';
 
 /**
  * The words every role runs on (ADR 0005). They live in one file because they
- * are product behaviour, not plumbing: a change here changes what Bughunters
+ * are product behaviour, not plumbing: a change here changes what Bugpatrol
  * reports, so it should be reviewed like a change to a rule.
  */
 
@@ -197,12 +197,12 @@ FOR EACH CANDIDATE
      call dismiss with the reason.
    - A visual change that is expected (dynamic content such as times, avatars, counters, or live data):
      call dismiss with update_baseline true, so the check stops raising it.
-3. If an OPEN ISSUE below already describes the problem, call file_issue with its issue_id: Bughunters adds
+3. If an OPEN ISSUE below already describes the problem, call file_issue with its issue_id: Bugpatrol adds
    the candidates to that issue as one more occurrence. Do not open a second issue for it.
    If it says the team rejected its PR, do not treat that as a reason to file the problem again. Add new
-   candidates to that issue with issue_id, as usual. Bughunters will not propose that change again.
+   candidates to that issue with issue_id, as usual. Bugpatrol will not propose that change again.
 4. If a candidate repeats a dismissed issue, dismiss it with reason "Same as dismissed <id>".
-5. If a candidate shows a fixed issue again, call file_issue with that issue_id. Bughunters reopens it as a regression.
+5. If a candidate shows a fixed issue again, call file_issue with that issue_id. Bugpatrol reopens it as a regression.
 
 LOOK FOR ONE CAUSE FIRST
 Before you file anything, compare all the candidates. When several screens fail in the same way (the same
@@ -273,13 +273,13 @@ error text, data that never loads, every request refused) almost always share on
 - If no PR fixes it, publish ONE issue for the cause. Name the shared symptom in the title and list every affected
   screen in the summary. Skip the others. Reason: "Same cause as <published item id>".
 Ten GitHub issues for one cause are noise for the team.
-Write a plain, short summary of 2–5 sentences: what is wrong, for whom, and for a PR what changed and how Bughunters checked it.
-Do not repeat the full report. Bughunters adds screenshots, steps, the fix, and verification. Call finish when done.
+Write a plain, short summary of 2–5 sentences: what is wrong, for whom, and for a PR what changed and how Bugpatrol checked it.
+Do not repeat the full report. Bugpatrol adds screenshots, steps, the fix, and verification. Call finish when done.
 ${lessonPart(lessons)}`;
 }
 
 export function fixerSystem(lessons: Lesson[] = []): string {
-  return `You are a senior engineer on this codebase. Bughunters found the issue below while it used the app, and
+  return `You are a senior engineer on this codebase. Bugpatrol found the issue below while it used the app, and
 a QA lead confirmed it. Fix the cause, not the symptom.
 
 - Read the repository's CLAUDE.md or AGENTS.md first, and follow its conventions.
@@ -287,8 +287,8 @@ a QA lead confirmed it. Fix the cause, not the symptom.
 - Add or update a test that fails without your change, when the codebase has tests for this area.
 - Run the relevant type check and tests, and fix what you broke.
 - If the code shows that the behaviour is intended, or the report is wrong, change nothing. Explain why in
-  your summary, with the file and line. Bughunters shows your explanation to the team.
-- Do not commit and do not push. Bughunters commits the change on its own branch.
+  your summary, with the file and line. Bugpatrol shows your explanation to the team.
+- Do not commit and do not push. Bugpatrol commits the change on its own branch.
 - End with a short summary: the cause, the change, and what you ran to verify it.
 
 ${memoryPart('fixer')}${lessonPart(lessons)}`;

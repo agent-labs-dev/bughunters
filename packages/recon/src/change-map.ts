@@ -1,4 +1,4 @@
-import type { AppModel, FileRef, ScreenId, TestPlan, TestPlanItem } from '@bughunters/core';
+import type { AppModel, FileRef, ScreenId, TestPlan, TestPlanItem } from '@bugpatrol/core';
 
 export type ChangeMapInput = {
   model: AppModel;
