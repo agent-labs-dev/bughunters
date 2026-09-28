@@ -165,7 +165,7 @@ agents:
     use: claude                            # or codex, kimi, pi, or an API key
 ```
 
-Set `verify` to the checks that a fix must pass. Bugpatrol runs the command itself, because the `claude` fixer preset can edit files but cannot run commands. If `verify` fails, the fix fails, and the fixer gets a lesson with the error.
+Set `verify` to the checks that a fix must pass. Bugpatrol runs the command itself after the fixer stops, so a fix never depends on the agent to run it. If `verify` fails, the fix fails, and the fixer gets a lesson with the error.
 
 ```bash
 npx bugpatrol fix            # fix the worst open issues, then retest each fix in the app

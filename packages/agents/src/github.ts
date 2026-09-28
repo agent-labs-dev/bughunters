@@ -59,6 +59,62 @@ export async function resolveRepo(
 /** The label of the PRs and issues from before the rename to Bugpatrol. */
 const LEGACY_LABEL = 'bughunters';
 
+/**
+ * The Bugpatrol PRs and issues on GitHub, from every machine that runs a
+ * patrol on the repo: each one open, and each PR merged or closed in the last
+ * 14 days. The publish judge reads them to skip a duplicate.
+ */
+export async function listFiled(gh: Gh, repo: string, config: BugpatrolConfig): Promise<string[]> {
+  const labels = [...new Set([config.agents.github.labels[0]!, LEGACY_LABEL])];
+  const since = Date.now() - 14 * 24 * 60 * 60 * 1000;
+  type Pr = {
+    number: number;
+    title: string;
+    state: string;
+    mergedAt?: string;
+    closedAt?: string;
+    files?: { path: string }[];
+  };
+  type GhIssue = { number: number; title: string };
+  const [prs, issues] = await Promise.all(
+    (['pr', 'issue'] as const).map(async (kind) =>
+      (
+        await Promise.all(
+          labels.map((label) =>
+            gh([
+              kind,
+              'list',
+              '--repo',
+              repo,
+              '--label',
+              label,
+              '--state',
+              kind === 'pr' ? 'all' : 'open',
+              '--limit',
+              '100',
+              '--json',
+              kind === 'pr' ? 'number,title,state,mergedAt,closedAt,files' : 'number,title',
+            ]),
+          ),
+        )
+      ).flatMap((out) => JSON.parse(out) as unknown[]),
+    ),
+  );
+  const lines = new Map<string, string>();
+  for (const pr of prs as Pr[]) {
+    const at = pr.mergedAt ?? pr.closedAt;
+    if (pr.state !== 'OPEN' && (!at || Date.parse(at) < since)) continue;
+    const files = (pr.files ?? []).map((file) => file.path).slice(0, 10);
+    lines.set(
+      `pr${pr.number}`,
+      `- PR #${pr.number} [${pr.state.toLowerCase()}]: ${pr.title}${files.length ? ` (files: ${files.join(', ')})` : ''}`,
+    );
+  }
+  for (const issue of issues as GhIssue[])
+    lines.set(`issue${issue.number}`, `- issue #${issue.number} [open]: ${issue.title}`);
+  return [...lines.values()];
+}
+
 export async function syncGitHub(
   root: string,
   config: BugpatrolConfig,

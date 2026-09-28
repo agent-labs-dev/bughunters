@@ -255,6 +255,8 @@ export type FixProposal = {
   /** The fix commit on the branch. A merge check trusts only this commit. */
   commit?: string;
   summary?: string;
+  /** The `verify` command that passed on this change. */
+  checks?: string;
   error?: string;
   startedAt: string;
   endedAt?: string;

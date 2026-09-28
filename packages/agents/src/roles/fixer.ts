@@ -385,6 +385,7 @@ export async function runFixer(
           });
         }
       }
+      proposal.checks = config.verify;
       proposal.status = 'proposed';
       const committed = await commitFix(worktree, issue.title, config.commitMessage);
       if (!committed.ok) {

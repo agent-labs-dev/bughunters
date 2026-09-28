@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { type FixProposal, type Issue, parseConfig } from '@bugpatrol/core';
 import { afterEach, describe, expect, it } from 'vitest';
-import { createIssue, createPr, ensureAssetsBranch, type Gh, syncGitHub, uploadImage } from './github.js';
+import { createIssue, createPr, ensureAssetsBranch, type Gh, listFiled, syncGitHub, uploadImage } from './github.js';
 import { Workspace } from './workspace.js';
 
 let dirs: string[] = [];
@@ -127,6 +127,38 @@ describe('GitHub client', () => {
     expect(fix.error).toBeUndefined();
     expect(git(worktree, 'status', '--porcelain')).toBe('');
     expect(git(source, 'ls-remote', 'origin', 'refs/heads/fix-branch')).toContain(fix.commit);
+  });
+});
+
+describe('listFiled', () => {
+  it('lists open items and recent merged or closed PRs from every label', async () => {
+    const config = parseConfig({
+      version: 1,
+      app: { connect: { url: 'http://localhost' } },
+      agents: { github: { enabled: true, repo: 'o/r' } },
+    });
+    const recent = new Date().toISOString();
+    const gh: Gh = async (args) => {
+      const label = args[args.indexOf('--label') + 1];
+      if (args[0] === 'issue') return label === 'bughunters' ? '[]' : '[{"number":9,"title":"Search shows Markdown"}]';
+      if (label === 'bughunters')
+        return JSON.stringify([
+          {
+            number: 5,
+            title: 'fix: make Private clickable',
+            state: 'MERGED',
+            mergedAt: recent,
+            files: [{ path: 'a.tsx' }],
+          },
+          { number: 3, title: 'fix: an old change', state: 'CLOSED', closedAt: '2020-01-01T00:00:00Z' },
+        ]);
+      return JSON.stringify([{ number: 6, title: 'fix: select Private', state: 'OPEN', files: [{ path: 'a.tsx' }] }]);
+    };
+    expect(await listFiled(gh, 'o/r', config)).toEqual([
+      '- PR #6 [open]: fix: select Private (files: a.tsx)',
+      '- PR #5 [merged]: fix: make Private clickable (files: a.tsx)',
+      '- issue #9 [open]: Search shows Markdown',
+    ]);
   });
 });
 

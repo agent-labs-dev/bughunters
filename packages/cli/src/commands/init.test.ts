@@ -193,7 +193,7 @@ describe('renderConfig', () => {
     });
     expect(config.agents.fixer.use).toMatchObject({
       runtime: 'cli',
-      command: 'claude -p --output-format json --permission-mode acceptEdits',
+      command: 'claude -p --output-format json --permission-mode auto',
     });
     expect(config.agents.fixer.enabled).toBe(false);
     expect(config.agents.github.enabled).toBe(false);

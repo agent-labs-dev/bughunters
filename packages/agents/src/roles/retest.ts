@@ -478,23 +478,27 @@ export async function retestFix(
   return retest;
 }
 
-/** A fix that waits for a retest: none yet, or the last one stopped on an error. */
+/**
+ * A fix that waits for a retest: none yet, the last one stopped on an error,
+ * or the explorer did not reach the screen.
+ */
 function needsRetest(fix: FixProposal): boolean {
   const last = fix.retests?.at(-1);
-  return !last || last.outcome === 'error';
+  return !last || last.outcome === 'error' || last.outcome === 'unclear';
 }
 
 /**
  * Records a retest on its fix and sets the fix status. Only a verdict counts
  * as an attempt: a retest that stopped on an error keeps the fix in
- * 'retesting', so the next cycle tries again.
+ * 'retesting', so the next cycle tries again. An unclear verdict also retests
+ * the same change while attempts are left; a not-fixed verdict gets a refix.
  */
 export function applyRetest(config: BugpatrolConfig, fix: FixProposal, result: Retest): void {
   fix.retests = [...(fix.retests ?? []), result];
   const attemptsLeft = judgedRetests(fix.retests).length < config.agents.fixer.retest.attempts;
   if (result.outcome === 'fixed') fix.status = 'verified';
   else if (result.outcome === 'error') fix.status = 'retesting';
-  else if (result.outcome === 'not-fixed' && attemptsLeft) fix.status = 'retesting';
+  else if ((result.outcome === 'not-fixed' || result.outcome === 'unclear') && attemptsLeft) fix.status = 'retesting';
   else fix.status = 'proposed';
 }
 

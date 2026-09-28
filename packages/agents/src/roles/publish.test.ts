@@ -132,6 +132,26 @@ describe('runPublisher', () => {
     expect(await runPublisher(f.root, f.config, { gh: fakeGh(calls), createRuntime })).toEqual([]);
     expect(calls.length).toBe(count);
   });
+  it('does not publish a fix that the retest did not verify', async () => {
+    for (const outcome of ['unclear', 'not-fixed'] as const) {
+      const f = await fixture();
+      await f.workspace.saveFix({
+        version: 1,
+        id: 'fix_1',
+        issueId: f.issue.id,
+        status: 'proposed',
+        runtime: 'fake',
+        repo: '',
+        branch: 'fix',
+        worktree: '',
+        startedAt: 'now',
+        retests: [{ attempt: 1, outcome, reason: 'The explorer did not reach the screen.', at: 'now' }],
+      });
+      const calls: string[][] = [];
+      expect(await runPublisher(f.root, f.config, { gh: fakeGh(calls), createRuntime })).toEqual([]);
+      expect(calls).toEqual([]);
+    }
+  });
   it('publishes a major issue after a declined fix', async () => {
     const f = await fixture();
     await f.workspace.saveFix({

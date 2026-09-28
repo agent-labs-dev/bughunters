@@ -79,11 +79,11 @@ Opened 1 PR(s) and 1 issue(s); skipped 0.
 
 | Item | When |
 | --- | --- |
-| A PR | The issue has a fix (verified or proposed) with no PR yet |
+| A PR | The issue has a fix that the retest verified, and no PR yet. A fix that no retest can judge (the retest is off, or the issue has no flow to replay) also gets a PR |
 | A GitHub issue | The issue is at `issueMinSeverity` or worse, has no fix (or its fix failed), and has no GitHub issue yet |
-| Nothing | A dismissed issue, a fixed issue, or an issue whose PR the team closed |
+| Nothing | A dismissed issue, a fixed issue, an issue whose PR the team closed, or a fix that the retest did not verify (❔ unclear or ⚠️ not fixed). The dashboard shows that fix as "Fix not verified" |
 
-The judge reads each item before it publishes it. It can skip an item that is clearly not a product bug, and it gives the reason.
+The judge reads each item before it publishes it. It can skip an item that is clearly not a product bug, and it gives the reason. The judge also sees the Bugpatrol PRs and issues on GitHub, from every machine that runs a patrol on the repo. It skips an item that one of them already covers.
 
 ### What Bugpatrol changes in the repo
 
@@ -96,10 +96,10 @@ The judge reads each item before it publishes it. It can skip an item that is cl
 - A short summary by the judge.
 - What happened, what was expected, and the steps.
 - The screenshots.
-- For a PR: the cause, the change, the diff stat, and the retest: before and after screenshots, with the judge's verdict (✅ fixed, ❌ not fixed, or ❔ unclear).
+- For a PR: the cause, the change, the diff stat, the `verify` command that passed, and the retest: before and after screenshots, with the judge's verdict.
 - The severity, and how many times Bugpatrol saw the bug.
 
-Review each PR as you review a PR from a person. A retest verdict of ❔ unclear means that the explorer could not reach the screen in the retest.
+Review each PR as you review a PR from a person.
 
 ## 5. Make CI green
 

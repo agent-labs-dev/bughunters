@@ -42,7 +42,14 @@ export function buildReport(input: ReportInput): string {
     shots.join('\n\n') || 'No screenshots available.',
   ];
   if (kind === 'pr' && fix) {
-    parts.push('## The fix', fix.summary ?? '', `\`\`\`text\n${fix.diffStat ?? ''}\n\`\`\``);
+    parts.push(
+      '## The fix',
+      fix.summary ?? '',
+      `\`\`\`text\n${fix.diffStat ?? ''}\n\`\`\``,
+      fix.checks
+        ? `**Checks:** Bugpatrol ran \`${fix.checks}\` on this change, and it passed.`
+        : '**Checks:** Bugpatrol ran no checks on this change. Set `agents.fixer.verify` to run them.',
+    );
     const retest = judgedRetests(fix.retests).at(-1);
     if (retest) {
       const verdict =

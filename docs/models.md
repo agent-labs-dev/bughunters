@@ -53,7 +53,7 @@ agents:
   fixer:
     use:
       runtime: cli
-      command: claude -p --output-format json --permission-mode acceptEdits --model claude-opus-5-5
+      command: claude -p --output-format json --permission-mode auto --model claude-opus-5-5
 ```
 
 The [presets](../packages/core/src/config/agents.ts) show the full command for each CLI and role.
@@ -80,7 +80,7 @@ agents:
   fixer: { use: codex }
 ```
 
-The preset gives each role the correct flags. The explorer and the judge act only through the Bugpatrol tools, which Bugpatrol gives to the CLI over MCP. The fixer can edit files, but only in its own worktree.
+The preset gives each role the correct flags. The explorer and the judge act only through the Bugpatrol tools, which Bugpatrol gives to the CLI over MCP. The fixer edits files and runs commands in its own worktree. It uses the auto permission mode of its CLI: `--permission-mode auto` for claude and `--approve-for-me` for codex. A CLI with no auto mode skips the prompts: `--yolo` for kimi, and `--perm yolo` for pi with pi-permission-modes.
 
 To add flags, write the full command. A command gets the prompt on stdin and in `{prompt}` (a file). It gets the tools in `{mcp}` (an MCP config file) or `{mcpUrl}`, and the worktree in `{workdir}`:
 

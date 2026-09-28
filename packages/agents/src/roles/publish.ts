@@ -1,6 +1,13 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
-import { type BugpatrolConfig, type Candidate, type FixProposal, type Issue, paths } from '@bugpatrol/core';
+import {
+  type BugpatrolConfig,
+  type Candidate,
+  type FixProposal,
+  type Issue,
+  judgedRetests,
+  paths,
+} from '@bugpatrol/core';
 import {
   createIssue,
   createPr,
@@ -9,6 +16,7 @@ import {
   ensureLabels,
   type Gh,
   ghReady,
+  listFiled,
   resolveRepo,
   uploadImage,
 } from '../github.js';
@@ -32,6 +40,15 @@ type Deps = {
   dryRun?: boolean;
 };
 const rank = { cosmetic: 0, minor: 1, major: 2, critical: 3 };
+
+/**
+ * A fix becomes a PR only when the retest proves it, or when no retest can
+ * judge it (the retest is off, or the issue has no flow to replay). An
+ * unclear or not-fixed fix stays in the dashboard.
+ */
+function publishable(fix: FixProposal): boolean {
+  return fix.status === 'verified' || (fix.status === 'proposed' && !judgedRetests(fix.retests).length);
+}
 const result = (text: string, isError = false) => ({ content: [{ type: 'text' as const, text }], isError });
 const schema = (properties: Record<string, unknown> = {}, required: string[] = []) => ({
   type: 'object',
@@ -72,7 +89,7 @@ export async function runPublisher(root: string, config: BugpatrolConfig, deps: 
     if (issue.status === 'dismissed' || issue.publishSkipped || issue.fixRejected) return [];
     const fix = fixes.get(issue.id);
     if (fix?.status === 'rejected') return [];
-    if (fix && ['verified', 'proposed'].includes(fix.status) && !fix.pr) return [{ kind: 'pr' as const, issue, fix }];
+    if (fix && !fix.pr && publishable(fix)) return [{ kind: 'pr' as const, issue, fix }];
     if (
       !issue.github &&
       !['fixed', 'dismissed'].includes(issue.status) &&
@@ -122,6 +139,7 @@ export async function runPublisher(root: string, config: BugpatrolConfig, deps: 
   const defaultScope = config.agents.github.prScope ?? templateScope(config.agents.fixer.commitMessage);
   // The repo's own recent titles teach the judge its types and scopes.
   let recentTitles: string[] = [];
+  let filed: string[] = [];
   if (!deps.dryRun) {
     try {
       resolved ??= await resolveRepo(gh, config, resolve(root, config.app.source));
@@ -147,6 +165,11 @@ export async function runPublisher(root: string, config: BugpatrolConfig, deps: 
     } catch {
       /* Style hints are optional. */
     }
+    try {
+      if (resolved) filed = await listFiled(gh, resolved.repo, config);
+    } catch {
+      /* Without the list, the judge compares only the local items. */
+    }
   }
   try {
     await session.activity(`Publishing ${items.length} item(s)`, 0, runtime.label);
@@ -168,7 +191,8 @@ export async function runPublisher(root: string, config: BugpatrolConfig, deps: 
             ? `\n\nRECENT MERGED PR TITLES IN THIS REPO (use the same types and scopes)\n${recentTitles.map((t) => `- ${t}`).join('\n')}`
             : '';
           const scope = defaultScope ? `\nDefault PR scope: ${defaultScope}` : '';
-          return result(vars.redact(`${list}${scope}${style}`) as string);
+          const github = filed.length ? `\n\nALREADY ON GITHUB (from every Bugpatrol run)\n${filed.join('\n')}` : '';
+          return result(vars.redact(`${list}${scope}${github}${style}`) as string);
         },
       },
       {
