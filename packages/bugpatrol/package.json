@@ -6,7 +6,7 @@
   "type": "module",
   "bin": { "bugpatrol": "./dist/bin.js" },
   "engines": { "node": ">=22" },
-  "files": ["dist", "src/ui"],
+  "files": ["dist", "src/ui", "LICENSE", "NOTICE"],
   "repository": { "type": "git", "url": "git+https://github.com/agent-labs-dev/bugpatrol.git" },
   "publishConfig": { "access": "public" },
   "scripts": { "build": "node build.mjs" },

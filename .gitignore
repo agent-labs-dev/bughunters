@@ -26,3 +26,7 @@ playwright-report/
 
 # Copied from packages/dashboard/src/ui by the bugpatrol bundle build.
 packages/bugpatrol/src/ui/
+
+# Copied from the repo root by the bugpatrol bundle build.
+packages/bugpatrol/LICENSE
+packages/bugpatrol/NOTICE
