@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { sha256 } from './fingerprint.js';
-import { paths, type BaselineManifest } from './paths.js';
+import { type BaselineManifest, paths } from './paths.js';
 
 export type BaselineKey = string;
 

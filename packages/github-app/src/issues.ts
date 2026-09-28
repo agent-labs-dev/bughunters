@@ -26,7 +26,9 @@ export function buildIssue(finding: Finding, context: { expected?: string; repor
     finding.evidence.after ? `- Actual: ${finding.evidence.after}` : '',
     finding.evidence.diff ? `- Diff: ${finding.evidence.diff}` : '',
     finding.evidence.clip ? `- Clip: ${finding.evidence.clip}` : '',
-    finding.evidence.console?.length ? `- Console:\n\`\`\`\n${finding.evidence.console.slice(0, 10).join('\n')}\n\`\`\`` : '',
+    finding.evidence.console?.length
+      ? `- Console:\n\`\`\`\n${finding.evidence.console.slice(0, 10).join('\n')}\n\`\`\``
+      : '',
     context.reportUrl ? `- [Full report](${context.reportUrl})` : '',
     '',
     `**Suspected cause**`,

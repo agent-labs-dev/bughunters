@@ -7,9 +7,10 @@
 // Every source of non-determinism a real app has (a clock, randomness, a
 // web font, an animation) is present on purpose, so the determinism contract
 // is exercised rather than assumed.
-import { createServer } from 'node:http';
+
 import { readFileSync } from 'node:fs';
-import { join, dirname } from 'node:path';
+import { createServer } from 'node:http';
+import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));

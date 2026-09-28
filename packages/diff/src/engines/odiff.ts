@@ -1,7 +1,7 @@
-import { compare } from 'odiff-bin';
-import type { DiffRequest, DiffResult } from '../types.js';
-import { boundingRegionsFromLines, maskedPixelCount } from '../mask-accounting.js';
 import { InfrastructureError } from '@bugpatrol/core';
+import { compare } from 'odiff-bin';
+import { boundingRegionsFromLines, maskedPixelCount } from '../mask-accounting.js';
+import type { DiffRequest, DiffResult } from '../types.js';
 
 /**
  * The primary engine. Published benchmark on cypress.io screenshots: 1.168s vs
@@ -82,9 +82,10 @@ export async function diffWithOdiff(req: DiffRequest): Promise<DiffResult> {
     throw new InfrastructureError(`odiff could not read one of the images: ${req.baselinePath}, ${req.actualPath}`);
   }
 
-  const totalPixels = 'diffPercentage' in result && result.diffCount
-    ? Math.round(result.diffCount / Math.max(result.diffPercentage / 100, Number.EPSILON))
-    : 0;
+  const totalPixels =
+    'diffPercentage' in result && result.diffCount
+      ? Math.round(result.diffCount / Math.max(result.diffPercentage / 100, Number.EPSILON))
+      : 0;
   const masked = maskedPixelCount(masks, 0, 0);
 
   return {

@@ -4,11 +4,23 @@
   "description": "The earlier name of Bugpatrol. It installs and runs the same version of bugpatrol.",
   "license": "Apache-2.0",
   "type": "module",
-  "bin": { "bughunters": "./src/bin.js" },
-  "engines": { "node": ">=22" },
-  "files": ["src/*.js", "README.md"],
-  "repository": { "type": "git", "url": "git+https://github.com/agent-labs-dev/bugpatrol.git" },
-  "publishConfig": { "access": "public" },
+  "bin": {
+    "bughunters": "./src/bin.js"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "files": [
+    "src/*.js",
+    "README.md"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/agent-labs-dev/bugpatrol.git"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "dependencies": {
     "bugpatrol": "workspace:*"
   }

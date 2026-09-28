@@ -1,5 +1,5 @@
+import { type Browser, type BrowserContext, chromium, type Page } from 'playwright';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { chromium, type Browser, type BrowserContext, type Page } from 'playwright';
 import { observeDom, resolveTarget } from './dom.js';
 import { WebDriver } from './web.js';
 

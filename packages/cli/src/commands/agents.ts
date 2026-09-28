@@ -1,7 +1,24 @@
-import { ConfigError, InfrastructureError, formatUsage, type AgentRole, type BugpatrolConfig } from '@bugpatrol/core';
+import {
+  AgentSession,
+  applyRetest,
+  createRuntime,
+  pendingCandidates,
+  replayRoutine,
+  retestFix,
+  runExplorer,
+  runFixCycle,
+  runJudge,
+  runPatrol,
+  runPublisher,
+  runtimeProblem,
+  startApp,
+  syncGitHub,
+  Vars,
+  Workspace,
+  watchCi,
+} from '@bugpatrol/agents';
+import { type AgentRole, type BugpatrolConfig, ConfigError, formatUsage, InfrastructureError } from '@bugpatrol/core';
 import { createDriver } from '@bugpatrol/drivers';
-import { AgentSession, Vars, Workspace, createRuntime, pendingCandidates, replayRoutine, runExplorer, runJudge, runtimeProblem,
-  applyRetest, runFixCycle, runPatrol, runPublisher, watchCi, retestFix, startApp, syncGitHub } from '@bugpatrol/agents';
 
 type AgentFlags = Record<string, string | string[] | boolean | number>;
 
@@ -9,7 +26,10 @@ type AgentFlags = Record<string, string | string[] | boolean | number>;
 async function logUsage(workspace: Workspace, sessionId: string, log: (line: string) => void): Promise<void> {
   const session = (await workspace.listSessions(Infinity)).find((item) => item.id === sessionId);
   const byModel = Object.entries(session?.tokensByModel ?? {});
-  if (!byModel.length) { log('Tokens: the runtime reported no token usage.'); return; }
+  if (!byModel.length) {
+    log('Tokens: the runtime reported no token usage.');
+    return;
+  }
   for (const [model, usage] of byModel) log(`Tokens: ${model}: ${formatUsage(usage)}`);
 }
 
@@ -59,7 +79,7 @@ export function parseAgentFlags(command: string, args: string[]): AgentFlags {
       while (args[index + 1] && !args[index + 1]!.startsWith('--')) {
         ids.push(args[++index]!);
       }
-      flags[key] = [...(flags[key] as string[] ?? []), ...ids];
+      flags[key] = [...((flags[key] as string[]) ?? []), ...ids];
     } else if (flag === '--steps') {
       const number = Number(value);
       if (!Number.isInteger(number) || number < 1) {
@@ -76,13 +96,21 @@ export function parseAgentFlags(command: string, args: string[]): AgentFlags {
 /** The roles each command runs. A retest runs the explorer and the judge. */
 function rolesFor(command: string, config: BugpatrolConfig): AgentRole[] {
   switch (command) {
-    case 'explore': return ['explorer'];
-    case 'judge': case 'publish': return ['judge'];
-    case 'ci': return ['fixer'];
-    case 'retest': return ['explorer', 'judge'];
-    case 'fix': return ['fixer', 'explorer', 'judge'];
-    case 'patrol': return config.agents.fixer.enabled ? ['explorer', 'judge', 'fixer'] : ['explorer', 'judge'];
-    default: return [];
+    case 'explore':
+      return ['explorer'];
+    case 'judge':
+    case 'publish':
+      return ['judge'];
+    case 'ci':
+      return ['fixer'];
+    case 'retest':
+      return ['explorer', 'judge'];
+    case 'fix':
+      return ['fixer', 'explorer', 'judge'];
+    case 'patrol':
+      return config.agents.fixer.enabled ? ['explorer', 'judge', 'fixer'] : ['explorer', 'judge'];
+    default:
+      return [];
   }
 }
 
@@ -106,9 +134,17 @@ export async function runAgentCommand(
   preflight(command, config);
   const workspace = new Workspace(root);
   if (command === 'patrol') {
-    const { problems } = await runPatrol({ root, config, once: Boolean(flags.once), force: Boolean(flags.force), onLog: log });
+    const { problems } = await runPatrol({
+      root,
+      config,
+      once: Boolean(flags.once),
+      force: Boolean(flags.force),
+      onLog: log,
+    });
     if (problems.length) {
-      log(`The patrol had ${problems.length} problem(s):\n${problems.map((problem) => `- ${problem.split('\n')[0]}`).join('\n')}`);
+      log(
+        `The patrol had ${problems.length} problem(s):\n${problems.map((problem) => `- ${problem.split('\n')[0]}`).join('\n')}`,
+      );
       process.exitCode = 1;
     }
     return;
@@ -117,10 +153,14 @@ export async function runAgentCommand(
     if (!config.agents.github.enabled) {
       throw new ConfigError('GitHub is off. Set agents.github.enabled: true in .bugpatrol/bugpatrol.yml.');
     }
-    const { problems } = await watchCi(root, config, { onLog: log, wait: Boolean(flags.wait),
-      issueIds: flags.issue as string[] | undefined });
-    const fixes = (await workspace.listFixes()).filter((fix) => fix.pr && fix.ci
-      && (!flags.issue || (flags.issue as string[]).includes(fix.issueId)));
+    const { problems } = await watchCi(root, config, {
+      onLog: log,
+      wait: Boolean(flags.wait),
+      issueIds: flags.issue as string[] | undefined,
+    });
+    const fixes = (await workspace.listFixes()).filter(
+      (fix) => fix.pr && fix.ci && (!flags.issue || (flags.issue as string[]).includes(fix.issueId)),
+    );
     if (!fixes.length) log('No open Bugpatrol PR has CI checks yet.');
     for (const fix of fixes) log(`  PR #${fix.pr!.number}  ${fix.ci!.state.padEnd(8)} ${fix.issueId}  ${fix.pr!.url}`);
     if (problems.length) process.exitCode = 1;
@@ -128,23 +168,41 @@ export async function runAgentCommand(
   }
   if (command === 'publish') {
     if (!flags.dryRun && !config.agents.github.enabled) {
-      throw new ConfigError('GitHub is off. Set agents.github.enabled: true in .bugpatrol/bugpatrol.yml, '
-        + 'or run `bugpatrol publish --dry-run` to write the reports to .bugpatrol/runs/publish/ only.');
+      throw new ConfigError(
+        'GitHub is off. Set agents.github.enabled: true in .bugpatrol/bugpatrol.yml, ' +
+          'or run `bugpatrol publish --dry-run` to write the reports to .bugpatrol/runs/publish/ only.',
+      );
     }
-    const outcomes = await runPublisher(root, config, { onLog: log,
-      issueIds: flags.issue as string[] | undefined, dryRun: Boolean(flags.dryRun) });
+    const outcomes = await runPublisher(root, config, {
+      onLog: log,
+      issueIds: flags.issue as string[] | undefined,
+      dryRun: Boolean(flags.dryRun),
+    });
     if (!flags.dryRun) await syncGitHub(root, config, { onLog: log });
     if (!outcomes.length) {
-      log(`Nothing to publish. Bugpatrol opens a PR for each fix that has no PR yet, and a GitHub issue for each open `
-        + `issue at ${config.agents.github.issueMinSeverity} or worse that has no fix and no GitHub issue.`);
+      log(
+        `Nothing to publish. Bugpatrol opens a PR for each fix that has no PR yet, and a GitHub issue for each open ` +
+          `issue at ${config.agents.github.issueMinSeverity} or worse that has no fix and no GitHub issue.`,
+      );
       return;
     }
     for (const item of outcomes) {
-      const kind = item.kind === 'pr' ? (flags.dryRun ? 'PR draft' : 'PR') : item.kind === 'issue' ? (flags.dryRun ? 'issue draft' : 'issue') : 'skipped';
+      const kind =
+        item.kind === 'pr'
+          ? flags.dryRun
+            ? 'PR draft'
+            : 'PR'
+          : item.kind === 'issue'
+            ? flags.dryRun
+              ? 'issue draft'
+              : 'issue'
+            : 'skipped';
       log(`  ${kind.padEnd(11)} ${item.issueId}  ${item.url ?? item.reason ?? ''}`);
     }
     const count = (kind: string) => outcomes.filter((item) => item.kind === kind).length;
-    log(`${flags.dryRun ? 'Wrote' : 'Opened'} ${count('pr')} PR(s) and ${count('issue')} issue(s); skipped ${count('skipped')}.`);
+    log(
+      `${flags.dryRun ? 'Wrote' : 'Opened'} ${count('pr')} PR(s) and ${count('issue')} issue(s); skipped ${count('skipped')}.`,
+    );
     return;
   }
   const vars = new Vars(config.app.secrets);
@@ -156,8 +214,9 @@ export async function runAgentCommand(
       .filter((item) => item.role === 'explorer' && item.candidates > 0 && item.status !== 'running')
       .slice(0, 5)
       .map((item) => item.id);
-    const ids = flags.session as string[] | undefined ?? recent;
-    if (!ids.length) throw new ConfigError('No explorer session has candidates to judge. Run `bugpatrol explore` first.');
+    const ids = (flags.session as string[] | undefined) ?? recent;
+    if (!ids.length)
+      throw new ConfigError('No explorer session has candidates to judge. Run `bugpatrol explore` first.');
     const record = await workspace.startSession('judge');
     const session = new AgentSession(root, config, vars, record.id, 'judge', undefined, log);
     const pending = await pendingCandidates(session, ids);
@@ -169,15 +228,17 @@ export async function runAgentCommand(
   }
   if (command === 'fix') {
     if (!config.agents.fixer.enabled) {
-      throw new ConfigError('The fixer is off. Set agents.fixer.enabled: true in .bugpatrol/bugpatrol.yml. '
-        + 'The fixer writes code, but only in its own git worktree under .bugpatrol/runs/worktrees/.');
+      throw new ConfigError(
+        'The fixer is off. Set agents.fixer.enabled: true in .bugpatrol/bugpatrol.yml. ' +
+          'The fixer writes code, but only in its own git worktree under .bugpatrol/runs/worktrees/.',
+      );
     }
-    const proposals = await runFixCycle(root, config, { onLog: log,
-      issueIds: flags.issue as string[] | undefined,
-    });
+    const proposals = await runFixCycle(root, config, { onLog: log, issueIds: flags.issue as string[] | undefined });
     if (!proposals.length) {
-      log(`No fix to write. The fixer takes open issues at ${config.agents.fixer.minSeverity} or worse that have no fix yet, `
-        + `at most ${config.agents.fixer.maxPerCycle} for each run.`);
+      log(
+        `No fix to write. The fixer takes open issues at ${config.agents.fixer.minSeverity} or worse that have no fix yet, ` +
+          `at most ${config.agents.fixer.maxPerCycle} for each run.`,
+      );
       return;
     }
     for (const fix of proposals) log(`  ${fix.status.padEnd(9)} ${fix.issueId}  ${fix.branch}`);

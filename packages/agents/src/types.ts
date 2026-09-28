@@ -5,9 +5,7 @@ import type { AgentEvent, AgentRole, RoleRuntime } from '@bugpatrol/core';
  * loop calls `run` in-process; the CLI runtime exposes the same tool over MCP.
  * So a role behaves the same whatever runs it.
  */
-export type ToolContent =
-  | { type: 'text'; text: string }
-  | { type: 'image'; png: Buffer };
+export type ToolContent = { type: 'text'; text: string } | { type: 'image'; png: Buffer };
 
 export type ToolResult = {
   content: ToolContent[];

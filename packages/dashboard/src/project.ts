@@ -1,6 +1,14 @@
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { paths, type AppModel, type Finding, type Intent, type LiveProgress, type Run, type RunTrace } from '@bugpatrol/core';
+import {
+  type AppModel,
+  type Finding,
+  type Intent,
+  type LiveProgress,
+  paths,
+  type Run,
+  type RunTrace,
+} from '@bugpatrol/core';
 
 export type RunRecord = {
   id: string;
@@ -61,9 +69,7 @@ export class ProjectReader {
     try {
       const parsed = JSON.parse(readFileSync(runFile, 'utf8')) as { run: Run; findings: Finding[] };
       const traceFile = join(dir, 'trace.json');
-      const trace = existsSync(traceFile)
-        ? (JSON.parse(readFileSync(traceFile, 'utf8')) as RunTrace)
-        : undefined;
+      const trace = existsSync(traceFile) ? (JSON.parse(readFileSync(traceFile, 'utf8')) as RunTrace) : undefined;
       return { id: runId, dir, run: parsed.run, findings: parsed.findings, trace, mtimeMs: safeMtime(dir) };
     } catch {
       // A run still being written is not an error worth surfacing; it will

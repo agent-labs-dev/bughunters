@@ -1,14 +1,13 @@
-import { describe, expect, it, beforeAll, afterAll } from 'vitest';
 import { existsSync, readFileSync } from 'node:fs';
-import { chromium, type Browser, type Page } from 'playwright';
+import { type Browser, chromium, type Page } from 'playwright';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { auditFonts } from './browser.js';
 
 // A real TTF, embedded as a data URL so the face genuinely loads. DejaVu ships
 // with Playwright's system dependencies on Linux, which is what CI installs.
-const FONT_FILE = [
-  '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
-  '/usr/share/fonts/TTF/DejaVuSans.ttf',
-].find((f) => existsSync(f));
+const FONT_FILE = ['/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf', '/usr/share/fonts/TTF/DejaVuSans.ttf'].find((f) =>
+  existsSync(f),
+);
 
 if (!FONT_FILE) {
   throw new Error('font-audit tests need DejaVuSans.ttf; install it (e.g. `playwright install --with-deps`).');

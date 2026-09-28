@@ -1,7 +1,7 @@
 import type { AgentRole, AgentStatus, BugpatrolConfig, RoutineStep } from '@bugpatrol/core';
 import type { Driver, Observation } from '@bugpatrol/drivers';
 import type { EventSink } from './types.js';
-import { Vars } from './vars.js';
+import type { Vars } from './vars.js';
 import { Workspace } from './workspace.js';
 
 /** One role's mutable context; the workspace owns durable state. */
@@ -41,11 +41,15 @@ export class AgentSession {
       onEvent?.(vars.redact(event.summary) as string);
       if (event.costUsd) {
         this.spentUsd += event.costUsd;
-        this.statusQueue = this.statusQueue.then(() => this.workspace.setAgentStatus(role, {
-          state: 'working',
-          sessionId,
-          spentUsd: this.spentUsd,
-        })).catch(() => undefined);
+        this.statusQueue = this.statusQueue
+          .then(() =>
+            this.workspace.setAgentStatus(role, {
+              state: 'working',
+              sessionId,
+              spentUsd: this.spentUsd,
+            }),
+          )
+          .catch(() => undefined);
       }
     };
   }

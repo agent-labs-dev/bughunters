@@ -1,13 +1,13 @@
 import type { Decider, DecisionsConfig } from '@bugpatrol/core';
 import { MODEL_ROUTES, ModelDecider, type ModelVia } from './providers/model.js';
 
+export * from './answers.js';
+export * from './cache.js';
+export { MODEL_ROUTES } from './providers/model.js';
 export * from './questions.js';
 export * from './state.js';
 export * from './thresholds.js';
-export * from './cache.js';
-export * from './answers.js';
 export { ModelDecider };
-export { MODEL_ROUTES } from './providers/model.js';
 
 export type DeciderEnv = {
   OPENROUTER_API_KEY?: string;
@@ -51,7 +51,7 @@ export function resolveDecider(config: DecisionsConfig, env: DeciderEnv): Resolu
   }
 
   const missing = routes
-    .map((via) => via === 'custom' ? 'BUGPATROL_MODEL_ENDPOINT and BUGPATROL_MODEL_API_KEY' : MODEL_KEYS[via])
+    .map((via) => (via === 'custom' ? 'BUGPATROL_MODEL_ENDPOINT and BUGPATROL_MODEL_API_KEY' : MODEL_KEYS[via]))
     .join(', ')
     .replace(/, ([^,]*)$/, ' or $1');
   return { via: 'none', reason: `Decider: none, because no ${missing} is set.` };

@@ -1,4 +1,4 @@
-import type { ScreenId, EdgeId, FlowId, ModelId, ProjectId, FileRef, ArtifactRef } from './ids.js';
+import type { ArtifactRef, EdgeId, FileRef, FlowId, ModelId, ProjectId, ScreenId } from './ids.js';
 import type { Action } from './project.js';
 
 export type ElementRef = {

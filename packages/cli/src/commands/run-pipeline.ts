@@ -1,38 +1,38 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
-  ExitCode,
-  fingerprint as makeFingerprint,
-  id,
-  paths,
   type BugpatrolConfig,
+  type CheckOutcome,
+  ExitCode,
   type ExitCodeValue,
   type Finding,
+  type FindingTrace,
+  id,
+  fingerprint as makeFingerprint,
+  paths,
   type Run,
   type RunMode,
+  type RunTrace,
   type RunTrigger,
+  type ScreenTrace,
   type Severity,
   type TestPlanItem,
-  type RunTrace,
-  type ScreenTrace,
-  type FindingTrace,
-  type CheckOutcome,
 } from '@bugpatrol/core';
-import { RULES, evaluateAll, type InvariantViolation, type ScreenSnapshot } from '@bugpatrol/invariants';
-import { evaluate as evaluateTolerance, type CrossCheckResult } from '@bugpatrol/diff';
 import {
   Budget,
-  SCREEN_QUESTIONS,
   buildState,
-  resolveDecider,
-  type Resolution,
   estimateDecisionCost,
+  type Resolution,
+  resolveDecider,
   route as routeDecision,
+  SCREEN_QUESTIONS,
   severityFrom,
   violationsToAssertions,
 } from '@bugpatrol/decide';
-import { IntentLedger, applyNoiseControls, cluster } from '@bugpatrol/triage';
+import { type CrossCheckResult, evaluate as evaluateTolerance } from '@bugpatrol/diff';
+import { evaluateAll, type InvariantViolation, RULES, type ScreenSnapshot } from '@bugpatrol/invariants';
 import { renderHtml, toJUnit, toSarif } from '@bugpatrol/report';
+import { applyNoiseControls, cluster, IntentLedger } from '@bugpatrol/triage';
 
 /** One screen, in one viewport, after capture and comparison. */
 export type CapturedScreen = {
@@ -145,7 +145,13 @@ export async function executeRun(options: PipelineOptions): Promise<RunResult> {
       maskedSelectors: screen.maskedSelectors ?? [],
       missingFonts: screen.missingFonts ?? [],
       consoleErrors: screen.snapshot.consoleErrors,
-      links: (screen.snapshot.links ?? []).map((l) => ({ href: l.href, text: l.text, external: l.external, download: l.download, type: l.type })),
+      links: (screen.snapshot.links ?? []).map((l) => ({
+        href: l.href,
+        text: l.text,
+        external: l.external,
+        download: l.download,
+        type: l.type,
+      })),
       diff: screen.comparison ? toDiffTrace(screen.comparison) : undefined,
       checks: describeChecks(all, disabled),
       findingIds: [],
@@ -281,11 +287,14 @@ export async function executeRun(options: PipelineOptions): Promise<RunResult> {
   const groups = await cluster(findings);
   const noise = applyNoiseControls(groups, { isFirstRun: options.isFirstRun });
   notes.push(...noise.notes);
-  if (incomplete) notes.push('This run is INCOMPLETE: coverage, baseline evidence, or decision budget was unavailable.');
+  if (incomplete)
+    notes.push('This run is INCOMPLETE: coverage, baseline evidence, or decision budget was unavailable.');
 
   const created = options.screens.filter((s) => s.baselineCreated).length;
   if (created > 0) {
-    notes.push(`${created} baseline(s) captured for the first time. Nothing can regress against a baseline it just created.`);
+    notes.push(
+      `${created} baseline(s) captured for the first time. Nothing can regress against a baseline it just created.`,
+    );
   }
   for (const screen of options.screens) {
     // First line only: the underlying loader error can be a dozen lines of
@@ -304,7 +313,8 @@ export async function executeRun(options: PipelineOptions): Promise<RunResult> {
     notes.push('First run: regressions are reported but do not block.');
   }
 
-  const exitCode: ExitCodeValue = blocking.length > 0 ? ExitCode.Regression : incomplete ? ExitCode.Infrastructure : ExitCode.Clean;
+  const exitCode: ExitCodeValue =
+    blocking.length > 0 ? ExitCode.Regression : incomplete ? ExitCode.Infrastructure : ExitCode.Clean;
   const selected = new Set(options.screens.map((s) => s.screenId));
 
   const run: Run = {
@@ -437,7 +447,11 @@ function describeChecks(fired: InvariantViolation[], disabled: string[]): CheckO
   for (const rule of ALL_RULE_IDS) {
     if (disabled.includes(rule)) continue;
     const hit = byRule.get(rule);
-    out.push(hit ? { ruleId: rule, fired: true, severity: hit.severity, message: hit.message, detail: hit.detail } : { ruleId: rule, fired: false });
+    out.push(
+      hit
+        ? { ruleId: rule, fired: true, severity: hit.severity, message: hit.message, detail: hit.detail }
+        : { ruleId: rule, fired: false },
+    );
   }
   for (const [ruleId, v] of byRule) {
     if (!ALL_RULE_IDS.includes(ruleId)) {

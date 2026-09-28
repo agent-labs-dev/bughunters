@@ -1,21 +1,21 @@
 import { execFile } from 'node:child_process';
 import { resolve } from 'node:path';
 import { promisify } from 'node:util';
-import { type BugpatrolConfig } from '@bugpatrol/core';
-import { createDriver as makeDriver, type Driver } from '@bugpatrol/drivers';
-import { createRuntime } from './runtime/index.js';
-import type { RoleOutcome } from './types.js';
-import { Workspace } from './workspace.js';
-import { Vars } from './vars.js';
+import type { BugpatrolConfig } from '@bugpatrol/core';
+import { type Driver, createDriver as makeDriver } from '@bugpatrol/drivers';
+import { syncGitHub } from './github.js';
 import { startApp } from './lifecycle.js';
-import { AgentSession } from './session.js';
+import { watchCi } from './roles/ci.js';
 import { runExplorer } from './roles/explorer.js';
 import { runJudge } from './roles/judge.js';
-import { recheckMerged, runFixCycle } from './roles/retest.js';
 import { runPublisher } from './roles/publish.js';
-import { watchCi } from './roles/ci.js';
-import { syncGitHub } from './github.js';
+import { recheckMerged, runFixCycle } from './roles/retest.js';
 import { cleanWorktrees } from './roles/worktrees.js';
+import { createRuntime } from './runtime/index.js';
+import { AgentSession } from './session.js';
+import type { RoleOutcome } from './types.js';
+import { Vars } from './vars.js';
+import { Workspace } from './workspace.js';
 
 const exec = promisify(execFile);
 
@@ -28,8 +28,11 @@ async function git(cwd: string, ...args: string[]): Promise<string> {
  * cycle tests the latest code. A detached HEAD works in a linked worktree, where
  * another worktree can hold the branch. A failure keeps the current checkout.
  */
-export async function pullSource(root: string, config: BugpatrolConfig,
-  onLog?: (message: string) => void): Promise<boolean> {
+export async function pullSource(
+  root: string,
+  config: BugpatrolConfig,
+  onLog?: (message: string) => void,
+): Promise<boolean> {
   const target = config.agents.patrol.pull;
   if (!target) return false;
   const slash = target.indexOf('/');
@@ -58,11 +61,18 @@ export async function sourceCommit(root: string, config: BugpatrolConfig): Promi
   try {
     if (await git(source, 'status', '--porcelain', '--untracked-files=no')) return undefined;
     return await git(source, 'rev-parse', 'HEAD');
-  } catch { return undefined; }
+  } catch {
+    return undefined;
+  }
 }
 
 function alive(pid: number): boolean {
-  try { process.kill(pid, 0); return true; } catch { return false; }
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function wait(minutes: number): Promise<void> {
@@ -126,8 +136,11 @@ export async function runPatrol(options: PatrolOptions): Promise<PatrolResult> {
       activeSession.cancelled = true;
     }
   };
-  const idle = () => workspace.setPatrol({ state: 'stopped',
-    nextAt: new Date(Date.now() + config.agents.patrol.intervalMinutes * 60_000).toISOString() });
+  const idle = () =>
+    workspace.setPatrol({
+      state: 'stopped',
+      nextAt: new Date(Date.now() + config.agents.patrol.intervalMinutes * 60_000).toISOString(),
+    });
   // The commit of the last full cycle, also from an earlier run, so a cron job
   // with --once tests only new commits. --force tests the first cycle anyway.
   let tested = options.force ? undefined : previous?.commit;
@@ -151,8 +164,10 @@ export async function runPatrol(options: PatrolOptions): Promise<PatrolResult> {
       // yet (fixes, retests, publish, CI) still runs, so it never waits for a merge.
       const fresh = !commit || commit !== tested;
       if (!fresh) {
-        options.onLog?.(`No new commit since the last cycle (${commit!.slice(0, 7)}): skipped explore and judge. `
-          + 'The pending fixes, retests, publish, and CI checks still run.');
+        options.onLog?.(
+          `No new commit since the last cycle (${commit!.slice(0, 7)}): skipped explore and judge. ` +
+            'The pending fixes, retests, publish, and CI checks still run.',
+        );
       }
       const before = problems.length;
       if (fresh) {
@@ -185,7 +200,10 @@ export async function runPatrol(options: PatrolOptions): Promise<PatrolResult> {
             const record = await workspace.startSession('judge');
             const session = new AgentSession(root, config, vars, record.id, 'judge', undefined, options.onLog);
             activeSession = session;
-            unfinished('Judge', await runJudge(session, runtime(config.agents.judge.use), { sessionIds: [explorerId] }));
+            unfinished(
+              'Judge',
+              await runJudge(session, runtime(config.agents.judge.use), { sessionIds: [explorerId] }),
+            );
           }
         } catch (error) {
           activeSession = undefined;
@@ -201,29 +219,48 @@ export async function runPatrol(options: PatrolOptions): Promise<PatrolResult> {
         }
       }
       if (!interrupted && config.agents.explorer.enabled && config.agents.judge.enabled) {
-        await recheckMerged(root, config, { createDriver: options.createDriver,
-          createRuntime: options.createRuntime, onLog: options.onLog,
-          onSession: (session) => { activeSession = session; }, isInterrupted: () => interrupted });
+        await recheckMerged(root, config, {
+          createDriver: options.createDriver,
+          createRuntime: options.createRuntime,
+          onLog: options.onLog,
+          onSession: (session) => {
+            activeSession = session;
+          },
+          isInterrupted: () => interrupted,
+        });
       }
-      const fixes = interrupted ? [] : await runFixCycle(root, config, {
-        createDriver: options.createDriver,
-        createRuntime: options.createRuntime,
-        onLog: options.onLog,
-        onSession: (session) => { activeSession = session; },
-        isInterrupted: () => interrupted,
-      });
+      const fixes = interrupted
+        ? []
+        : await runFixCycle(root, config, {
+            createDriver: options.createDriver,
+            createRuntime: options.createRuntime,
+            onLog: options.onLog,
+            onSession: (session) => {
+              activeSession = session;
+            },
+            isInterrupted: () => interrupted,
+          });
       for (const fix of fixes) {
         const last = fix.retests?.at(-1);
-        if (last?.outcome === 'error') problems.push(`Cycle ${cycle}: the retest of ${fix.issueId} failed: ${last.reason}`);
+        if (last?.outcome === 'error')
+          problems.push(`Cycle ${cycle}: the retest of ${fix.issueId} failed: ${last.reason}`);
       }
       // Only a failed test run tests the commit again. A red CI check is the PR's problem, not the cycle's.
       const cycleFailed = problems.length > before;
-      if (!interrupted && config.agents.github.enabled) await runPublisher(root, config, {
-        createRuntime: options.createRuntime, onLog: options.onLog,
-        onSession: (session) => { activeSession = session; },
-      });
+      if (!interrupted && config.agents.github.enabled)
+        await runPublisher(root, config, {
+          createRuntime: options.createRuntime,
+          onLog: options.onLog,
+          onSession: (session) => {
+            activeSession = session;
+          },
+        });
       if (!interrupted && config.agents.github.enabled) {
-        const ci = await watchCi(root, config, { createRuntime: options.createRuntime, onLog: options.onLog, wait: true });
+        const ci = await watchCi(root, config, {
+          createRuntime: options.createRuntime,
+          onLog: options.onLog,
+          wait: true,
+        });
         problems.push(...ci.problems.map((problem) => `Cycle ${cycle}: ${problem}`));
       }
       if (!interrupted && config.agents.github.enabled) await syncGitHub(root, config, { onLog: options.onLog });

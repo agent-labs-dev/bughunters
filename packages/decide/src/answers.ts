@@ -48,7 +48,9 @@ export function normalizeAnswers(
         const probabilities = question.legend.map((_, index) => {
           const p = Array.isArray(rawProbabilities)
             ? finite(rawProbabilities[index])
-            : isObject(rawProbabilities) ? finite(rawProbabilities[String(index)]) : undefined;
+            : isObject(rawProbabilities)
+              ? finite(rawProbabilities[String(index)])
+              : undefined;
           return p === undefined ? 0 : clamp(p);
         });
         out[key] = {

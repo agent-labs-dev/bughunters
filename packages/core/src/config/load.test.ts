@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { parseConfig, resolveSecretRefs } from './load.js';
 import { ConfigError } from '../errors.js';
+import { parseConfig, resolveSecretRefs } from './load.js';
 
 const minimal = { version: 1, run: { command: 'pnpm dev', url: 'http://localhost:3000' } };
 

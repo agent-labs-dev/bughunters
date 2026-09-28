@@ -2,9 +2,7 @@ import { z } from 'zod';
 import type { AgentRole } from '../types/agents.js';
 import { CLI_AGENTS, cliPreset } from './agents.js';
 
-const secretRefString = z
-  .string()
-  .describe('A ${ENV_VAR} reference. Never a literal credential (spec 11.4).');
+const secretRefString = z.string().describe('A ${ENV_VAR} reference. Never a literal credential (spec 11.4).');
 
 export const viewportSchema = z.object({
   name: z.string(),
@@ -80,10 +78,12 @@ export const toleranceSchema = z
 
 export const decisionsSchema = z
   .object({
-    model: z.object({
-      via: z.enum(['auto', 'openrouter', 'vercel', 'openai', 'anthropic', 'custom']).default('auto'),
-      name: z.string().default(''),
-    }).default({}),
+    model: z
+      .object({
+        via: z.enum(['auto', 'openrouter', 'vercel', 'openai', 'anthropic', 'custom']).default('auto'),
+        name: z.string().default(''),
+      })
+      .default({}),
     confidence: z
       .object({ high: z.number().min(0).max(1).default(0.85), low: z.number().min(0).max(1).default(0.55) })
       .default({}),
@@ -102,7 +102,11 @@ export const crawlSchema = z
     maxScreens: z.number().int().positive().default(500),
     maxDepth: z.number().int().positive().default(6),
     maxActionsPerScreen: z.number().int().positive().default(15),
-    maxWallClockMs: z.number().int().positive().default(60 * 60 * 1000),
+    maxWallClockMs: z
+      .number()
+      .int()
+      .positive()
+      .default(60 * 60 * 1000),
     allowDestructive: z.boolean().default(false),
     /** Synthetic data only. */
     safeMode: z.boolean().default(true),
@@ -166,7 +170,11 @@ export const appCommandSchema = z.object({
   background: z.boolean().default(false),
   /** Background only: wait until this regex matches the output. */
   readyWhen: z.string().optional(),
-  timeoutMs: z.number().int().positive().default(10 * 60 * 1000),
+  timeoutMs: z
+    .number()
+    .int()
+    .positive()
+    .default(10 * 60 * 1000),
 });
 
 export const appSchema = z
@@ -221,19 +229,26 @@ const cliRuntimeSchema = z.object({
  * model route or a command.
  */
 function runtimeFor(role: AgentRole, fallback: z.input<typeof modelRuntimeSchema> | z.input<typeof cliRuntimeSchema>) {
-  return z.preprocess(
-    (value) => typeof value === 'string' ? { runtime: 'cli', agent: value } : value,
-    z.discriminatedUnion('runtime', [modelRuntimeSchema, cliRuntimeSchema]),
-  )
+  return z
+    .preprocess(
+      (value) => (typeof value === 'string' ? { runtime: 'cli', agent: value } : value),
+      z.discriminatedUnion('runtime', [modelRuntimeSchema, cliRuntimeSchema]),
+    )
     .default(fallback)
     .superRefine((use, ctx) => {
       if (use.runtime === 'cli' && !use.command && !use.agent) {
         ctx.addIssue({ code: 'custom', message: `Set \`agent\` (${CLI_AGENTS.join(', ')}) or \`command\`.` });
       }
     })
-    .transform((use) => use.runtime === 'model'
-      ? use
-      : { runtime: 'cli' as const, ...(use.agent ? { agent: use.agent } : {}), command: use.command ?? cliPreset(use.agent!, role) });
+    .transform((use) =>
+      use.runtime === 'model'
+        ? use
+        : {
+            runtime: 'cli' as const,
+            ...(use.agent ? { agent: use.agent } : {}),
+            command: use.command ?? cliPreset(use.agent!, role),
+          },
+    );
 }
 
 const roleBase = {
@@ -241,7 +256,11 @@ const roleBase = {
   maxSteps: z.number().int().positive().default(60),
   /** A cost limit for one session, in USD. No default: the team decides. */
   budgetUsd: z.number().nonnegative().optional(),
-  timeoutMs: z.number().int().positive().default(20 * 60 * 1000),
+  timeoutMs: z
+    .number()
+    .int()
+    .positive()
+    .default(20 * 60 * 1000),
 };
 
 /**
@@ -263,18 +282,20 @@ export const AGENT_CHECKS = [
   'rendering/unstyled-content',
   'pixel-diff',
 ] as const;
-export type AgentCheck = typeof AGENT_CHECKS[number];
+export type AgentCheck = (typeof AGENT_CHECKS)[number];
 
 export const agentsSchema = z
   .object({
     /** Automatic checks on each recorded screen, for example [usability/contrast, usability/tap-target]. */
     checks: z.array(z.enum(AGENT_CHECKS)).default([]),
-    memory: z.object({
-      enabled: z.boolean().default(true),
-      maxPerSession: z.number().int().positive().default(5),
-      reflectMaxSteps: z.number().int().positive().default(10),
-      reflectBudgetUsd: z.number().nonnegative().optional(),
-    }).default({}),
+    memory: z
+      .object({
+        enabled: z.boolean().default(true),
+        maxPerSession: z.number().int().positive().default(5),
+        reflectMaxSteps: z.number().int().positive().default(10),
+        reflectBudgetUsd: z.number().nonnegative().optional(),
+      })
+      .default({}),
     explorer: z
       .object({
         ...roleBase,
@@ -298,15 +319,17 @@ export const agentsSchema = z
         /** Run after the change; a non-zero exit marks the fix failed. */
         verify: z.string().optional(),
         /** After a fix, start the app from the fix worktree and repeat the issue's flow. */
-        retest: z.object({
-          enabled: z.boolean().default(true),
-          /** Shell command run in the worktree before the app starts, e.g. `bun install`. */
-          prepare: z.string().optional(),
-          /** Fix attempts in total; each attempt after the first gets the last verdict as feedback. */
-          attempts: z.number().int().positive().default(2),
-          maxSteps: z.number().int().positive().default(30),
-          budgetUsd: z.number().nonnegative().optional(),
-        }).default({}),
+        retest: z
+          .object({
+            enabled: z.boolean().default(true),
+            /** Shell command run in the worktree before the app starts, e.g. `bun install`. */
+            prepare: z.string().optional(),
+            /** Fix attempts in total; each attempt after the first gets the last verdict as feedback. */
+            attempts: z.number().int().positive().default(2),
+            maxSteps: z.number().int().positive().default(30),
+            budgetUsd: z.number().nonnegative().optional(),
+          })
+          .default({}),
         minSeverity: z.enum(['cosmetic', 'minor', 'major', 'critical']).default('minor'),
         /**
          * The local commit on the fix branch. {title} is the issue title. Set a
@@ -317,24 +340,28 @@ export const agentsSchema = z
         maxPerCycle: z.number().int().positive().default(2),
       })
       .default({}),
-    github: z.object({
-      enabled: z.boolean().default(false),
-      repo: z.string().optional(),
-      pullRequests: z.enum(['draft', 'ready']).default('draft'),
-      issueMinSeverity: z.enum(['cosmetic', 'minor', 'major', 'critical']).default('major'),
-      assetsBranch: z.string().default('bugpatrol-assets'),
-      labels: z.array(z.string()).default(['bugpatrol']),
-  /** The scope in PR titles, e.g. 'app'. Default: the scope in fixer.commitMessage. */
-  prScope: z.string().optional(),
-      /** After a PR opens, wait for its CI checks, and let the fixer fix a failed check. */
-      ci: z.object({
-        enabled: z.boolean().default(true),
-        /** Fixer attempts for each PR before Bugpatrol gives up and tells the team. */
-        attempts: z.number().int().nonnegative().default(2),
-        /** How long one cycle waits for pending checks. */
-        waitMinutes: z.number().nonnegative().default(20),
-      }).default({}),
-    }).default({}),
+    github: z
+      .object({
+        enabled: z.boolean().default(false),
+        repo: z.string().optional(),
+        pullRequests: z.enum(['draft', 'ready']).default('draft'),
+        issueMinSeverity: z.enum(['cosmetic', 'minor', 'major', 'critical']).default('major'),
+        assetsBranch: z.string().default('bugpatrol-assets'),
+        labels: z.array(z.string()).default(['bugpatrol']),
+        /** The scope in PR titles, e.g. 'app'. Default: the scope in fixer.commitMessage. */
+        prScope: z.string().optional(),
+        /** After a PR opens, wait for its CI checks, and let the fixer fix a failed check. */
+        ci: z
+          .object({
+            enabled: z.boolean().default(true),
+            /** Fixer attempts for each PR before Bugpatrol gives up and tells the team. */
+            attempts: z.number().int().nonnegative().default(2),
+            /** How long one cycle waits for pending checks. */
+            waitMinutes: z.number().nonnegative().default(20),
+          })
+          .default({}),
+      })
+      .default({}),
     patrol: z
       .object({
         intervalMinutes: z.number().positive().default(30),
@@ -344,45 +371,52 @@ export const agentsSchema = z
          * At the start of each cycle, fetch this `remote/branch` and check out its
          * latest commit (detached) in the source repository. false keeps the checkout.
          */
-        pull: z.union([z.string().regex(/^[^/]+\/.+$/, 'Use remote/branch, e.g. origin/main'), z.literal(false)])
+        pull: z
+          .union([z.string().regex(/^[^/]+\/.+$/, 'Use remote/branch, e.g. origin/main'), z.literal(false)])
           .default('origin/main'),
       })
       .default({}),
   })
   .default({});
 
-export const bugpatrolConfigSchema = z.object({
-  version: z.literal(1),
-  /** Web only: how to start and reach the app. Other platforms use `app`. */
-  run: runSchema.optional(),
-  app: appSchema,
-  agents: agentsSchema,
-  auth: authSchema.default({ kind: 'none' }),
-  viewports: z
-    .array(viewportSchema)
-    .min(1)
-    .default([
-      { name: 'desktop', width: 1440, height: 900, deviceScaleFactor: 1 },
-      { name: 'mobile', width: 390, height: 844, deviceScaleFactor: 1 },
-    ]),
-  scope: z
-    .object({
-      include: z.array(z.string()).default(['src/**', 'app/**']),
-      ignore: z.array(z.string()).default(['**/*.stories.tsx', '**/*.test.ts', '**/generated/**']),
-    })
-    .default({}),
-  crawl: crawlSchema,
-  mask: z.array(maskSchema).default([]),
-  tolerance: toleranceSchema,
-  decisions: decisionsSchema,
-  determinism: determinismSchema,
-  surfaces: surfacesSchema,
-  production: productionSchema,
-}).superRefine((config, ctx) => {
-  if (config.app.platform === 'web' && !config.run && !config.app.connect.url) {
-    ctx.addIssue({ code: 'custom', path: ['run'], message: 'A web app needs `run` (command and url) or `app.connect.url`.' });
-  }
-});
+export const bugpatrolConfigSchema = z
+  .object({
+    version: z.literal(1),
+    /** Web only: how to start and reach the app. Other platforms use `app`. */
+    run: runSchema.optional(),
+    app: appSchema,
+    agents: agentsSchema,
+    auth: authSchema.default({ kind: 'none' }),
+    viewports: z
+      .array(viewportSchema)
+      .min(1)
+      .default([
+        { name: 'desktop', width: 1440, height: 900, deviceScaleFactor: 1 },
+        { name: 'mobile', width: 390, height: 844, deviceScaleFactor: 1 },
+      ]),
+    scope: z
+      .object({
+        include: z.array(z.string()).default(['src/**', 'app/**']),
+        ignore: z.array(z.string()).default(['**/*.stories.tsx', '**/*.test.ts', '**/generated/**']),
+      })
+      .default({}),
+    crawl: crawlSchema,
+    mask: z.array(maskSchema).default([]),
+    tolerance: toleranceSchema,
+    decisions: decisionsSchema,
+    determinism: determinismSchema,
+    surfaces: surfacesSchema,
+    production: productionSchema,
+  })
+  .superRefine((config, ctx) => {
+    if (config.app.platform === 'web' && !config.run && !config.app.connect.url) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['run'],
+        message: 'A web app needs `run` (command and url) or `app.connect.url`.',
+      });
+    }
+  });
 
 export type BugpatrolConfig = z.infer<typeof bugpatrolConfigSchema>;
 export type AppConfig = z.infer<typeof appSchema>;

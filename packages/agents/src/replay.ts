@@ -1,5 +1,5 @@
-import type { DriverAction, Driver } from '@bugpatrol/drivers';
 import type { RoutineStep } from '@bugpatrol/core';
+import type { Driver, DriverAction } from '@bugpatrol/drivers';
 import type { AgentSession } from './session.js';
 
 /** Carries a replay failure back to the explorer without creating a finding. */
@@ -7,7 +7,9 @@ export type ReplayResult = { ok: boolean; failedStep?: number; error?: string; d
 
 /** Replay issue-local steps from the current screen; the first failure stops the path. */
 export async function replaySteps(
-  session: AgentSession, steps: RoutineStep[], opts: { windowMs?: number } = {},
+  session: AgentSession,
+  steps: RoutineStep[],
+  opts: { windowMs?: number } = {},
 ): Promise<ReplayResult> {
   const result = await runSteps(session, steps, opts.windowMs ?? 30_000, false);
   return { ok: !result.error, failedStep: result.failedStep, error: result.error, degraded: result.degraded };
@@ -20,19 +22,30 @@ async function runSteps(session: AgentSession, steps: RoutineStep[], windowMs: n
   let error: string | undefined;
   const skipped: number[] = [];
   for (let index = 0; index < steps.length; index++) {
-    if (session.cancelled) { failedStep = index; error = 'Interrupted'; break; }
+    if (session.cancelled) {
+      failedStep = index;
+      error = 'Interrupted';
+      break;
+    }
     const step = steps[index]!;
     try {
       const result = await actWhenReady(driver, toAction(step, session), session, windowMs);
       degraded ||= Boolean(result.degraded);
       if (!result.ok) {
-        if (skippable && isTargeted(step)) { skipped.push(index); continue; }
+        if (skippable && isTargeted(step)) {
+          skipped.push(index);
+          continue;
+        }
         failedStep = index;
         error = result.error ?? 'Action failed';
         break;
       }
       await driver.settle();
-    } catch (cause) { failedStep = index; error = String(cause); break; }
+    } catch (cause) {
+      failedStep = index;
+      error = String(cause);
+      break;
+    }
   }
   return { degraded, failedStep, error, skipped };
 }
@@ -59,8 +72,13 @@ export async function replayRoutine(
   let failedStep: number | undefined;
   let error: string | undefined;
   for (const dependency of routine.requires ?? []) {
-    const result = await replayRoutine(session, dependency, { seen, dependency: true,
-      windowMs: options.windowMs, save: options.save, onFixBuild: options.onFixBuild });
+    const result = await replayRoutine(session, dependency, {
+      seen,
+      dependency: true,
+      windowMs: options.windowMs,
+      save: options.save,
+      onFixBuild: options.onFixBuild,
+    });
     degraded ||= result.degraded;
     if (!result.ok) {
       error = `Required routine ${dependency}: ${result.error}`;
@@ -87,17 +105,18 @@ export async function replayRoutine(
       }
     }
   }
-  if (options.save !== false || (options.onFixBuild && error)) await session.workspace.saveRoutine({
-    ...routine,
-    lastReplay: {
-      at: new Date().toISOString(),
-      ok: !error,
-      degraded,
-      error,
-      skipped: skipped.length ? skipped : undefined,
-      onFixBuild: options.onFixBuild && error ? true : undefined,
-    },
-  });
+  if (options.save !== false || (options.onFixBuild && error))
+    await session.workspace.saveRoutine({
+      ...routine,
+      lastReplay: {
+        at: new Date().toISOString(),
+        ok: !error,
+        degraded,
+        error,
+        skipped: skipped.length ? skipped : undefined,
+        onFixBuild: options.onFixBuild && error ? true : undefined,
+      },
+    });
   if (!error) {
     session.completedRoutines.add(id);
   }
@@ -123,8 +142,8 @@ async function endsWhereExpected(driver: Driver, expected: string[]): Promise<bo
 }
 
 async function actWhenReady(driver: Driver, action: DriverAction, session: AgentSession, windowMs: number) {
-  const retry = (action.kind === 'tap' || action.kind === 'type' || action.kind === 'scroll')
-    && Boolean(action.locator);
+  const retry =
+    (action.kind === 'tap' || action.kind === 'type' || action.kind === 'scroll') && Boolean(action.locator);
   const deadline = Date.now() + windowMs;
   let degraded = false;
   while (true) {

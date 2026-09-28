@@ -1,7 +1,7 @@
 import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { ExitCode, legacyLayout, paths, type BugpatrolConfig, type ExitCodeValue } from '@bugpatrol/core';
 import { runtimeProblem } from '@bugpatrol/agents';
+import { type BugpatrolConfig, ExitCode, type ExitCodeValue, legacyLayout, paths } from '@bugpatrol/core';
 
 export type DoctorCheck = { name: string; ok: boolean; detail: string; fatal: boolean };
 
@@ -19,7 +19,7 @@ export function runChecks(root: string, config: BugpatrolConfig | undefined): Do
     ok: existsSync(paths.config(root)),
     detail: existsSync(paths.config(root))
       ? `${paths.config(root)} found`
-      : legacyLayout(root) ?? 'No .bugpatrol/bugpatrol.yml. Run `bugpatrol init`.',
+      : (legacyLayout(root) ?? 'No .bugpatrol/bugpatrol.yml. Run `bugpatrol init`.'),
     fatal: true,
   });
 
@@ -59,7 +59,9 @@ export function runChecks(root: string, config: BugpatrolConfig | undefined): Do
   checks.push({
     name: 'intent-ledger',
     ok: true,
-    detail: existsSync(paths.intents(root)) ? 'Intent Ledger present' : 'No Intent Ledger yet (created on first accept)',
+    detail: existsSync(paths.intents(root))
+      ? 'Intent Ledger present'
+      : 'No Intent Ledger yet (created on first accept)',
     fatal: false,
   });
 
@@ -69,20 +71,31 @@ export function runChecks(root: string, config: BugpatrolConfig | undefined): Do
 /** The checks that the agent commands need: an LLM for each agent, and gh for GitHub. */
 function agentChecks(config: BugpatrolConfig, env: NodeJS.ProcessEnv = process.env): DoctorCheck[] {
   const checks: DoctorCheck[] = [];
-  const roles = (['explorer', 'judge', 'fixer'] as const)
-    .filter((role) => role !== 'fixer' || config.agents.fixer.enabled);
+  const roles = (['explorer', 'judge', 'fixer'] as const).filter(
+    (role) => role !== 'fixer' || config.agents.fixer.enabled,
+  );
   for (const role of roles) {
     const use = config.agents[role].use;
     const problem = runtimeProblem(role, use, env);
-    const label = use.runtime === 'cli' ? `cli: ${use.agent ?? use.command.split(' ')[0]}` : `${use.via}: ${use.model ?? 'default model'}`;
+    const label =
+      use.runtime === 'cli'
+        ? `cli: ${use.agent ?? use.command.split(' ')[0]}`
+        : `${use.via}: ${use.model ?? 'default model'}`;
     checks.push({ name: role, ok: !problem, detail: problem ?? `The ${role} uses ${label}`, fatal: true });
   }
   if (config.agents.github.enabled) {
     const installed = spawnSync('gh', ['--version'], { stdio: 'ignore' }).status === 0;
     const loggedIn = installed && spawnSync('gh', ['auth', 'status'], { stdio: 'ignore' }).status === 0;
-    checks.push({ name: 'github', ok: loggedIn, fatal: false, detail: !installed
-      ? 'agents.github is on, but the gh CLI is not installed. Install it from https://cli.github.com'
-      : loggedIn ? 'gh is logged in' : 'agents.github is on, but gh is not logged in. Run `gh auth login`.' });
+    checks.push({
+      name: 'github',
+      ok: loggedIn,
+      fatal: false,
+      detail: !installed
+        ? 'agents.github is on, but the gh CLI is not installed. Install it from https://cli.github.com'
+        : loggedIn
+          ? 'gh is logged in'
+          : 'agents.github is on, but gh is not logged in. Run `gh auth login`.',
+    });
   }
   return checks;
 }

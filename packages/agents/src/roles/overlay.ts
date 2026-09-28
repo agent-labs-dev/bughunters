@@ -1,4 +1,4 @@
-import { mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, join, relative, sep } from 'node:path';
 import { DATA_DIR, paths } from '@bugpatrol/core';
 
@@ -13,7 +13,7 @@ async function files(dir: string, skip: string): Promise<string[]> {
   for (const entry of entries) {
     const path = join(dir, entry.name);
     if (path === skip) continue;
-    if (entry.isDirectory()) out.push(...await files(path, skip));
+    if (entry.isDirectory()) out.push(...(await files(path, skip)));
     else if (entry.isFile()) out.push(path);
   }
   return out;

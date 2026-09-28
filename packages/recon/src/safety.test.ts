@@ -31,10 +31,14 @@ describe('classifyAction', () => {
   });
 
   it('honours the annotation names from before the rename', async () => {
-    const safe = await classifyAction({ selector: '#x', text: 'Delete', dataAttributes: { bughuntersSafe: 'true' } },
-      { origin: 'http://localhost:3000' });
-    const destructive = await classifyAction({ selector: '#x', text: 'Apply', dataAttributes: { bughuntersDestructive: 'true' } },
-      { origin: 'http://localhost:3000' });
+    const safe = await classifyAction(
+      { selector: '#x', text: 'Delete', dataAttributes: { bughuntersSafe: 'true' } },
+      { origin: 'http://localhost:3000' },
+    );
+    const destructive = await classifyAction(
+      { selector: '#x', text: 'Apply', dataAttributes: { bughuntersDestructive: 'true' } },
+      { origin: 'http://localhost:3000' },
+    );
     expect([safe.class, destructive.class]).toEqual(['safe-action', 'destructive']);
   });
 });

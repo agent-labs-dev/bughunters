@@ -1,34 +1,62 @@
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { type FixProposal, type Issue, parseConfig } from '@bugpatrol/core';
 import { afterEach, describe, expect, it } from 'vitest';
-import { parseConfig, type FixProposal, type Issue } from '@bugpatrol/core';
-import { runPublisher } from './publish.js';
-import { Workspace } from '../workspace.js';
 import type { Gh } from '../github.js';
 import type { Runtime } from '../types.js';
+import { Workspace } from '../workspace.js';
+import { runPublisher } from './publish.js';
 
 let roots: string[] = [];
-afterEach(async () => { await Promise.all(roots.map((root) => rm(root, { recursive: true, force: true }))); roots = []; });
+afterEach(async () => {
+  await Promise.all(roots.map((root) => rm(root, { recursive: true, force: true })));
+  roots = [];
+});
 async function fixture(severity: Issue['severity'] = 'major', status: Issue['status'] = 'new') {
-  const root = await mkdtemp(join(tmpdir(), 'bugpatrol-publish-')); roots.push(root);
+  const root = await mkdtemp(join(tmpdir(), 'bugpatrol-publish-'));
+  roots.push(root);
   const workspace = new Workspace(root);
-  const issue: Issue = { version: 1, id: 'iss_1', fingerprint: 'fp', title: 'Broken screen', body: 'What happened',
-    severity, status, candidateIds: [], evidence: {}, judgement: { by: 'judge', reason: 'Visible failure', at: 'now' },
-    occurrences: 1, firstSeenAt: 'now', lastSeenAt: 'now' };
+  const issue: Issue = {
+    version: 1,
+    id: 'iss_1',
+    fingerprint: 'fp',
+    title: 'Broken screen',
+    body: 'What happened',
+    severity,
+    status,
+    candidateIds: [],
+    evidence: {},
+    judgement: { by: 'judge', reason: 'Visible failure', at: 'now' },
+    occurrences: 1,
+    firstSeenAt: 'now',
+    lastSeenAt: 'now',
+  };
   await workspace.saveIssue(issue);
-  const config = parseConfig({ version: 1, app: { connect: { url: 'http://localhost' } },
-    agents: { github: { enabled: true, repo: 'o/r' } } });
+  const config = parseConfig({
+    version: 1,
+    app: { connect: { url: 'http://localhost' } },
+    agents: { github: { enabled: true, repo: 'o/r' } },
+  });
   return { root, workspace, issue, config };
 }
-const runtime: Runtime = { label: 'fake', async run(task) {
-  const view = task.tools.find((tool) => tool.name === 'view_item')!;
-  const publish = task.tools.find((tool) => tool.name === 'publish')!;
-  await view.run({ issue_id: 'iss_1' });
-  const response = await publish.run({ issue_id: 'iss_1', type: 'fix', scope: 'app', title: 'Fix the screen', summary: 'The screen broke. This change fixes it.' });
-  expect(response.isError).toBe(false);
-  return { stop: 'done', steps: 2, costUsd: 0 };
-} };
+const runtime: Runtime = {
+  label: 'fake',
+  async run(task) {
+    const view = task.tools.find((tool) => tool.name === 'view_item')!;
+    const publish = task.tools.find((tool) => tool.name === 'publish')!;
+    await view.run({ issue_id: 'iss_1' });
+    const response = await publish.run({
+      issue_id: 'iss_1',
+      type: 'fix',
+      scope: 'app',
+      title: 'Fix the screen',
+      summary: 'The screen broke. This change fixes it.',
+    });
+    expect(response.isError).toBe(false);
+    return { stop: 'done', steps: 2, costUsd: 0 };
+  },
+};
 const createRuntime = () => runtime;
 function fakeGh(calls: string[][]): Gh {
   return async (args) => {
@@ -43,8 +71,17 @@ function fakeGh(calls: string[][]): Gh {
 describe('runPublisher', () => {
   it('does not publish a rejected fix or its issue', async () => {
     const f = await fixture();
-    await f.workspace.saveFix({ version: 1, id: 'fix_1', issueId: f.issue.id, status: 'rejected',
-      runtime: 'fake', repo: '', branch: '', worktree: '', startedAt: 'now' });
+    await f.workspace.saveFix({
+      version: 1,
+      id: 'fix_1',
+      issueId: f.issue.id,
+      status: 'rejected',
+      runtime: 'fake',
+      repo: '',
+      branch: '',
+      worktree: '',
+      startedAt: 'now',
+    });
     const calls: string[][] = [];
     expect(await runPublisher(f.root, f.config, { gh: fakeGh(calls), createRuntime })).toEqual([]);
     expect(calls).toEqual([]);
@@ -53,8 +90,18 @@ describe('runPublisher', () => {
     const f = await fixture();
     const source = join(f.root, 'source');
     await mkdir(source);
-    const fix: FixProposal = { version: 1, id: 'fix_1', issueId: f.issue.id, status: 'verified', runtime: 'fake',
-      repo: source, worktree: source, branch: 'fix', startedAt: 'now', summary: 'Fixed' };
+    const fix: FixProposal = {
+      version: 1,
+      id: 'fix_1',
+      issueId: f.issue.id,
+      status: 'verified',
+      runtime: 'fake',
+      repo: source,
+      worktree: source,
+      branch: 'fix',
+      startedAt: 'now',
+      summary: 'Fixed',
+    };
     await f.workspace.saveFix(fix);
     // A fake Git directory lets git status and push run without touching GitHub.
     const { execFileSync } = await import('node:child_process');
@@ -76,7 +123,8 @@ describe('runPublisher', () => {
     await f.workspace.saveFix(fix);
     const calls: string[][] = [];
     expect(await runPublisher(f.root, f.config, { gh: fakeGh(calls), createRuntime })).toMatchObject([
-      { kind: 'pr', issueId: 'iss_1', url: 'https://github.com/o/r/pull/4' }]);
+      { kind: 'pr', issueId: 'iss_1', url: 'https://github.com/o/r/pull/4' },
+    ]);
     expect((await f.workspace.readFix(fix.id))?.pr?.number).toBe(4);
     const create = calls.find((args) => args[0] === 'pr' && args[1] === 'create')!;
     expect(create[create.indexOf('--title') + 1]).toBe('fix(app): fix the screen');
@@ -86,15 +134,29 @@ describe('runPublisher', () => {
   });
   it('publishes a major issue after a declined fix', async () => {
     const f = await fixture();
-    await f.workspace.saveFix({ version: 1, id: 'fix_1', issueId: f.issue.id, status: 'declined',
-      runtime: 'fake', repo: '', branch: '', worktree: '', startedAt: 'now', summary: 'No change' });
+    await f.workspace.saveFix({
+      version: 1,
+      id: 'fix_1',
+      issueId: f.issue.id,
+      status: 'declined',
+      runtime: 'fake',
+      repo: '',
+      branch: '',
+      worktree: '',
+      startedAt: 'now',
+      summary: 'No change',
+    });
     const calls: string[][] = [];
     expect(await runPublisher(f.root, f.config, { gh: fakeGh(calls), createRuntime })).toMatchObject([
-      { kind: 'issue', url: 'https://github.com/o/r/issues/8' }]);
+      { kind: 'issue', url: 'https://github.com/o/r/issues/8' },
+    ]);
     expect((await f.workspace.readIssue(f.issue.id))?.github?.number).toBe(8);
   });
   it('ignores minor and dismissed issues', async () => {
-    for (const [severity, status] of [['minor', 'new'], ['major', 'dismissed']] as const) {
+    for (const [severity, status] of [
+      ['minor', 'new'],
+      ['major', 'dismissed'],
+    ] as const) {
       const f = await fixture(severity, status);
       expect(await runPublisher(f.root, f.config, { gh: fakeGh([]), createRuntime })).toEqual([]);
       expect(await f.workspace.listSessions()).toEqual([]);
@@ -102,7 +164,10 @@ describe('runPublisher', () => {
   });
   it('records unavailable gh without publishing', async () => {
     const f = await fixture();
-    const gh: Gh = async (args) => { if (args[0] === 'auth') throw new Error('not logged in'); return 'gh version 2'; };
+    const gh: Gh = async (args) => {
+      if (args[0] === 'auth') throw new Error('not logged in');
+      return 'gh version 2';
+    };
     expect(await runPublisher(f.root, f.config, { gh, createRuntime })).toEqual([]);
     expect((await f.workspace.listSessions())[0]?.summary).toContain('gh is not logged in');
     expect((await f.workspace.readIssue(f.issue.id))?.github).toBeUndefined();
@@ -111,7 +176,8 @@ describe('runPublisher', () => {
     const f = await fixture();
     const calls: string[][] = [];
     expect(await runPublisher(f.root, f.config, { gh: fakeGh(calls), createRuntime, dryRun: true })).toMatchObject([
-      { kind: 'issue' }]);
+      { kind: 'issue' },
+    ]);
     expect(calls).toEqual([]);
     expect(await readFile(join(f.root, '.bugpatrol/runs/publish/iss_1.md'), 'utf8')).toContain('## What happened');
     expect((await f.workspace.readIssue(f.issue.id))?.github).toBeUndefined();

@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest';
-import { route, fixEligible, severityFrom } from './thresholds.js';
 import type { Answer } from '@bugpatrol/core';
+import { describe, expect, it } from 'vitest';
+import { fixEligible, route, severityFrom } from './thresholds.js';
 
 const thresholds = { high: 0.85, low: 0.55 };
 
@@ -62,20 +62,28 @@ describe('fixEligible', () => {
   });
 
   it('refuses a fix the decider called ambiguous', () => {
-    expect(
-      fixEligible({ ...base, answers: { route: choice('issue', 0.99), needs_frontier: noul(1, 0.9) } }),
-    ).toBe(false);
+    expect(fixEligible({ ...base, answers: { route: choice('issue', 0.99), needs_frontier: noul(1, 0.9) } })).toBe(
+      false,
+    );
   });
 
   it('allows a fix on a confident, unambiguous, unsuppressed finding', () => {
-    expect(fixEligible({ ...base, answers: { route: choice('issue', 0.99), needs_frontier: noul(0, 0.9) } })).toBe(true);
+    expect(fixEligible({ ...base, answers: { route: choice('issue', 0.99), needs_frontier: noul(0, 0.9) } })).toBe(
+      true,
+    );
   });
 });
 
 describe('severityFrom', () => {
   it('maps a score answer onto the legend', () => {
     expect(
-      severityFrom({ kind: 'score', value: 3, probabilities: [], confidence: 0.9, legend: ['cosmetic', 'minor', 'major', 'critical'] }),
+      severityFrom({
+        kind: 'score',
+        value: 3,
+        probabilities: [],
+        confidence: 0.9,
+        legend: ['cosmetic', 'minor', 'major', 'critical'],
+      }),
     ).toBe('critical');
   });
 

@@ -21,7 +21,11 @@ describe('evaluate', () => {
   });
 
   it('fails on a dimension change without reporting a meaningless percentage', () => {
-    const v = evaluate({ ...base, identical: false, dimensionMismatch: { baseline: [1440, 900], actual: [1440, 1200] } });
+    const v = evaluate({
+      ...base,
+      identical: false,
+      dimensionMismatch: { baseline: [1440, 900], actual: [1440, 1200] },
+    });
     expect(v.pass).toBe(false);
     expect(v.reason).toContain('changed size');
   });
@@ -39,7 +43,13 @@ describe('evaluate', () => {
   });
 
   it('names the consequence rather than only the pixel count', () => {
-    const v = evaluate({ ...base, identical: false, changedPixels: 4200, changedFraction: 0.0042, regions: [{ x: 0, y: 0, width: 10, height: 10 }] });
+    const v = evaluate({
+      ...base,
+      identical: false,
+      changedPixels: 4200,
+      changedFraction: 0.0042,
+      regions: [{ x: 0, y: 0, width: 10, height: 10 }],
+    });
     expect(v.pass).toBe(false);
     expect(v.reason).toMatch(/region/);
   });

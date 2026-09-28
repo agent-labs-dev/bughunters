@@ -1,8 +1,8 @@
 import { readFileSync, writeFileSync } from 'node:fs';
-import { PNG } from 'pngjs';
 import pixelmatch from 'pixelmatch';
+import { PNG } from 'pngjs';
+import { boundingRegions, isMasked, maskedPixelCount } from '../mask-accounting.js';
 import type { DiffRequest, DiffResult, MaskRegion } from '../types.js';
-import { boundingRegions, maskedPixelCount, isMasked } from '../mask-accounting.js';
 
 /**
  * The reference implementation. ISC-licensed, pixel-exact, a few hundred lines.

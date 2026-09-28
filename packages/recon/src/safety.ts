@@ -24,8 +24,9 @@ export async function classifyAction(
   options: { origin: string; decider?: Decider } = { origin: '' },
 ): Promise<{ class: ActionClass; reason: string }> {
   // data-bughunters-* is the name of the same marks before the rename to Bugpatrol.
-  const mark = (name: string) => candidate.dataAttributes?.[`bugpatrol${name}`] === 'true'
-    || candidate.dataAttributes?.[`bughunters${name}`] === 'true';
+  const mark = (name: string) =>
+    candidate.dataAttributes?.[`bugpatrol${name}`] === 'true' ||
+    candidate.dataAttributes?.[`bughunters${name}`] === 'true';
   if (mark('Safe')) {
     return { class: 'safe-action', reason: 'Explicitly marked safe by the repo.' };
   }

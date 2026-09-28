@@ -1,7 +1,7 @@
-import type { AgentSession } from '../session.js';
-import type { RoleOutcome, Runtime } from '../types.js';
-import { judgeTools, pendingCandidates } from '../tools/judge.js';
 import { judgePrompt, judgeSystem } from '../prompts.js';
+import type { AgentSession } from '../session.js';
+import { judgeTools, pendingCandidates } from '../tools/judge.js';
+import type { RoleOutcome, Runtime } from '../types.js';
 import { lessonsFor } from '../workspace.js';
 
 /** Reviews unresolved candidates so only confirmed problems become issues. */
@@ -31,11 +31,11 @@ export async function runJudge(
     const outcome = candidates.length
       ? await runtime.run(task, session.emit)
       : {
-        stop: 'done' as const,
-        steps: 0,
-        costUsd: 0,
-        summary: 'No candidates to judge',
-      };
+          stop: 'done' as const,
+          steps: 0,
+          costUsd: 0,
+          summary: 'No candidates to judge',
+        };
     const after = await session.workspace.listIssues();
     const newIssues = after.filter((item) => !issues.some((before) => before.id === item.id));
     await session.workspace.endSession(session.sessionId, {

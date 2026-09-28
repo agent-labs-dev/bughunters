@@ -1,4 +1,4 @@
-import { ConfigError, ExitCode, describeExit, type RunMode } from '@bugpatrol/core';
+import { ConfigError, describeExit, ExitCode, type RunMode } from '@bugpatrol/core';
 import type { RunResult } from './run-pipeline.js';
 
 export type RunFlags = {
@@ -33,7 +33,10 @@ export function parseRunFlags(args: string[]): RunFlags {
       case '--screens': {
         const value = args[++i];
         if (!value) throw new ConfigError('--screens needs a comma-separated list, e.g. --screens /settings,/billing');
-        flags.only = value.split(',').map((s) => s.trim()).filter(Boolean);
+        flags.only = value
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean);
         break;
       }
       case '--commit': {
@@ -44,7 +47,11 @@ export function parseRunFlags(args: string[]): RunFlags {
       }
       default:
         if (arg.startsWith('--screens=')) {
-          flags.only = arg.slice('--screens='.length).split(',').map((s) => s.trim()).filter(Boolean);
+          flags.only = arg
+            .slice('--screens='.length)
+            .split(',')
+            .map((s) => s.trim())
+            .filter(Boolean);
           break;
         }
         throw new ConfigError(`Unknown flag for \`bugpatrol run\`: ${arg}`);

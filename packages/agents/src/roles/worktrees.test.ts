@@ -3,17 +3,20 @@ import { existsSync } from 'node:fs';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { type FixProposal, type Issue, parseConfig } from '@bugpatrol/core';
 import { afterEach, describe, expect, it } from 'vitest';
-import { parseConfig, type FixProposal, type Issue } from '@bugpatrol/core';
 import { AgentSession } from '../session.js';
+import type { Runtime } from '../types.js';
 import { Vars } from '../vars.js';
 import { Workspace } from '../workspace.js';
-import type { Runtime } from '../types.js';
 import { runFixer } from './fixer.js';
 import { cleanWorktrees } from './worktrees.js';
 
 const roots: string[] = [];
-afterEach(async () => { await Promise.all(roots.map((root) => rm(root, { recursive: true, force: true }))); roots.length = 0; });
+afterEach(async () => {
+  await Promise.all(roots.map((root) => rm(root, { recursive: true, force: true })));
+  roots.length = 0;
+});
 const git = (cwd: string, ...args: string[]) =>
   execFileSync('git', args, { cwd, encoding: 'utf8', stdio: 'pipe' }).trim();
 
@@ -39,16 +42,40 @@ async function fixture(status: FixProposal['status'] = 'declined') {
   await mkdir(join(root, '.bugpatrol', 'runs', 'worktrees'), { recursive: true });
   git(repo, 'worktree', 'add', '-q', '-b', branch, worktree, 'HEAD');
   const workspace = new Workspace(root);
-  const issue: Issue = { version: 1, id: 'iss_1', fingerprint: 'fp', title: 'Broken screen', body: 'Broken',
-    severity: 'major', status: 'filed', candidateIds: [], evidence: {},
-    judgement: { by: 'judge', reason: 'Broken', at: 'now' }, occurrences: 1, firstSeenAt: 'now', lastSeenAt: 'now',
-    fixId: 'fix_iss_1' };
-  const fix: FixProposal = { version: 1, id: 'fix_iss_1', issueId: issue.id, status,
-    runtime: 'fake', repo, branch, worktree, startedAt: 'now' };
+  const issue: Issue = {
+    version: 1,
+    id: 'iss_1',
+    fingerprint: 'fp',
+    title: 'Broken screen',
+    body: 'Broken',
+    severity: 'major',
+    status: 'filed',
+    candidateIds: [],
+    evidence: {},
+    judgement: { by: 'judge', reason: 'Broken', at: 'now' },
+    occurrences: 1,
+    firstSeenAt: 'now',
+    lastSeenAt: 'now',
+    fixId: 'fix_iss_1',
+  };
+  const fix: FixProposal = {
+    version: 1,
+    id: 'fix_iss_1',
+    issueId: issue.id,
+    status,
+    runtime: 'fake',
+    repo,
+    branch,
+    worktree,
+    startedAt: 'now',
+  };
   await workspace.saveIssue(issue);
   await workspace.saveFix(fix);
-  const config = parseConfig({ version: 1, app: { source: 'source', connect: { url: 'http://localhost' } },
-    agents: { fixer: { enabled: true, use: { runtime: 'cli', command: 'fake' } } } });
+  const config = parseConfig({
+    version: 1,
+    app: { source: 'source', connect: { url: 'http://localhost' } },
+    agents: { fixer: { enabled: true, use: { runtime: 'cli', command: 'fake' } } },
+  });
   return { root, repo, remote, worktree, branch, workspace, issue, fix, config };
 }
 
@@ -59,8 +86,10 @@ describe('cleanWorktrees', () => {
     git(f.worktree, 'add', '.');
     git(f.worktree, '-c', 'commit.gpgsign=false', 'commit', '-qm', 'fix');
     git(f.repo, 'merge', '--ff-only', f.branch);
-    await f.workspace.saveFix({ ...f.fix, pr: { number: 7, url: 'https://github.com/o/r/pull/7',
-      draft: false, state: 'merged' } });
+    await f.workspace.saveFix({
+      ...f.fix,
+      pr: { number: 7, url: 'https://github.com/o/r/pull/7', draft: false, state: 'merged' },
+    });
     expect((await cleanWorktrees(f.root, f.config)).removed).toEqual(['fix_iss_1']);
     expect(existsSync(f.worktree)).toBe(false);
     expect((await f.workspace.readFix(f.fix.id))?.worktreeRemovedAt).toBeTruthy();
@@ -69,11 +98,15 @@ describe('cleanWorktrees', () => {
 
   it('keeps a worktree with uncommitted changes', async () => {
     const f = await fixture('verified');
-    await f.workspace.saveFix({ ...f.fix, pr: { number: 7, url: 'https://github.com/o/r/pull/7',
-      draft: false, state: 'merged' } });
+    await f.workspace.saveFix({
+      ...f.fix,
+      pr: { number: 7, url: 'https://github.com/o/r/pull/7', draft: false, state: 'merged' },
+    });
     await writeFile(join(f.worktree, 'app.txt'), 'local change\n');
-    expect(await cleanWorktrees(f.root, f.config)).toEqual({ removed: [],
-      kept: [{ id: f.fix.id, reason: 'uncommitted changes' }] });
+    expect(await cleanWorktrees(f.root, f.config)).toEqual({
+      removed: [],
+      kept: [{ id: f.fix.id, reason: 'uncommitted changes' }],
+    });
     expect(existsSync(f.worktree)).toBe(true);
   });
 
@@ -85,8 +118,10 @@ describe('cleanWorktrees', () => {
     git(f.worktree, 'push', '-q', '-u', 'origin', f.branch);
     git(f.repo, 'update-ref', '-d', `refs/remotes/origin/${f.branch}`);
     git(f.repo, 'config', 'remote.origin.fetch', '+refs/heads/main:refs/remotes/origin/main');
-    await f.workspace.saveFix({ ...f.fix, pr: { number: 7, url: 'https://github.com/o/r/pull/7',
-      draft: false, state: 'closed' } });
+    await f.workspace.saveFix({
+      ...f.fix,
+      pr: { number: 7, url: 'https://github.com/o/r/pull/7', draft: false, state: 'closed' },
+    });
     expect((await cleanWorktrees(f.root, f.config)).removed).toEqual([f.fix.id]);
     expect(git(f.repo, 'branch', '--list', f.branch)).toBe('');
   });
@@ -97,8 +132,10 @@ describe('cleanWorktrees', () => {
     git(f.worktree, 'add', '.');
     git(f.worktree, 'commit', '-qm', 'local fix');
     git(f.repo, 'update-ref', `refs/remotes/origin/${f.branch}`, git(f.worktree, 'rev-parse', 'HEAD'));
-    await f.workspace.saveFix({ ...f.fix, pr: { number: 7, url: 'https://github.com/o/r/pull/7',
-      draft: false, state: 'closed' } });
+    await f.workspace.saveFix({
+      ...f.fix,
+      pr: { number: 7, url: 'https://github.com/o/r/pull/7', draft: false, state: 'closed' },
+    });
     await cleanWorktrees(f.root, f.config);
     expect(git(f.repo, 'branch', '--list', f.branch)).toBe(f.branch);
   });
@@ -127,8 +164,10 @@ describe('cleanWorktrees', () => {
     await writeFile(join(f.worktree, 'app.txt'), 'attempted fix\n');
     git(f.worktree, 'add', '.');
     git(f.worktree, '-c', 'commit.gpgsign=false', 'commit', '-qm', 'attempt');
-    expect(await cleanWorktrees(f.root, f.config)).toEqual({ removed: [],
-      kept: [{ id: f.fix.id, reason: 'local commits' }] });
+    expect(await cleanWorktrees(f.root, f.config)).toEqual({
+      removed: [],
+      kept: [{ id: f.fix.id, reason: 'local commits' }],
+    });
     expect(existsSync(f.worktree)).toBe(true);
   });
 
@@ -139,9 +178,12 @@ describe('cleanWorktrees', () => {
     git(f.repo, 'branch', f.branch);
     const record = await f.workspace.startSession('fixer');
     const session = new AgentSession(f.root, f.config, new Vars(), record.id, 'fixer');
-    const runtime: Runtime = { label: 'fake', async run() {
-      return { stop: 'done', steps: 0, costUsd: 0, summary: 'No change needed' };
-    } };
+    const runtime: Runtime = {
+      label: 'fake',
+      async run() {
+        return { stop: 'done', steps: 0, costUsd: 0, summary: 'No change needed' };
+      },
+    };
     const [proposal] = await runFixer(session, runtime, { issueIds: [f.issue.id] });
     expect(proposal?.branch).toBe('bugpatrol/fix-iss_1-2');
     expect(proposal?.worktree).toBe(f.worktree);

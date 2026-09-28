@@ -9,9 +9,7 @@ type Options = {
   maxCalls?: number;
 };
 
-type McpContent =
-  | { type: 'text'; text: string }
-  | { type: 'image'; data: string; mimeType: string };
+type McpContent = { type: 'text'; text: string } | { type: 'image'; data: string; mimeType: string };
 
 /**
  * Serves a role's tools to a CLI agent (ADR 0005). The server is stateless:

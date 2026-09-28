@@ -1,6 +1,6 @@
-import { readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import type { Finding, Intent, IntentScope, ProjectId } from '@bugpatrol/core';
-import { paths, id } from '@bugpatrol/core';
+import { id, paths } from '@bugpatrol/core';
 
 export type LedgerFile = { version: 1; intents: Intent[] };
 

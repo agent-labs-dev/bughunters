@@ -27,8 +27,12 @@ export function usageFrom(raw: unknown): TokenUsage | undefined {
   const u = raw as Record<string, unknown>;
   if ('prompt_tokens' in u || 'completion_tokens' in u) {
     const details = u.prompt_tokens_details as Record<string, unknown> | undefined;
-    return clean({ input: num(u.prompt_tokens), output: num(u.completion_tokens),
-      cacheRead: num(details?.cached_tokens), cacheWrite: num(details?.cache_write_tokens) });
+    return clean({
+      input: num(u.prompt_tokens),
+      output: num(u.completion_tokens),
+      cacheRead: num(details?.cached_tokens),
+      cacheWrite: num(details?.cache_write_tokens),
+    });
   }
   if ('input_tokens' in u || 'output_tokens' in u) {
     // Anthropic counts cached tokens apart from input_tokens; Codex counts
@@ -36,10 +40,19 @@ export function usageFrom(raw: unknown): TokenUsage | undefined {
     const cacheRead = num(u.cache_read_input_tokens);
     const cacheWrite = num(u.cache_creation_input_tokens);
     if ('cached_input_tokens' in u) {
-      return clean({ input: num(u.input_tokens), output: num(u.output_tokens),
-        cacheRead: num(u.cached_input_tokens), cacheWrite: num(u.cache_write_input_tokens) });
+      return clean({
+        input: num(u.input_tokens),
+        output: num(u.output_tokens),
+        cacheRead: num(u.cached_input_tokens),
+        cacheWrite: num(u.cache_write_input_tokens),
+      });
     }
-    return clean({ input: num(u.input_tokens) + cacheRead + cacheWrite, output: num(u.output_tokens), cacheRead, cacheWrite });
+    return clean({
+      input: num(u.input_tokens) + cacheRead + cacheWrite,
+      output: num(u.output_tokens),
+      cacheRead,
+      cacheWrite,
+    });
   }
   return undefined;
 }
@@ -68,7 +81,8 @@ export function addUsage(a: TokenUsage | undefined, b: TokenUsage | undefined): 
 /** "25.6k in (10.4k cached), 4 out". */
 export function formatUsage(usage: TokenUsage | undefined): string {
   if (!usage) return 'no token usage reported';
-  const k = (n: number) => (n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1)}M` : n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n));
+  const k = (n: number) =>
+    n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1)}M` : n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n);
   const cached = usage.cacheRead ? ` (${k(usage.cacheRead)} cached)` : '';
   return `${usage.estimated ? '~' : ''}${k(usage.input)} in${cached}, ${k(usage.output)} out tokens`;
 }
@@ -85,4 +99,3 @@ export function usageOf(events: AgentEvent[]): Pick<SessionSummary, 'tokens' | '
   }
   return tokens ? { tokens, tokensByModel: byModel } : {};
 }
-

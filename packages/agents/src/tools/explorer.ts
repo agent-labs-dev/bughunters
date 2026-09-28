@@ -1,43 +1,82 @@
 import { randomUUID } from 'node:crypto';
-import { fingerprint, shortHash, type Candidate, type Locator, type Routine, type RoutineStep, type ScreenTransition } from '@bugpatrol/core';
+import {
+  type Candidate,
+  fingerprint,
+  type Locator,
+  type Routine,
+  type RoutineStep,
+  type ScreenTransition,
+  shortHash,
+} from '@bugpatrol/core';
 import type { DriverAction, Observation, UiElement } from '@bugpatrol/drivers';
 import { addOccurrence, evaluateScreen } from '../evaluate.js';
-import { lessonTools } from './memory.js';
 import { replayRoutine } from '../replay.js';
 import type { AgentSession } from '../session.js';
 import type { Tool, ToolResult } from '../types.js';
+import { lessonTools } from './memory.js';
 
 const text = (value: string): ToolResult => ({ content: [{ type: 'text', text: value }] });
 const schema = (properties: Record<string, unknown>, required: string[] = []) => ({
-  type: 'object', properties, required, additionalProperties: false,
+  type: 'object',
+  properties,
+  required,
+  additionalProperties: false,
 });
 const string = { type: 'string' };
 const boolean = { type: 'boolean' };
 const arg = (input: Record<string, unknown>, key: string) => String(input[key] ?? '');
-const slug = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'screen';
+const slug = (value: string) =>
+  value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '') || 'screen';
 
 function elementLine(element: UiElement): string {
   const box = element.box;
-  const flags = [element.value !== undefined ? `value=${JSON.stringify(element.value)}` : '',
-    element.focused ? 'focused' : '', element.enabled ? '' : 'disabled'].filter(Boolean).join(' ');
-  return `[${element.ref}] ${element.role} ${JSON.stringify(element.name)}` +
-    ` (${box.x},${box.y} ${box.width}x${box.height})${flags ? ` ${flags}` : ''}`;
+  const flags = [
+    element.value !== undefined ? `value=${JSON.stringify(element.value)}` : '',
+    element.focused ? 'focused' : '',
+    element.enabled ? '' : 'disabled',
+  ]
+    .filter(Boolean)
+    .join(' ');
+  return (
+    `[${element.ref}] ${element.role} ${JSON.stringify(element.name)}` +
+    ` (${box.x},${box.y} ${box.width}x${box.height})${flags ? ` ${flags}` : ''}`
+  );
 }
 
 /** What the app logged since the last observation: the signals that a screenshot does not show. */
 export function errorLines(observation: Observation): string[] {
   const unique = (items: string[] = []) => [...new Set(items)].map((item) => item.slice(0, 200));
-  const lines = (label: string, items: string[]) => items.length
-    ? [`${label}:`, ...items.slice(0, 5).map((item) => `- ${item}`), ...(items.length > 5 ? [`- (${items.length - 5} more)`] : [])]
-    : [];
-  return [...lines('Console errors', unique(observation.consoleErrors)), ...lines('Failed requests', unique(observation.networkErrors))];
+  const lines = (label: string, items: string[]) =>
+    items.length
+      ? [
+          `${label}:`,
+          ...items.slice(0, 5).map((item) => `- ${item}`),
+          ...(items.length > 5 ? [`- (${items.length - 5} more)`] : []),
+        ]
+      : [];
+  return [
+    ...lines('Console errors', unique(observation.consoleErrors)),
+    ...lines('Failed requests', unique(observation.networkErrors)),
+  ];
 }
 
 function observationText(observation: Observation): string {
-  const windows = observation.windows?.map((window) =>
-    `${window.active ? '*' : ' '} ${window.title} (${window.location})`).join('; ') ?? '(none)';
-  return [`Location: ${observation.location}`, `Windows: ${windows}`, ...errorLines(observation), 'Elements:',
-    ...observation.elements.slice(0, 117).map(elementLine)].slice(0, 130).join('\n');
+  const windows =
+    observation.windows
+      ?.map((window) => `${window.active ? '*' : ' '} ${window.title} (${window.location})`)
+      .join('; ') ?? '(none)';
+  return [
+    `Location: ${observation.location}`,
+    `Windows: ${windows}`,
+    ...errorLines(observation),
+    'Elements:',
+    ...observation.elements.slice(0, 117).map(elementLine),
+  ]
+    .slice(0, 130)
+    .join('\n');
 }
 
 async function observe(session: AgentSession, label: string, summary?: string): Promise<ToolResult> {
@@ -58,7 +97,12 @@ async function observe(session: AgentSession, label: string, summary?: string): 
  * change when the app state changes, e.g. a new row in a list.
  */
 function locationKey(observation: Observation): string {
-  const names = shortHash(observation.elements.map((item) => item.name).sort().join('|'));
+  const names = shortHash(
+    observation.elements
+      .map((item) => item.name)
+      .sort()
+      .join('|'),
+  );
   return observation.platform === 'ios' || observation.platform === 'android'
     ? names
     : `${screenKey(observation)}|${names}`;
@@ -74,16 +118,27 @@ function transition(session: AgentSession, to: string): ScreenTransition | undef
   const actions = session.trail.slice(session.lastScreenTrailIndex).filter((step) => step.kind !== 'wait');
   if (!session.lastScreenId || session.lastScreenId === to || !actions.length || actions.length > 4) return;
   const last = actions.at(-1)!;
-  const kind = actions.some((step) => step.kind === 'open' || step.kind === 'window') ? 'open'
-    : last.kind === 'back' ? 'back'
-      : last.kind === 'tap' || last.kind === 'press' || (last.kind === 'type' && last.submit) ? 'tap' : 'other';
-  const label = last.kind === 'tap' ? last.target.name ?? last.target.text ?? last.target.testId ?? 'tap'
-    : last.kind === 'open' ? `open ${last.url}`
-      : last.kind === 'window' ? `window ${last.match}`
-        : last.kind === 'back' ? 'back'
-          : last.kind === 'press' ? `press ${last.key}`
-            : last.kind === 'type' ? last.target?.name ?? 'submit'
-              : last.kind;
+  const kind = actions.some((step) => step.kind === 'open' || step.kind === 'window')
+    ? 'open'
+    : last.kind === 'back'
+      ? 'back'
+      : last.kind === 'tap' || last.kind === 'press' || (last.kind === 'type' && last.submit)
+        ? 'tap'
+        : 'other';
+  const label =
+    last.kind === 'tap'
+      ? (last.target.name ?? last.target.text ?? last.target.testId ?? 'tap')
+      : last.kind === 'open'
+        ? `open ${last.url}`
+        : last.kind === 'window'
+          ? `window ${last.match}`
+          : last.kind === 'back'
+            ? 'back'
+            : last.kind === 'press'
+              ? `press ${last.key}`
+              : last.kind === 'type'
+                ? (last.target?.name ?? 'submit')
+                : last.kind;
   const via = (session.vars.redact(label) as string).slice(0, 60);
   return { to, kind, via, steps: actions.length, count: 1, lastSeenAt: new Date().toISOString() };
 }
@@ -91,8 +146,12 @@ function transition(session: AgentSession, to: string): ScreenTransition | undef
 async function arrive(session: AgentSession, to: string, key: string): Promise<void> {
   const edge = transition(session, to);
   if (session.lastScreenId && session.lastScreenId !== to) {
-    await session.workspace.upsertScreen({ id: session.lastScreenId, links: [to],
-      ...(edge ? { transitions: [edge] } : {}), visits: 0 });
+    await session.workspace.upsertScreen({
+      id: session.lastScreenId,
+      links: [to],
+      ...(edge ? { transitions: [edge] } : {}),
+      visits: 0,
+    });
   }
   session.lastScreenId = to;
   session.lastScreenLocation = key;
@@ -154,7 +213,8 @@ async function act(session: AgentSession, action: DriverAction, recorded?: Routi
   if (!result.ok) return failed(session, result.error ?? 'Action failed', summary);
   await session.driver!.settle();
   const viewed = await observe(session, action.kind, summary);
-  if (recorded ?? result.step) session.trail.push({ ...(recorded ?? result.step)!, at: locationKey(session.lastObservation!) });
+  if (recorded ?? result.step)
+    session.trail.push({ ...(recorded ?? result.step)!, at: locationKey(session.lastObservation!) });
   await arriveAtKnownScreen(session, before);
   if (replacement) viewed.content.unshift({ type: 'text', text: replacement.message });
   return viewed;
@@ -164,13 +224,18 @@ function resolveOldRef(session: AgentSession, ref?: string): { ref: string; mess
   if (!ref || session.lastObservation?.elements.some((item) => item.ref === ref)) return;
   const old = session.previousObservation?.elements.find((item) => item.ref === ref);
   if (!old) return;
-  const matches = session.lastObservation?.elements.filter((item) => item.role === old.role && item.name === old.name) ?? [];
+  const matches =
+    session.lastObservation?.elements.filter((item) => item.role === old.role && item.name === old.name) ?? [];
   const center = (box: UiElement['box']) => ({ x: box.x + box.width / 2, y: box.y + box.height / 2 });
   const from = center(old.box);
-  const nearest = matches.map((item) => ({ item, distance: Math.hypot(center(item.box).x - from.x, center(item.box).y - from.y) }))
+  const nearest = matches
+    .map((item) => ({ item, distance: Math.hypot(center(item.box).x - from.x, center(item.box).y - from.y) }))
     .sort((a, b) => a.distance - b.distance)[0];
   if (!nearest || (matches.length > 1 && nearest.distance > 100)) return;
-  return { ref: nearest.item.ref, message: `Ref ${ref} was from an older screen; used ${nearest.item.ref} (${JSON.stringify(old.name)}).` };
+  return {
+    ref: nearest.item.ref,
+    message: `Ref ${ref} was from an older screen; used ${nearest.item.ref} (${JSON.stringify(old.name)}).`,
+  };
 }
 
 /**
@@ -190,8 +255,12 @@ async function failed(session: AgentSession, error: string, summary: string): Pr
   };
 }
 
-async function saveRoutine(session: AgentSession, id: string, description: string,
-  screenId?: string): Promise<{ routine: Routine; flattenedFrom?: number }> {
+async function saveRoutine(
+  session: AgentSession,
+  id: string,
+  description: string,
+  screenId?: string,
+): Promise<{ routine: Routine; flattenedFrom?: number }> {
   const prior = await session.workspace.readRoutine(id);
   const now = new Date().toISOString();
   let steps = session.trail.slice(session.anchor.index);
@@ -217,7 +286,8 @@ async function saveRoutine(session: AgentSession, id: string, description: strin
     description,
     platform: session.config.app.platform,
     requires,
-    steps: compactSteps(steps), screenId,
+    steps: compactSteps(steps),
+    screenId,
     expect: endState(session),
     createdAt: prior?.createdAt ?? now,
     updatedAt: now,
@@ -311,13 +381,20 @@ export function explorerTools(session: AgentSession): Tool[] {
     {
       name: 'type',
       description: 'Type in a field, preserving {{NAME}} placeholders for secrets.',
-      inputSchema: schema({ ref: string, text: string, submit: boolean,
-        append: { type: 'boolean', description: 'Add to the text already in the field. Default: replace it.' } }, ['text']),
+      inputSchema: schema(
+        {
+          ref: string,
+          text: string,
+          submit: boolean,
+          append: { type: 'boolean', description: 'Add to the text already in the field. Default: replace it.' },
+        },
+        ['text'],
+      ),
       async run(input) {
         const before = session.lastObservation;
         const value = arg(input, 'text');
         const replacement = resolveOldRef(session, input.ref as string | undefined);
-        const ref = replacement?.ref ?? input.ref as string | undefined;
+        const ref = replacement?.ref ?? (input.ref as string | undefined);
         const submit = Boolean(input.submit);
         const append = input.append === true;
         const summary = describe(session, { kind: 'type', ref, value });
@@ -354,10 +431,13 @@ export function explorerTools(session: AgentSession): Tool[] {
     {
       name: 'scroll',
       description: 'Scroll one direction.',
-      inputSchema: schema({
-        direction: { type: 'string', enum: ['up', 'down', 'left', 'right'] },
-        ref: string,
-      }, ['direction']),
+      inputSchema: schema(
+        {
+          direction: { type: 'string', enum: ['up', 'down', 'left', 'right'] },
+          ref: string,
+        },
+        ['direction'],
+      ),
       run(input) {
         const direction = input.direction as 'up' | 'down' | 'left' | 'right';
         return act(session, { kind: 'scroll', direction, ref: input.ref as string | undefined });
@@ -375,9 +455,11 @@ export function explorerTools(session: AgentSession): Tool[] {
       inputSchema: schema({ url: string }, ['url']),
       run(input) {
         const url = arg(input, 'url');
-        return act(session,
+        return act(
+          session,
           { kind: 'open', url: session.vars.resolve(url) },
-          { kind: 'open', url: session.vars.redact(url) as string });
+          { kind: 'open', url: session.vars.redact(url) as string },
+        );
       },
     },
     {
@@ -392,8 +474,7 @@ export function explorerTools(session: AgentSession): Tool[] {
     {
       name: 'record_screen',
       description: 'Record this screen and its routine in the app map.',
-      inputSchema: schema({ id: string, name: string, description: string },
-        ['id', 'name', 'description']),
+      inputSchema: schema({ id: string, name: string, description: string }, ['id', 'name', 'description']),
       async run(input) {
         const id = slug(arg(input, 'id'));
         const name = arg(input, 'name');
@@ -403,7 +484,11 @@ export function explorerTools(session: AgentSession): Tool[] {
         const observation = await session.driver!.observe();
         const screenshot = await session.capture(observation, id);
         const findings = session.config.agents.checks.length
-          ? await evaluateScreen(session, { screenId: id, observation, snapshot: session.driver!.snapshot(observation, id) })
+          ? await evaluateScreen(session, {
+              screenId: id,
+              observation,
+              snapshot: session.driver!.snapshot(observation, id),
+            })
           : [];
         const previous = session.lastScreenId;
         const edge = transition(session, id);
@@ -420,15 +505,20 @@ export function explorerTools(session: AgentSession): Tool[] {
           lastScreenshot: screenshot,
         });
         if (previous && previous !== id) {
-          await session.workspace.upsertScreen({ id: previous, links: [id],
-            ...(edge ? { transitions: [edge] } : {}), visits: 0 });
+          await session.workspace.upsertScreen({
+            id: previous,
+            links: [id],
+            ...(edge ? { transitions: [edge] } : {}),
+            visits: 0,
+          });
         }
         session.lastScreenId = id;
         session.lastScreenLocation = screenKey(observation);
         session.lastScreenTrailIndex = session.trail.length;
         const screens = (await session.workspace.readAppMap())?.screens ?? [];
         const names = screens.map((screen) => screen.id).join(', ') || id;
-        const found = !session.config.agents.checks.length ? ''
+        const found = !session.config.agents.checks.length
+          ? ''
           : findings.length
             ? ` ${findings.length} automatic finding(s): ${findings.map((item) => item.summary).join('; ')}.`
             : ' No automatic findings.';
@@ -440,7 +530,11 @@ export function explorerTools(session: AgentSession): Tool[] {
           screenshot,
         });
         return {
-          ...text(session.vars.redact(`Recorded ${name}.${found} Known screens: ${names}${errors.length ? `\n${errors.join('\n')}` : ''}`) as string),
+          ...text(
+            session.vars.redact(
+              `Recorded ${name}.${found} Known screens: ${names}${errors.length ? `\n${errors.join('\n')}` : ''}`,
+            ) as string,
+          ),
           meta: { summary: '', screenshot, screenId: id },
         };
       },
@@ -452,7 +546,9 @@ export function explorerTools(session: AgentSession): Tool[] {
       async run(input) {
         const id = slug(arg(input, 'id'));
         const { routine, flattenedFrom } = await saveRoutine(session, id, arg(input, 'description'));
-        return text(`Saved ${routine.id} (requires ${routine.requires?.join(', ') || 'none'}, ${routine.steps.length} steps${flattenedFrom ? `, flattened from a chain of ${flattenedFrom}` : ''}).`);
+        return text(
+          `Saved ${routine.id} (requires ${routine.requires?.join(', ') || 'none'}, ${routine.steps.length} steps${flattenedFrom ? `, flattened from a chain of ${flattenedFrom}` : ''}).`,
+        );
       },
     },
     {
@@ -475,14 +571,18 @@ export function explorerTools(session: AgentSession): Tool[] {
     },
     {
       name: 'report_bug',
-      description: "Report a visible product bug for judge review. screen_id is the id you gave record_screen for the screen you are on, or 'unrecorded'.",
-      inputSchema: schema({
-        screen_id: string,
-        title: string,
-        what_is_wrong: string,
-        expected: string,
-        severity: { type: 'string', enum: ['cosmetic', 'minor', 'major', 'critical'] },
-      }, ['screen_id', 'title', 'what_is_wrong', 'expected', 'severity']),
+      description:
+        "Report a visible product bug for judge review. screen_id is the id you gave record_screen for the screen you are on, or 'unrecorded'.",
+      inputSchema: schema(
+        {
+          screen_id: string,
+          title: string,
+          what_is_wrong: string,
+          expected: string,
+          severity: { type: 'string', enum: ['cosmetic', 'minor', 'major', 'critical'] },
+        },
+        ['screen_id', 'title', 'what_is_wrong', 'expected', 'severity'],
+      ),
       async run(input) {
         const title = arg(input, 'title');
         if (!session.lastScreenshot) {
@@ -503,8 +603,7 @@ export function explorerTools(session: AgentSession): Tool[] {
             domNodeSignature: title.toLowerCase(),
           }),
           summary: session.vars.redact(title) as string,
-          detail: session.vars.redact(
-            `${arg(input, 'what_is_wrong')}\nExpected: ${arg(input, 'expected')}`) as string,
+          detail: session.vars.redact(`${arg(input, 'what_is_wrong')}\nExpected: ${arg(input, 'expected')}`) as string,
           severity: input.severity as Candidate['severity'],
           evidence: {
             screenshot: session.lastScreenshot,
@@ -515,7 +614,8 @@ export function explorerTools(session: AgentSession): Tool[] {
           createdAt: new Date().toISOString(),
         };
         const decided = (await session.workspace.readTriage()).fingerprints[candidate.fingerprint];
-        if (decided?.decision === 'dismissed') return text(`Not reported: the QA lead dismissed this before (${decided.reason}). Continue.${fallback}`);
+        if (decided?.decision === 'dismissed')
+          return text(`Not reported: the QA lead dismissed this before (${decided.reason}). Continue.${fallback}`);
         if (decided?.decision === 'filed' && decided.issueId) {
           const issue = await session.workspace.readIssue(decided.issueId);
           if (issue && issue.status !== 'fixed' && issue.status !== 'dismissed') {
@@ -534,8 +634,7 @@ export function explorerTools(session: AgentSession): Tool[] {
       inputSchema: schema({}),
       async run() {
         const screens = (await session.workspace.readAppMap())?.screens ?? [];
-        const lines = screens.map((screen) =>
-          `${screen.id}: ${screen.name} (${screen.routineId ?? 'no routine'})`);
+        const lines = screens.map((screen) => `${screen.id}: ${screen.name} (${screen.routineId ?? 'no routine'})`);
         return text(lines.join('\n') || '(none)');
       },
     },

@@ -1,11 +1,6 @@
-import type { RunId, ProjectId, ScreenId, FlowId, FindingId, FileRef } from './ids.js';
+import type { FileRef, FindingId, FlowId, ProjectId, RunId, ScreenId } from './ids.js';
 
-export type TestPlanReason =
-  | 'direct-change'
-  | 'shared-component'
-  | 'flow-member'
-  | 'smoke-fallback'
-  | 'always-on';
+export type TestPlanReason = 'direct-change' | 'shared-component' | 'flow-member' | 'smoke-fallback' | 'always-on';
 
 export type TestPlanItem = {
   target: { screenId?: ScreenId; viewport?: string; flowId?: FlowId; invariant?: string };

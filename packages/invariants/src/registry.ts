@@ -1,14 +1,14 @@
-import type { InvariantRule, InvariantViolation, ScreenSnapshot } from './types.js';
 import {
-  overlap,
-  overflow,
-  zeroSizeInteractive,
-  occlusion,
   horizontalScroll,
-  offViewport,
   layoutShift,
+  occlusion,
+  offViewport,
+  overflow,
+  overlap,
+  zeroSizeInteractive,
 } from './rules/layout.js';
-import { tapTarget, contrast, brokenImagery, unstyledContent, consoleErrors } from './rules/usability.js';
+import { brokenImagery, consoleErrors, contrast, tapTarget, unstyledContent } from './rules/usability.js';
+import type { InvariantRule, InvariantViolation, ScreenSnapshot } from './types.js';
 
 /**
  * The layout invariant engine. No mature open-source library does this, and it

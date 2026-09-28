@@ -4,12 +4,28 @@
   "description": "AI agents that explore your app, find bugs, and fix them.",
   "license": "Apache-2.0",
   "type": "module",
-  "bin": { "bugpatrol": "./dist/bin.js" },
-  "engines": { "node": ">=22" },
-  "files": ["dist", "src/ui", "LICENSE", "NOTICE"],
-  "repository": { "type": "git", "url": "git+https://github.com/agent-labs-dev/bugpatrol.git" },
-  "publishConfig": { "access": "public" },
-  "scripts": { "build": "node build.mjs" },
+  "bin": {
+    "bugpatrol": "./dist/bin.js"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "files": [
+    "dist",
+    "src/ui",
+    "LICENSE",
+    "NOTICE"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/agent-labs-dev/bugpatrol.git"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "node build.mjs"
+  },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.20.0",
     "odiff-bin": "^3.2.1",

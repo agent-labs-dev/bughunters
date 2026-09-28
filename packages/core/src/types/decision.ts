@@ -1,5 +1,5 @@
-import type { TokenUsage } from './usage.js';
 import type { DecisionId, ScreenId } from './ids.js';
+import type { TokenUsage } from './usage.js';
 
 export type Question =
   | { type: 'noul'; instructions: string }

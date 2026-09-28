@@ -1,7 +1,7 @@
+import type { Finding } from '@bugpatrol/core';
+import { id } from '@bugpatrol/core';
 import { describe, expect, it } from 'vitest';
 import { IntentLedger } from './ledger.js';
-import { id } from '@bugpatrol/core';
-import type { Finding } from '@bugpatrol/core';
 
 function finding(overrides: Partial<Finding> = {}): Finding {
   return {

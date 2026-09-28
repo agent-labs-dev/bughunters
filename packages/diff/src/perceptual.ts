@@ -88,8 +88,5 @@ function windowSsim(a: Float64Array, b: Float64Array, width: number, ox: number,
   varB /= n - 1;
   cov /= n - 1;
 
-  return (
-    ((2 * meanA * meanB + C1) * (2 * cov + C2)) /
-    ((meanA ** 2 + meanB ** 2 + C1) * (varA + varB + C2))
-  );
+  return ((2 * meanA * meanB + C1) * (2 * cov + C2)) / ((meanA ** 2 + meanB ** 2 + C1) * (varA + varB + C2));
 }

@@ -1,10 +1,10 @@
-import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
+import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { type Issue, paths } from '@bugpatrol/core';
 import { describe, expect, it } from 'vitest';
-import { paths, type Issue } from '@bugpatrol/core';
-import { Workspace } from './workspace.js';
 import { Vars } from './vars.js';
+import { Workspace } from './workspace.js';
 
 describe('Workspace', () => {
   it('merges screens and persists sessions with relative screenshots and append-only events', async () => {
@@ -16,10 +16,20 @@ describe('Workspace', () => {
       expect(screen.links).toEqual(['settings', 'profile']);
       expect(screen.visits).toBe(3);
       expect(screen.lastScreenshot).toBe('first.png');
-      const transition = { to: 'settings', kind: 'tap' as const, via: 'Settings',
-        steps: 3, count: 1, lastSeenAt: 'old' };
+      const transition = {
+        to: 'settings',
+        kind: 'tap' as const,
+        via: 'Settings',
+        steps: 3,
+        count: 1,
+        lastSeenAt: 'old',
+      };
       await workspace.upsertScreen({ id: 'home', transitions: [transition], visits: 0 });
-      const repeated = await workspace.upsertScreen({ id: 'home', transitions: [{ ...transition, steps: 1 }], visits: 0 });
+      const repeated = await workspace.upsertScreen({
+        id: 'home',
+        transitions: [{ ...transition, steps: 1 }],
+        visits: 0,
+      });
       expect(repeated.transitions).toMatchObject([{ to: 'settings', count: 2, steps: 1 }]);
       expect(repeated.transitions?.[0]?.lastSeenAt).not.toBe('old');
       expect((await readdir(paths.data(root))).some((name) => name.includes('.tmp-'))).toBe(false);
@@ -82,8 +92,11 @@ describe('agent status under concurrency', () => {
     const root = mkdtempSync(join(tmpdir(), 'bugpatrol-status-'));
     const one = new Workspace(root);
     const two = new Workspace(root);
-    await Promise.all(Array.from({ length: 40 }, (_, index) =>
-      (index % 2 ? one : two).setAgentStatus(index % 3 ? 'explorer' : 'judge', { activity: `step ${index}` })));
+    await Promise.all(
+      Array.from({ length: 40 }, (_, index) =>
+        (index % 2 ? one : two).setAgentStatus(index % 3 ? 'explorer' : 'judge', { activity: `step ${index}` }),
+      ),
+    );
     const file = JSON.parse(readFileSync(join(root, '.bugpatrol', 'runs', 'agents.json'), 'utf8'));
     expect(file.agents.map((agent: { role: string }) => agent.role).sort()).toEqual(['explorer', 'judge']);
   });

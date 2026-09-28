@@ -1,9 +1,9 @@
-import { describe, expect, it } from 'vitest';
 import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { findProjectRoot, instructionsPath, legacyLayout, paths } from './paths.js';
+import { describe, expect, it } from 'vitest';
 import { loadConfig } from './config/load.js';
+import { findProjectRoot, instructionsPath, legacyLayout, paths } from './paths.js';
 
 function project(): string {
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'bugpatrol-paths-')));
@@ -16,8 +16,15 @@ describe('paths', () => {
   it('keeps the config in .bugpatrol/ and all local data in .bugpatrol/runs/', () => {
     const root = '/repo';
     expect(paths.config(root)).toBe('/repo/.bugpatrol/bugpatrol.yml');
-    for (const file of [paths.issue(root, 'i'), paths.session(root, 's'), paths.worktrees(root),
-      paths.memory(root), paths.run(root, 'r'), paths.baselines(root), paths.publish(root)]) {
+    for (const file of [
+      paths.issue(root, 'i'),
+      paths.session(root, 's'),
+      paths.worktrees(root),
+      paths.memory(root),
+      paths.run(root, 'r'),
+      paths.baselines(root),
+      paths.publish(root),
+    ]) {
       expect(file.startsWith('/repo/.bugpatrol/runs/')).toBe(true);
     }
   });
@@ -78,12 +85,20 @@ describe('legacyLayout', () => {
 });
 
 it('rejects an id that is not one path segment at each file-backed record', () => {
-  const readers = [paths.run, paths.session, paths.routine, paths.issue, paths.fix, paths.agentBaseline,
-    paths.agentBaselineSnapshot];
+  const readers = [
+    paths.run,
+    paths.session,
+    paths.routine,
+    paths.issue,
+    paths.fix,
+    paths.agentBaseline,
+    paths.agentBaselineSnapshot,
+  ];
   for (const reader of readers) {
     for (const value of ['../private', '/absolute', '..', '.', 'x/y', 'x\\y', 'x\0y', '']) {
       expect(() => reader('/project', value)).toThrow('Invalid workspace record');
     }
-    for (const value of ['ses_20260927_ab12', '__start', 'settings.usage']) expect(reader('/project', value)).toContain(value);
+    for (const value of ['ses_20260927_ab12', '__start', 'settings.usage'])
+      expect(reader('/project', value)).toContain(value);
   }
 });

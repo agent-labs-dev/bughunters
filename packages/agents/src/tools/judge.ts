@@ -1,6 +1,6 @@
 import { appendFile, copyFile, readFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
-import { paths, shortHash, type Candidate, type Issue, type TriageFile } from '@bugpatrol/core';
+import { type Candidate, type Issue, paths, shortHash, type TriageFile } from '@bugpatrol/core';
 import type { AgentSession } from '../session.js';
 import type { Tool, ToolResult } from '../types.js';
 import { lessonTools } from './memory.js';
@@ -29,8 +29,13 @@ function issueTitle(value: string): string {
 async function decisions(session: AgentSession, sessionId: string): Promise<Set<string>> {
   try {
     const lines = await readFile(join(paths.session(session.root, sessionId), 'decisions.jsonl'), 'utf8');
-    return new Set(lines.trim().split('\n').filter(Boolean).map((line) =>
-      (JSON.parse(line) as { candidateId: string }).candidateId));
+    return new Set(
+      lines
+        .trim()
+        .split('\n')
+        .filter(Boolean)
+        .map((line) => (JSON.parse(line) as { candidateId: string }).candidateId),
+    );
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') return new Set();
     throw error;
@@ -113,34 +118,41 @@ export function judgeTools(session: AgentSession, sessionIds: string[], runtimeL
       async run(input) {
         const candidate = (await pendingCandidates(session, sessionIds)).find((item) => item.id === input.id);
         if (!candidate) return { ...response('Unknown or decided candidate'), isError: true };
-        return { content: [
-          { type: 'text', text: JSON.stringify(candidate, null, 2) },
-          ...await image(session, candidate.evidence.screenshot),
-          ...await image(session, candidate.evidence.baseline),
-          ...await image(session, candidate.evidence.diff),
-        ] };
+        return {
+          content: [
+            { type: 'text', text: JSON.stringify(candidate, null, 2) },
+            ...(await image(session, candidate.evidence.screenshot)),
+            ...(await image(session, candidate.evidence.baseline)),
+            ...(await image(session, candidate.evidence.diff)),
+          ],
+        };
       },
     },
     {
       name: 'file_issue',
-      description: 'File a real user problem with an 80-character title, Markdown body, and one-sentence reason; '
-        + 'merge candidates with the same cause. To add candidates to an open or fixed issue, pass its issue_id and a '
-        + 'reason; the title, body and severity are then not needed.',
-      inputSchema: schema({
-        candidate_ids: { type: 'array', items: string },
-        issue_id: string,
-        title: string,
-        body: string,
-        severity: { type: 'string', enum: ['cosmetic', 'minor', 'major', 'critical'] },
-        reason: string,
-      }, ['candidate_ids', 'reason']),
+      description:
+        'File a real user problem with an 80-character title, Markdown body, and one-sentence reason; ' +
+        'merge candidates with the same cause. To add candidates to an open or fixed issue, pass its issue_id and a ' +
+        'reason; the title, body and severity are then not needed.',
+      inputSchema: schema(
+        {
+          candidate_ids: { type: 'array', items: string },
+          issue_id: string,
+          title: string,
+          body: string,
+          severity: { type: 'string', enum: ['cosmetic', 'minor', 'major', 'critical'] },
+          reason: string,
+        },
+        ['candidate_ids', 'reason'],
+      ),
       async run(input) {
         if (typeof input.reason !== 'string' || !input.reason.trim()) {
           return { ...response('A one-sentence reason is required'), isError: true };
         }
-        const named = typeof input.issue_id === 'string' && input.issue_id
-          ? await session.workspace.readIssue(input.issue_id)
-          : undefined;
+        const named =
+          typeof input.issue_id === 'string' && input.issue_id
+            ? await session.workspace.readIssue(input.issue_id)
+            : undefined;
         if (named?.status === 'dismissed') {
           return { ...response(`Issue ${named.id} was dismissed; dismiss this candidate instead.`), isError: true };
         }
@@ -154,7 +166,10 @@ export function judgeTools(session: AgentSession, sessionIds: string[], runtimeL
         // shorter one instead. The length lets the model fix it in one retry.
         const title = String(input.title ?? '').trim();
         if (!named && title.length > 80) {
-          return { ...response(`The title has ${title.length} characters; the limit is 80. Write a shorter title.`), isError: true };
+          return {
+            ...response(`The title has ${title.length} characters; the limit is 80. Write a shorter title.`),
+            isError: true,
+          };
         }
         const ids = input.candidate_ids as string[];
         const candidates = (await pendingCandidates(session, sessionIds)).filter((item) => ids.includes(item.id));
@@ -176,8 +191,14 @@ export function judgeTools(session: AgentSession, sessionIds: string[], runtimeL
             candidateIds: [...new Set([...existing.candidateIds, ...ids])],
             occurrences: existing.occurrences + 1,
             lastSeenAt: now,
-            ...(existing.status === 'fixed' ? { status: 'new' as const,
-              regression: { at: now, fromStatus: 'fixed' as const }, closedBy: undefined, notSeen: 0 } : {}),
+            ...(existing.status === 'fixed'
+              ? {
+                  status: 'new' as const,
+                  regression: { at: now, fromStatus: 'fixed' as const },
+                  closedBy: undefined,
+                  notSeen: 0,
+                }
+              : {}),
           };
         } else {
           issue = {
@@ -200,7 +221,8 @@ export function judgeTools(session: AgentSession, sessionIds: string[], runtimeL
         await session.workspace.saveIssue(issue);
         await session.workspace.recordTriage(triageEntries(candidates, 'filed', issue.judgement.reason, issue.id));
         const merged = Boolean(existing);
-        const verb = existing?.status === 'fixed' ? 'Regression:' : merged ? `Added to (x${issue.occurrences})` : 'Filed';
+        const verb =
+          existing?.status === 'fixed' ? 'Regression:' : merged ? `Added to (x${issue.occurrences})` : 'Filed';
         session.emit({ kind: 'issue', summary: `${verb} ${issue.title}` });
         return response(`${verb} ${issue.id}: ${issue.title}`);
       },
@@ -208,11 +230,14 @@ export function judgeTools(session: AgentSession, sessionIds: string[], runtimeL
     {
       name: 'dismiss',
       description: 'Dismiss noise with a reason; set update_baseline for an expected visual change.',
-      inputSchema: schema({
-        candidate_ids: { type: 'array', items: string },
-        reason: string,
-        update_baseline: { type: 'boolean' },
-      }, ['candidate_ids', 'reason']),
+      inputSchema: schema(
+        {
+          candidate_ids: { type: 'array', items: string },
+          reason: string,
+          update_baseline: { type: 'boolean' },
+        },
+        ['candidate_ids', 'reason'],
+      ),
       async run(input) {
         const ids = input.candidate_ids as string[];
         const candidates = (await pendingCandidates(session, sessionIds)).filter((item) => ids.includes(item.id));
@@ -221,27 +246,43 @@ export function judgeTools(session: AgentSession, sessionIds: string[], runtimeL
         }
         for (const candidate of candidates) {
           if (input.update_baseline && candidate.screenId && candidate.evidence.screenshot) {
-            await copyFile(resolve(session.root, candidate.evidence.screenshot),
-              paths.agentBaseline(session.root, candidate.screenId));
-            const snapshot = join(paths.session(session.root, candidate.sessionId),
-              `${candidate.screenId}.snapshot.json`);
+            await copyFile(
+              resolve(session.root, candidate.evidence.screenshot),
+              paths.agentBaseline(session.root, candidate.screenId),
+            );
+            const snapshot = join(
+              paths.session(session.root, candidate.sessionId),
+              `${candidate.screenId}.snapshot.json`,
+            );
             try {
               await copyFile(snapshot, paths.agentBaselineSnapshot(session.root, candidate.screenId));
             } catch {
               // Explorer-only reports may not have a structural snapshot.
             }
           }
-          await appendFile(join(paths.session(session.root, candidate.sessionId), 'decisions.jsonl'),
-            JSON.stringify({ candidateId: candidate.id, decision: 'dismiss', reason: input.reason,
-              at: new Date().toISOString() }) + '\n');
+          await appendFile(
+            join(paths.session(session.root, candidate.sessionId), 'decisions.jsonl'),
+            JSON.stringify({
+              candidateId: candidate.id,
+              decision: 'dismiss',
+              reason: input.reason,
+              at: new Date().toISOString(),
+            }) + '\n',
+          );
         }
         await session.workspace.recordTriage(triageEntries(candidates, 'dismissed', String(input.reason)));
-        if (input.update_baseline !== true) for (const candidate of candidates) {
-          if (candidate.source !== 'explorer') continue;
-          await session.workspace.upsertLessons([{ role: 'explorer', source: 'dismissal',
-            scope: candidate.screenId,
-            text: `Do not report: ${candidate.summary} — ${String(input.reason)}`.slice(0, 200) }]);
-        }
+        if (input.update_baseline !== true)
+          for (const candidate of candidates) {
+            if (candidate.source !== 'explorer') continue;
+            await session.workspace.upsertLessons([
+              {
+                role: 'explorer',
+                source: 'dismissal',
+                scope: candidate.screenId,
+                text: `Do not report: ${candidate.summary} — ${String(input.reason)}`.slice(0, 200),
+              },
+            ]);
+          }
         return response(`Dismissed ${candidates.length} candidate(s).`);
       },
     },

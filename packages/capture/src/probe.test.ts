@@ -1,6 +1,6 @@
-import { describe, expect, it, beforeAll, afterAll } from 'vitest';
-import { chromium, type Browser, type Page } from 'playwright';
-import { PROBE_SOURCE, evaluateAll, type ScreenSnapshot } from '@bugpatrol/invariants';
+import { evaluateAll, PROBE_SOURCE, type ScreenSnapshot } from '@bugpatrol/invariants';
+import { type Browser, chromium, type Page } from 'playwright';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 let browser: Browser;
 let page: Page;
@@ -54,7 +54,9 @@ describe('probe: contrast against what is actually painted', () => {
   });
 
   it('reads oklch() colours, which Tailwind v4 emits for every utility', async () => {
-    const s = await snapshot(`<button style="background:oklch(0.52 0.21 278);color:#fff;border:0;padding:12px;font-size:16px">Continue</button>`);
+    const s = await snapshot(
+      `<button style="background:oklch(0.52 0.21 278);color:#fff;border:0;padding:12px;font-size:16px">Continue</button>`,
+    );
     const button = s.elements.find((e) => e.selector.includes('button'))!;
     expect(button.backgroundColor).not.toBe('rgb(255, 255, 255)');
     expect(rules(s)).not.toContain('usability/contrast');
@@ -139,7 +141,9 @@ describe('probe: the rendered pixels overrule the DOM', () => {
   });
 
   it('confirms a genuine failure and reports the measured ratio', async () => {
-    const s = await snapshotWithPixels(`<p style="color:#b9bec7;background:#fff;font-size:16px;padding:8px">Faint label</p>`);
+    const s = await snapshotWithPixels(
+      `<p style="color:#b9bec7;background:#fff;font-size:16px;padding:8px">Faint label</p>`,
+    );
     const finding = evaluateAll(s).find((v) => v.ruleId === 'usability/contrast');
     expect(finding?.message).toContain('Confirmed on the rendered pixels');
     expect(finding?.detail?.pixelConfirmed).toBe(true);
@@ -161,8 +165,10 @@ describe('probe: selectors are unique in the document', () => {
   // structure. A depth-capped selector named them all the same thing.
   const changelog = (entries: number) =>
     '<main>' +
-    Array.from({ length: entries }, (_, i) =>
-      `<article class="entry"><div class="meta"><div class="row"><div class="tags"><span class="tag">#tag${i}</span></div></div></div></article>`,
+    Array.from(
+      { length: entries },
+      (_, i) =>
+        `<article class="entry"><div class="meta"><div class="row"><div class="tags"><span class="tag">#tag${i}</span></div></div></div></article>`,
     ).join('') +
     '</main>';
 
@@ -188,9 +194,19 @@ describe('probe: selectors are unique in the document', () => {
 
   it('still detects a real shift in a repeated structure', async () => {
     const baseline = await snapshot(changelog(5));
-    await page.setContent(`<!doctype html><html><body style="margin:0">${changelog(5).replace('<main>', '<main style="padding-top:40px">')}</body></html>`);
-    const probe = (await page.evaluate(PROBE_SOURCE)) as Omit<ScreenSnapshot, 'screenId' | 'viewport' | 'consoleErrors'>;
-    const current: ScreenSnapshot = { ...probe, screenId: '/', viewport: { name: 'desktop', width: 1024, height: 700 }, consoleErrors: [] };
+    await page.setContent(
+      `<!doctype html><html><body style="margin:0">${changelog(5).replace('<main>', '<main style="padding-top:40px">')}</body></html>`,
+    );
+    const probe = (await page.evaluate(PROBE_SOURCE)) as Omit<
+      ScreenSnapshot,
+      'screenId' | 'viewport' | 'consoleErrors'
+    >;
+    const current: ScreenSnapshot = {
+      ...probe,
+      screenId: '/',
+      viewport: { name: 'desktop', width: 1024, height: 700 },
+      consoleErrors: [],
+    };
     const shifts = evaluateAll(current, { baseline }).filter((v) => v.ruleId === 'layout/shift-versus-baseline');
     expect(shifts.length).toBe(5);
   });

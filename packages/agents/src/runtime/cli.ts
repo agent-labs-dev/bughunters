@@ -2,10 +2,10 @@ import { spawn } from 'node:child_process';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { addUsage, formatUsage, usageFrom, type RoleRuntime, type TokenUsage } from '@bugpatrol/core';
+import { addUsage, formatUsage, type RoleRuntime, type TokenUsage, usageFrom } from '@bugpatrol/core';
 import { serveTools } from '../mcp-server.js';
-import { firstLine } from './model.js';
 import type { EventSink, RoleOutcome, RoleTask, Runtime } from '../types.js';
+import { firstLine } from './model.js';
 
 type CliUse = Extract<RoleRuntime, { runtime: 'cli' }>;
 
@@ -23,8 +23,12 @@ function displayLine(line: string): string {
   if (!line.trimStart().startsWith('{')) return line;
   try {
     const event = JSON.parse(line) as { type?: string; item?: { type?: string; text?: string } };
-    if (event.type === 'item.completed' && typeof event.item?.text === 'string'
-      && ['agent_message', 'reasoning'].includes(event.item.type ?? '')) return event.item.text;
+    if (
+      event.type === 'item.completed' &&
+      typeof event.item?.text === 'string' &&
+      ['agent_message', 'reasoning'].includes(event.item.type ?? '')
+    )
+      return event.item.text;
     return '';
   } catch {
     return line;
@@ -41,16 +45,24 @@ export function parseCliOutput(stdout: string): Parsed {
   const trimmed = stdout.trim();
   if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
     try {
-      const claude = JSON.parse(trimmed) as { result?: unknown; usage?: unknown; total_cost_usd?: unknown;
-        modelUsage?: Record<string, { inputTokens?: number; outputTokens?: number }> };
+      const claude = JSON.parse(trimmed) as {
+        result?: unknown;
+        usage?: unknown;
+        total_cost_usd?: unknown;
+        modelUsage?: Record<string, { inputTokens?: number; outputTokens?: number }>;
+      };
       if (typeof claude.result === 'string' || claude.usage) {
         const tokens = usageFrom(claude.usage);
         if (tokens && typeof claude.total_cost_usd === 'number') tokens.listCostUsd = claude.total_cost_usd;
-        const model = Object.entries(claude.modelUsage ?? {})
-          .sort(([, a], [, b]) => ((b.inputTokens ?? 0) + (b.outputTokens ?? 0)) - ((a.inputTokens ?? 0) + (a.outputTokens ?? 0)))[0]?.[0];
+        const model = Object.entries(claude.modelUsage ?? {}).sort(
+          ([, a], [, b]) =>
+            (b.inputTokens ?? 0) + (b.outputTokens ?? 0) - ((a.inputTokens ?? 0) + (a.outputTokens ?? 0)),
+        )[0]?.[0];
         return { text: typeof claude.result === 'string' ? claude.result : '', tokens, model };
       }
-    } catch { /* not one JSON object: read it line by line */ }
+    } catch {
+      /* not one JSON object: read it line by line */
+    }
   }
   let tokens: TokenUsage | undefined;
   let events = 0;
@@ -61,7 +73,9 @@ export function parseCliOutput(stdout: string): Parsed {
         const event = JSON.parse(line) as { type?: string; usage?: unknown };
         events++;
         if (event.type === 'turn.completed') tokens = addUsage(tokens, usageFrom(event.usage));
-      } catch { /* a text line that starts with a brace */ }
+      } catch {
+        /* a text line that starts with a brace */
+      }
     }
     const shown = displayLine(line);
     if (shown) text.push(shown);
@@ -90,7 +104,11 @@ export class CliRuntime implements Runtime {
       // Whole lines only, so that a JSON event line is never cut in two.
       const lines = (partial + chunk).split('\n');
       partial = lines.pop() ?? '';
-      const text = lines.map(displayLine).filter(Boolean).map((line) => `${line}\n`).join('');
+      const text = lines
+        .map(displayLine)
+        .filter(Boolean)
+        .map((line) => `${line}\n`)
+        .join('');
       if (!text) return;
       pending += text;
       const now = Date.now();
@@ -185,7 +203,13 @@ export class CliRuntime implements Runtime {
       const parsed = parseCliOutput(stdout);
       if (parsed.tokens) {
         const model = parsed.model ?? this.label;
-        emit({ kind: 'usage', summary: `${model}: ${formatUsage(parsed.tokens)}`, tokens: parsed.tokens, model, costUsd: 0 });
+        emit({
+          kind: 'usage',
+          summary: `${model}: ${formatUsage(parsed.tokens)}`,
+          tokens: parsed.tokens,
+          model,
+          costUsd: 0,
+        });
       }
       const text = parsed.text.trim().split('\n').slice(-20).join('\n');
       // claude prints its result only inside the final JSON, so the feed has not seen it yet.

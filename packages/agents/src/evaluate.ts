@@ -1,11 +1,11 @@
-import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
+import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { fingerprint, paths, shortHash, type Candidate, type Issue, type RoutineStep } from '@bugpatrol/core';
-import { closeOnGitHub } from './github.js';
+import { type Candidate, fingerprint, type Issue, paths, type RoutineStep, shortHash } from '@bugpatrol/core';
 import { diff } from '@bugpatrol/diff';
 import type { Observation } from '@bugpatrol/drivers';
-import { evaluateAll, RULES, type InvariantViolation, type ScreenSnapshot } from '@bugpatrol/invariants';
+import { evaluateAll, type InvariantViolation, RULES, type ScreenSnapshot } from '@bugpatrol/invariants';
+import { closeOnGitHub } from './github.js';
 import type { AgentSession } from './session.js';
 
 const NATIVE_DISABLED = [
@@ -47,9 +47,10 @@ export async function evaluateScreen(
   input: { screenId: string; observation: Observation; snapshot: ScreenSnapshot },
 ): Promise<Candidate[]> {
   const { screenId, observation, snapshot } = input;
-  const screenshot = session.lastObservation === observation && session.lastScreenshot
-    ? session.lastScreenshot
-    : await session.capture(observation, screenId);
+  const screenshot =
+    session.lastObservation === observation && session.lastScreenshot
+      ? session.lastScreenshot
+      : await session.capture(observation, screenId);
   await writeFile(
     join(paths.session(session.root, session.sessionId), `${screenId}.snapshot.json`),
     JSON.stringify(snapshot, null, 2) + '\n',
@@ -85,8 +86,7 @@ export async function evaluateScreen(
   }
 
   const fresh = await dropDecided(session, screenId, entries);
-  await closeAbsentChecks(session, screenId, new Set(entries
-    .map((entry) => entryFingerprint(screenId, entry))));
+  await closeAbsentChecks(session, screenId, new Set(entries.map((entry) => entryFingerprint(screenId, entry))));
   if (fresh.length === 0) return [];
 
   const routeResult = { to: 'judge' as const, reason: 'Automatic check' };
@@ -142,14 +142,16 @@ export function groupViolations(violations: InvariantViolation[]): Entry[] {
   for (const [ruleId, group] of byRule) {
     const worst = group.reduce((a, b) => (SEVERITY_RANK[b.severity] > SEVERITY_RANK[a.severity] ? b : a));
     const selectors = [...new Set(group.map((item) => item.selector ?? ''))].sort();
-    const summary = group.length === 1
-      ? worst.message
-      : `${group.length} elements break ${ruleId}. For example: ${worst.message}`;
+    const summary =
+      group.length === 1 ? worst.message : `${group.length} elements break ${ruleId}. For example: ${worst.message}`;
     entries.push({
       source: 'invariant',
       ruleId,
       summary,
-      detail: group.slice(0, 8).map((item) => `- ${item.message}`).join('\n'),
+      detail: group
+        .slice(0, 8)
+        .map((item) => `- ${item.message}`)
+        .join('\n'),
       severity: worst.severity,
       signature: selectors.join('|'),
       region: worst.region,
@@ -215,12 +217,20 @@ export async function addOccurrence(session: AgentSession, issueId: string): Pro
 }
 
 /** Three clean visits close an issue caused only by automatic checks on this screen. */
-export async function closeAbsentChecks(session: AgentSession, screenId: string,
-  fired: Set<string>): Promise<string[]> {
+export async function closeAbsentChecks(
+  session: AgentSession,
+  screenId: string,
+  fired: Set<string>,
+): Promise<string[]> {
   const closed: string[] = [];
   const enabled = new Set<string>(session.config.agents.checks);
-  const ids = new Set((await session.workspace.listIssues()).filter((issue) =>
-    issue.screenId === screenId && ['new', 'filed', 'fixing', 'fix-proposed'].includes(issue.status)).map((issue) => issue.id));
+  const ids = new Set(
+    (await session.workspace.listIssues())
+      .filter(
+        (issue) => issue.screenId === screenId && ['new', 'filed', 'fixing', 'fix-proposed'].includes(issue.status),
+      )
+      .map((issue) => issue.id),
+  );
   const sources = new Map<string, Candidate>();
   for (const record of await session.workspace.listSessions(Infinity)) {
     for (const candidate of await session.workspace.readCandidates(record.id)) sources.set(candidate.id, candidate);
@@ -229,7 +239,10 @@ export async function closeAbsentChecks(session: AgentSession, screenId: string,
     const issue = await session.workspace.readIssue(id);
     if (!issue || !issue.candidateIds.length) continue;
     const candidates = issue.candidateIds.map((candidateId) => sources.get(candidateId));
-    if (candidates.some((candidate) => !candidate || candidate.source === 'explorer' || candidate.screenId !== screenId)) continue;
+    if (
+      candidates.some((candidate) => !candidate || candidate.source === 'explorer' || candidate.screenId !== screenId)
+    )
+      continue;
     // A check that is off now cannot see the problem, so its absence proves nothing.
     if (candidates.some((candidate) => !enabled.has(candidate!.ruleId ?? candidate!.source))) continue;
     if (candidates.some((candidate) => fired.has(candidate!.fingerprint))) {
@@ -238,10 +251,18 @@ export async function closeAbsentChecks(session: AgentSession, screenId: string,
     }
     const notSeen = (issue.notSeen ?? 0) + 1;
     const fixed = notSeen >= 3;
-    const updated: Issue = { ...issue, notSeen,
+    const updated: Issue = {
+      ...issue,
+      notSeen,
       status: fixed ? 'fixed' : issue.status,
-      closedBy: fixed ? { by: 'Bugpatrol', reason: `The automatic checks did not find it on ${screenId} in 3 visits.`,
-        at: new Date().toISOString() } : issue.closedBy };
+      closedBy: fixed
+        ? {
+            by: 'Bugpatrol',
+            reason: `The automatic checks did not find it on ${screenId} in 3 visits.`,
+            at: new Date().toISOString(),
+          }
+        : issue.closedBy,
+    };
     await session.workspace.saveIssue(updated);
     if (fixed) {
       await closeOnGitHub(session.root, session.config, updated);

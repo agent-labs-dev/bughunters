@@ -1,8 +1,8 @@
 import { mkdtemp, readFile, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
 import { appSchema, InfrastructureError } from '@bugpatrol/core';
+import { describe, expect, it } from 'vitest';
 import { startApp } from './lifecycle.js';
 import { Vars } from './vars.js';
 
@@ -60,10 +60,13 @@ describe('startApp', () => {
     const { mkdir } = await import('node:fs/promises');
     try {
       await Promise.all([mkdir(source), mkdir(worktree), mkdir(other)]);
-      const app = appSchema.parse({ source: 'source', setup: [
-        { run: 'pwd > source-cwd; echo "$BUGPATROL_SOURCE" > source-env', cwd: './source' },
-        { run: 'pwd > other-cwd; echo "$BUGPATROL_SOURCE" > other-env', cwd: 'other' },
-      ] });
+      const app = appSchema.parse({
+        source: 'source',
+        setup: [
+          { run: 'pwd > source-cwd; echo "$BUGPATROL_SOURCE" > source-env', cwd: './source' },
+          { run: 'pwd > other-cwd; echo "$BUGPATROL_SOURCE" > other-env', cwd: 'other' },
+        ],
+      });
       await (await startApp(app, { root, vars: new Vars(), source: worktree })).stop();
       expect((await readFile(join(worktree, 'source-cwd'), 'utf8')).trim()).toBe(await realpath(worktree));
       expect((await readFile(join(other, 'other-cwd'), 'utf8')).trim()).toBe(await realpath(other));
@@ -71,6 +74,8 @@ describe('startApp', () => {
       await (await startApp(app, { root, vars: new Vars() })).stop();
       expect((await readFile(join(source, 'source-env'), 'utf8')).trim()).toBe(source);
       expect((await readFile(join(other, 'other-env'), 'utf8')).trim()).toBe(source);
-    } finally { await rm(root, { recursive: true, force: true }); }
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
   });
 });

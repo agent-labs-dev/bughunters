@@ -1,12 +1,12 @@
 import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
-import { lstat, mkdir, readFile, readdir, realpath, symlink, writeFile } from 'node:fs/promises';
+import { lstat, mkdir, readdir, readFile, realpath, symlink, writeFile } from 'node:fs/promises';
 import { basename, dirname, join, relative, resolve, sep } from 'node:path';
-import { judgedRetests, paths, type FixProposal, type Issue, type RoutineStep } from '@bugpatrol/core';
-import type { AgentSession } from '../session.js';
-import type { RoleOutcome, Runtime, Tool } from '../types.js';
+import { promisify } from 'node:util';
+import { type FixProposal, type Issue, judgedRetests, paths, type RoutineStep } from '@bugpatrol/core';
 import { fixerSystem } from '../prompts.js';
+import type { AgentSession } from '../session.js';
 import { lessonTools } from '../tools/memory.js';
+import type { RoleOutcome, Runtime, Tool } from '../types.js';
 import { lessonsFor } from '../workspace.js';
 
 const exec = promisify(execFile);
@@ -24,8 +24,12 @@ async function git(cwd: string, ...args: string[]): Promise<string> {
 }
 
 async function branchExists(repo: string, branch: string): Promise<boolean> {
-  try { await git(repo, 'show-ref', '--verify', '--quiet', `refs/heads/${branch}`); return true; }
-  catch { return false; }
+  try {
+    await git(repo, 'show-ref', '--verify', '--quiet', `refs/heads/${branch}`);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function confined(worktree: string, path: string): string {
@@ -100,8 +104,11 @@ export function modelTools(worktree: string): Tool[] {
       inputSchema: { type: 'object', properties: { command: { type: 'string' } } },
       async run(input) {
         try {
-          const output = await exec('/bin/sh', ['-c', String(input.command)],
-            { cwd: worktree, timeout: 300_000, maxBuffer: 4 * 1024 * 1024 });
+          const output = await exec('/bin/sh', ['-c', String(input.command)], {
+            cwd: worktree,
+            timeout: 300_000,
+            maxBuffer: 4 * 1024 * 1024,
+          });
           return result((output.stdout + output.stderr).slice(-4000));
         } catch (error) {
           return { ...result(String(error).slice(-4000)), isError: true };
@@ -141,7 +148,10 @@ export async function commitFix(
   } catch (error) {
     const output = error as Error & { stdout?: string; stderr?: string };
     const lines = `${output.stderr ?? ''}\n${output.stdout ?? ''}`.split('\n').map((line) => line.trim());
-    const reason = lines.filter((line) => /✗|error|not allowed|fail/i.test(line)).slice(0, 2).join(' ');
+    const reason = lines
+      .filter((line) => /✗|error|not allowed|fail/i.test(line))
+      .slice(0, 2)
+      .join(' ');
     return { ok: false, reason: reason || 'the commit hook rejected the commit' };
   }
 }
@@ -189,7 +199,9 @@ async function updateIssue(session: AgentSession, id: string, patch: Partial<Iss
 
 /** Each issue gets an isolated branch; a proposal is committed locally after verification. */
 export async function runFixer(
-  session: AgentSession, runtime: Runtime, opts: { issueIds?: string[] } = {},
+  session: AgentSession,
+  runtime: Runtime,
+  opts: { issueIds?: string[] } = {},
 ): Promise<FixProposal[]> {
   const config = session.config.agents.fixer;
   const source = resolve(session.root, session.config.app.source);
@@ -199,31 +211,43 @@ export async function runFixer(
   // was killed; without this, its issue would wait for it forever.
   const abandoned = (fix: FixProposal) =>
     fix.status === 'running' && Date.now() - Date.parse(fix.startedAt) > config.timeoutMs;
-  const failed = new Set(fixes
-    .filter((fix) => fix.status === 'failed' || abandoned(fix))
-    .map((fix) => fix.issueId));
-  const retry = new Map(fixes.filter((fix) =>
-    ['proposed', 'retesting'].includes(fix.status)
-    && fix.retests?.at(-1)?.outcome === 'not-fixed'
-    && judgedRetests(fix.retests).length < config.retest.attempts).map((fix) => [fix.issueId, fix]));
+  const failed = new Set(fixes.filter((fix) => fix.status === 'failed' || abandoned(fix)).map((fix) => fix.issueId));
+  const retry = new Map(
+    fixes
+      .filter(
+        (fix) =>
+          ['proposed', 'retesting'].includes(fix.status) &&
+          fix.retests?.at(-1)?.outcome === 'not-fixed' &&
+          judgedRetests(fix.retests).length < config.retest.attempts,
+      )
+      .map((fix) => [fix.issueId, fix]),
+  );
   const eligible = all.filter((issue) => {
     if (issue.status === 'dismissed') return false;
     if (opts.issueIds && !opts.issueIds.includes(issue.id)) return false;
-    if (!opts.issueIds && (issue.fixRejected || fixes.some((fix) => fix.issueId === issue.id && fix.status === 'rejected'))) return false;
+    if (
+      !opts.issueIds &&
+      (issue.fixRejected || fixes.some((fix) => fix.issueId === issue.id && fix.status === 'rejected'))
+    )
+      return false;
     const pending = ['new', 'filed'].includes(issue.status) || failed.has(issue.id) || retry.has(issue.id);
-    return pending && (!issue.fixId || failed.has(issue.id) || retry.has(issue.id)
-      || fixes.some((fix) => fix.issueId === issue.id && fix.worktreeRemovedAt)
-      || (opts.issueIds && fixes.some((fix) => fix.issueId === issue.id
-        && fix.status === 'rejected')))
-      && ranks[issue.severity] >= ranks[config.minSeverity];
+    return (
+      pending &&
+      (!issue.fixId ||
+        failed.has(issue.id) ||
+        retry.has(issue.id) ||
+        fixes.some((fix) => fix.issueId === issue.id && fix.worktreeRemovedAt) ||
+        (opts.issueIds && fixes.some((fix) => fix.issueId === issue.id && fix.status === 'rejected'))) &&
+      ranks[issue.severity] >= ranks[config.minSeverity]
+    );
   });
   // A fixer run is minutes of a coding agent. The worst issues go first, and
   // the rest wait for the next cycle instead of queueing an hour of work.
   const selected = opts.issueIds
     ? eligible
     : eligible
-      .sort((a, b) => ranks[b.severity] - ranks[a.severity] || b.occurrences - a.occurrences)
-      .slice(0, config.maxPerCycle);
+        .sort((a, b) => ranks[b.severity] - ranks[a.severity] || b.occurrences - a.occurrences)
+        .slice(0, config.maxPerCycle);
   const proposals: FixProposal[] = [];
   await session.activity(`Fixing ${selected.length} issue(s)`, 0, runtime.label);
   for (const issue of selected) {
@@ -232,8 +256,10 @@ export async function runFixer(
     const oldFix = fixes.find((fix) => fix.issueId === issue.id);
     const baseBranch = `bugpatrol/fix-${issue.id}`;
     let branch = baseBranch;
-    if (oldFix?.worktreeRemovedAt
-      && (await branchExists(source, oldFix.branch) || await branchExists(source, baseBranch))) {
+    if (
+      oldFix?.worktreeRemovedAt &&
+      ((await branchExists(source, oldFix.branch)) || (await branchExists(source, baseBranch)))
+    ) {
       let n = 2;
       while (await branchExists(source, `${baseBranch}-${n}`)) n++;
       branch = `${baseBranch}-${n}`;
@@ -258,9 +284,16 @@ export async function runFixer(
     if (!existing && config.retest.prepare) {
       session.emit({ kind: 'fix', summary: `Preparing the worktree: ${config.retest.prepare}` });
       try {
-        await exec('/bin/sh', ['-c', config.retest.prepare], { cwd: worktree, timeout: 600_000, maxBuffer: 4 * 1024 * 1024 });
+        await exec('/bin/sh', ['-c', config.retest.prepare], {
+          cwd: worktree,
+          timeout: 600_000,
+          maxBuffer: 4 * 1024 * 1024,
+        });
       } catch (error) {
-        session.emit({ kind: 'error', summary: `The prepare command failed in the worktree: ${String(error).slice(0, 200)}` });
+        session.emit({
+          kind: 'error',
+          summary: `The prepare command failed in the worktree: ${String(error).slice(0, 200)}`,
+        });
       }
     }
     const previous = retry.get(issue.id);
@@ -295,7 +328,8 @@ export async function runFixer(
       const base = await git(worktree, 'merge-base', 'HEAD', sourceHead);
       proposal.diffStat = await git(worktree, 'diff', '--cached', '--stat', base);
       proposal.diff = Buffer.from(await git(worktree, 'diff', '--cached', base))
-        .subarray(0, 200_000).toString('utf8');
+        .subarray(0, 200_000)
+        .toString('utf8');
       if (!newDiff && previous) {
         // A refix that changes nothing keeps the earlier change: it is still
         // the proposal, and the retest verdict tells the team it did not work.
@@ -310,10 +344,18 @@ export async function runFixer(
         // No change plus an explanation is a finding too: the fixer read the
         // code and says the report is wrong or the behaviour is intended.
         proposal.status = outcome.summary ? 'declined' : 'failed';
-        if (proposal.status === 'declined') await session.workspace.upsertLessons([{
-          role: 'judge', source: 'fixer-decline', scope: issue.screenId,
-          text: `Likely by design: ${issue.title} — ${outcome.summary?.split(/(?<=[.!?])\s/)[0] ?? ''}`.slice(0, 200),
-        }]);
+        if (proposal.status === 'declined')
+          await session.workspace.upsertLessons([
+            {
+              role: 'judge',
+              source: 'fixer-decline',
+              scope: issue.screenId,
+              text: `Likely by design: ${issue.title} — ${outcome.summary?.split(/(?<=[.!?])\s/)[0] ?? ''}`.slice(
+                0,
+                200,
+              ),
+            },
+          ]);
         if (!outcome.summary) proposal.error = 'The fixer made no change and gave no reason.';
         await updateIssue(session, issue.id, { status: issue.status });
         proposal.endedAt = new Date().toISOString();
@@ -331,16 +373,28 @@ export async function runFixer(
         } catch (error) {
           const output = error as Error & { stdout?: string; stderr?: string };
           const last = (output.stderr || output.stdout || output.message).trim().split('\n').at(-1) ?? 'unknown error';
-          await session.workspace.upsertLessons([{ role: 'fixer', source: 'verify',
-            text: `The verify command failed with: ${last}. Run it before you finish.`.slice(0, 200) }]);
-          throw new Error(`Verification failed: ${(output.stderr || output.stdout || output.message).slice(-4000)}`, { cause: error });
+          await session.workspace.upsertLessons([
+            {
+              role: 'fixer',
+              source: 'verify',
+              text: `The verify command failed with: ${last}. Run it before you finish.`.slice(0, 200),
+            },
+          ]);
+          throw new Error(`Verification failed: ${(output.stderr || output.stdout || output.message).slice(-4000)}`, {
+            cause: error,
+          });
         }
       }
       proposal.status = 'proposed';
       const committed = await commitFix(worktree, issue.title, config.commitMessage);
       if (!committed.ok) {
-        await session.workspace.upsertLessons([{ role: 'fixer', source: 'commit-hook',
-          text: `The commit hook rejected a commit: ${committed.reason}. Make the change pass it.`.slice(0, 200) }]);
+        await session.workspace.upsertLessons([
+          {
+            role: 'fixer',
+            source: 'commit-hook',
+            text: `The commit hook rejected a commit: ${committed.reason}. Make the change pass it.`.slice(0, 200),
+          },
+        ]);
         // The diff is the proposal; a commit is only a convenience. A repo's
         // commit hook (scope rules, lint) must never throw a good fix away,
         // and Bugpatrol never bypasses a hook with --no-verify.
@@ -348,9 +402,14 @@ export async function runFixer(
       } else {
         proposal.commit = await git(worktree, 'rev-parse', 'HEAD');
       }
-      if (committed.ok && config.retest.enabled && session.config.agents.explorer.enabled
-        && session.config.agents.judge.enabled
-        && (issue.evidence.routineId || issue.evidence.steps?.length || issue.candidateIds.length)) proposal.status = 'retesting';
+      if (
+        committed.ok &&
+        config.retest.enabled &&
+        session.config.agents.explorer.enabled &&
+        session.config.agents.judge.enabled &&
+        (issue.evidence.routineId || issue.evidence.steps?.length || issue.candidateIds.length)
+      )
+        proposal.status = 'retesting';
       await updateIssue(session, issue.id, { status: 'fix-proposed', fixId: proposal.id });
     } catch (error) {
       proposal.status = 'failed';
@@ -369,8 +428,13 @@ export async function runFixer(
   return proposals;
 }
 
-async function runOne(session: AgentSession, runtime: Runtime, issue: Issue, worktree: string,
-  last?: NonNullable<FixProposal['retests']>[number]): Promise<RoleOutcome> {
+async function runOne(
+  session: AgentSession,
+  runtime: Runtime,
+  issue: Issue,
+  worktree: string,
+  last?: NonNullable<FixProposal['retests']>[number],
+): Promise<RoleOutcome> {
   const config = session.config.agents.fixer;
   const evidencePaths = Object.entries(issue.evidence)
     .filter(([key]) => ['screenshot', 'baseline', 'diff'].includes(key))
@@ -379,23 +443,41 @@ async function runOne(session: AgentSession, runtime: Runtime, issue: Issue, wor
   const steps = (issue.evidence.steps ?? []).map((step, index) => `${index + 1}. ${stepWords(step)}`);
   const repro = `Run the routine ${issue.evidence.routineId ?? '(none)'}, then:\n${steps.join('\n')}`;
   const after = last?.shots?.length
-    ? last.shots.map((shot) => `${shot.screenId ?? '(unknown screen)'}: ${shot.after ? resolve(session.root, shot.after) : '(unavailable)'}`).join('\n')
-    : last?.after ? resolve(session.root, last.after) : '(unavailable)';
-  return runtime.run({
-    role: 'fixer',
-    sessionId: session.sessionId,
-    workdir: worktree,
-    system: fixerSystem(lessonsFor(await session.workspace.readMemory(), 'fixer')),
-    prompt: `Issue: ${issue.title}\nSeverity: ${issue.severity}\n${issue.body}\nEvidence:\n${evidence}\n` +
-      `Reproduction: ${repro}` + (last ? `\nYour last change did not fix the issue in the running app. The QA lead said: ${last.reason}. After screenshots:\n${after}\n`
-        + 'First find why your last change had no effect in the running app, for example a different file that the app '
-        + 'loads on this platform. Do not trust a guess from the QA lead: check the code. When you find the cause, call '
-        + 'save_lesson with it, so that later fixes avoid it. Then fix the issue.' : ''),
-    tools: [...(runtime.label.startsWith('cli:') ? [] : modelTools(worktree)), ...lessonTools(session, 'fixer'), finishTool()],
-    maxSteps: config.maxSteps,
-    budgetUsd: config.budgetUsd,
-    timeoutMs: config.timeoutMs,
-  }, session.emit);
+    ? last.shots
+        .map(
+          (shot) =>
+            `${shot.screenId ?? '(unknown screen)'}: ${shot.after ? resolve(session.root, shot.after) : '(unavailable)'}`,
+        )
+        .join('\n')
+    : last?.after
+      ? resolve(session.root, last.after)
+      : '(unavailable)';
+  return runtime.run(
+    {
+      role: 'fixer',
+      sessionId: session.sessionId,
+      workdir: worktree,
+      system: fixerSystem(lessonsFor(await session.workspace.readMemory(), 'fixer')),
+      prompt:
+        `Issue: ${issue.title}\nSeverity: ${issue.severity}\n${issue.body}\nEvidence:\n${evidence}\n` +
+        `Reproduction: ${repro}` +
+        (last
+          ? `\nYour last change did not fix the issue in the running app. The QA lead said: ${last.reason}. After screenshots:\n${after}\n` +
+            'First find why your last change had no effect in the running app, for example a different file that the app ' +
+            'loads on this platform. Do not trust a guess from the QA lead: check the code. When you find the cause, call ' +
+            'save_lesson with it, so that later fixes avoid it. Then fix the issue.'
+          : ''),
+      tools: [
+        ...(runtime.label.startsWith('cli:') ? [] : modelTools(worktree)),
+        ...lessonTools(session, 'fixer'),
+        finishTool(),
+      ],
+      maxSteps: config.maxSteps,
+      budgetUsd: config.budgetUsd,
+      timeoutMs: config.timeoutMs,
+    },
+    session.emit,
+  );
 }
 
 export function stepWords(step: RoutineStep): string {

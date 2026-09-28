@@ -1,6 +1,6 @@
-import { chromium, type Browser, type BrowserContext, type Page } from 'playwright';
 import { sha256 } from '@bugpatrol/core';
 import { PROBE_SOURCE, type ScreenSnapshot } from '@bugpatrol/invariants';
+import { type Browser, type BrowserContext, chromium, type Page } from 'playwright';
 import { observeDom, resolveTarget, stepFor } from './dom.js';
 import type { ActResult, Driver, DriverAction, Observation, UiElement } from './types.js';
 
@@ -60,7 +60,9 @@ export class WebDriver implements Driver {
     page.on('pageerror', (error) => errors.push(`${error.name}: ${error.message}`));
     const failures: string[] = [];
     this.failures.set(page, failures);
-    const add = (line: string) => { if (failures.length < 50) failures.push(line); };
+    const add = (line: string) => {
+      if (failures.length < 50) failures.push(line);
+    };
     page.on('response', (response) => {
       const type = response.request().resourceType();
       if (response.status() >= 400 && ['fetch', 'xhr', 'document'].includes(type)) {
@@ -71,7 +73,8 @@ export class WebDriver implements Driver {
       const reason = request.failure()?.errorText ?? 'failed';
       // A navigation or a new render cancels requests all the time.
       if (/ERR_ABORTED|NS_BINDING_ABORTED|cancelled/i.test(reason)) return;
-      if (['fetch', 'xhr', 'document'].includes(request.resourceType())) add(`${request.method()} ${request.url()} → ${reason}`);
+      if (['fetch', 'xhr', 'document'].includes(request.resourceType()))
+        add(`${request.method()} ${request.url()} → ${reason}`);
     });
   }
 
@@ -87,13 +90,15 @@ export class WebDriver implements Driver {
       page.title(),
     ]);
     await this.captureProbe();
-    const windows = await Promise.all(context.pages().map(async (candidate, index) => ({
-      id: String(index),
-      title: await candidate.title().catch(() => ''),
-      location: candidate.url(),
-      active: candidate === page,
-    })));
-    const size = page.viewportSize() ?? await page.evaluate(() => ({ width: innerWidth, height: innerHeight }));
+    const windows = await Promise.all(
+      context.pages().map(async (candidate, index) => ({
+        id: String(index),
+        title: await candidate.title().catch(() => ''),
+        location: candidate.url(),
+        active: candidate === page,
+      })),
+    );
+    const size = page.viewportSize() ?? (await page.evaluate(() => ({ width: innerWidth, height: innerHeight })));
     const errors = this.errors.get(page) ?? [];
     const observation: Observation = {
       platform: this.platform,
@@ -139,11 +144,17 @@ export class WebDriver implements Driver {
         } else await resolved.locator.fill(action.value);
       } else {
         await page.mouse.click(resolved.point!.x, resolved.point!.y);
-        if (!action.append) { await page.keyboard.press('ControlOrMeta+A'); await page.keyboard.press('Delete'); }
+        if (!action.append) {
+          await page.keyboard.press('ControlOrMeta+A');
+          await page.keyboard.press('Delete');
+        }
         await page.keyboard.insertText(action.value);
       }
     } else {
-      if (!action.append) { await page.keyboard.press('ControlOrMeta+A'); await page.keyboard.press('Delete'); }
+      if (!action.append) {
+        await page.keyboard.press('ControlOrMeta+A');
+        await page.keyboard.press('Delete');
+      }
       await page.keyboard.insertText(action.value);
     }
     if (action.submit) {
@@ -172,12 +183,15 @@ export class WebDriver implements Driver {
   private async switchWindow(action: Extract<DriverAction, { kind: 'window' }>): Promise<void> {
     const match = action.match.toLowerCase();
     const pages = this.context!.pages();
-    const found = await Promise.all(pages.map(async (candidate) => ({
-      candidate,
-      title: await candidate.title().catch(() => ''),
-    })));
-    const chosen = found.find(({ candidate, title }) =>
-      candidate.url().toLowerCase().includes(match) || title.toLowerCase().includes(match));
+    const found = await Promise.all(
+      pages.map(async (candidate) => ({
+        candidate,
+        title: await candidate.title().catch(() => ''),
+      })),
+    );
+    const chosen = found.find(
+      ({ candidate, title }) => candidate.url().toLowerCase().includes(match) || title.toLowerCase().includes(match),
+    );
     if (!chosen) {
       throw new Error(`Window not found: ${action.match}`);
     }
@@ -215,7 +229,9 @@ export class WebDriver implements Driver {
           await this.switchWindow(action);
           break;
       }
-      await this.activePage().waitForLoadState('domcontentloaded', { timeout: 5000 }).catch(() => {});
+      await this.activePage()
+        .waitForLoadState('domcontentloaded', { timeout: 5000 })
+        .catch(() => {});
       const fallback = 'locator' in action ? action.locator : undefined;
       return {
         ok: true,
@@ -269,7 +285,7 @@ export class WebDriver implements Driver {
   private probe?: Omit<ScreenSnapshot, 'screenId' | 'viewport' | 'consoleErrors'>;
 
   protected async captureProbe(): Promise<void> {
-    this.probe = await this.activePage().evaluate(PROBE_SOURCE) as typeof this.probe;
+    this.probe = (await this.activePage().evaluate(PROBE_SOURCE)) as typeof this.probe;
   }
 
   async close(): Promise<void> {
@@ -279,12 +295,34 @@ export class WebDriver implements Driver {
 }
 
 const KEY_NAMES: Record<string, string> = {
-  enter: 'Enter', return: 'Enter', esc: 'Escape', escape: 'Escape', tab: 'Tab', space: 'Space',
-  backspace: 'Backspace', delete: 'Delete', up: 'ArrowUp', down: 'ArrowDown', left: 'ArrowLeft',
-  right: 'ArrowRight', arrowup: 'ArrowUp', arrowdown: 'ArrowDown', arrowleft: 'ArrowLeft',
-  arrowright: 'ArrowRight', home: 'Home', end: 'End', pageup: 'PageUp', pagedown: 'PageDown',
-  cmd: 'Meta', command: 'Meta', meta: 'Meta', ctrl: 'Control', control: 'Control', alt: 'Alt',
-  option: 'Alt', shift: 'Shift',
+  enter: 'Enter',
+  return: 'Enter',
+  esc: 'Escape',
+  escape: 'Escape',
+  tab: 'Tab',
+  space: 'Space',
+  backspace: 'Backspace',
+  delete: 'Delete',
+  up: 'ArrowUp',
+  down: 'ArrowDown',
+  left: 'ArrowLeft',
+  right: 'ArrowRight',
+  arrowup: 'ArrowUp',
+  arrowdown: 'ArrowDown',
+  arrowleft: 'ArrowLeft',
+  arrowright: 'ArrowRight',
+  home: 'Home',
+  end: 'End',
+  pageup: 'PageUp',
+  pagedown: 'PageDown',
+  cmd: 'Meta',
+  command: 'Meta',
+  meta: 'Meta',
+  ctrl: 'Control',
+  control: 'Control',
+  alt: 'Alt',
+  option: 'Alt',
+  shift: 'Shift',
 };
 
 /**

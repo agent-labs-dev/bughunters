@@ -64,17 +64,19 @@ export const zeroSizeInteractive: InvariantRule = {
   defaultSeverity: 'major',
   changeAware: false,
   evaluate(snapshot) {
-    return snapshot.elements
-      // Only elements that are actually rendered. A display:none responsive
-      // variant is 0x0 on purpose and unreachable by design, not broken.
-      .filter((e) => e.interactive && e.rendered !== false && (e.box.width < 1 || e.box.height < 1))
-      .map((e) => ({
-        ruleId: zeroSizeInteractive.id,
-        message: `"${e.selector}" is interactive but renders at ${Math.round(e.box.width)}x${Math.round(e.box.height)}px, so nobody can click it.`,
-        severity: 'major' as const,
-        selector: e.selector,
-        region: e.box,
-      }));
+    return (
+      snapshot.elements
+        // Only elements that are actually rendered. A display:none responsive
+        // variant is 0x0 on purpose and unreachable by design, not broken.
+        .filter((e) => e.interactive && e.rendered !== false && (e.box.width < 1 || e.box.height < 1))
+        .map((e) => ({
+          ruleId: zeroSizeInteractive.id,
+          message: `"${e.selector}" is interactive but renders at ${Math.round(e.box.width)}x${Math.round(e.box.height)}px, so nobody can click it.`,
+          severity: 'major' as const,
+          selector: e.selector,
+          region: e.box,
+        }))
+    );
   },
 };
 
@@ -109,9 +111,7 @@ export const horizontalScroll: InvariantRule = {
   changeAware: true,
   evaluate(snapshot, baseline) {
     const now = snapshot.document.scrollWidth > snapshot.document.clientWidth + 1;
-    const before = baseline
-      ? baseline.document.scrollWidth > baseline.document.clientWidth + 1
-      : false;
+    const before = baseline ? baseline.document.scrollWidth > baseline.document.clientWidth + 1 : false;
     if (!now || (baseline && before)) return [];
     return [
       {

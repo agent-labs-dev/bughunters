@@ -1,29 +1,29 @@
 import { randomBytes } from 'node:crypto';
-import { appendFile, mkdir, readFile, readdir, rename, writeFile } from 'node:fs/promises';
-import { basename, relative, join } from 'node:path';
+import { appendFile, mkdir, readdir, readFile, rename, writeFile } from 'node:fs/promises';
+import { basename, join, relative } from 'node:path';
 import {
-  paths,
-  usageOf,
-  shortHash,
   type AgentEvent,
   type AgentRole,
-  type AgentsFile,
   type AgentStatus,
+  type AgentsFile,
   type AppMap,
   type AppMapScreen,
-  type ScreenTransition,
   type Candidate,
   type FixProposal,
   type Issue,
   type Lesson,
   type LessonRole,
   type MemoryFile,
+  paths,
   type Routine,
+  type ScreenTransition,
   type SessionSummary,
+  shortHash,
   type TriageFile,
+  usageOf,
 } from '@bugpatrol/core';
 import type { EventSink } from './types.js';
-import { Vars } from './vars.js';
+import type { Vars } from './vars.js';
 
 async function readJson<T>(file: string): Promise<T | undefined> {
   try {
@@ -90,14 +90,21 @@ export class Workspace {
         if (!text) continue;
         const id = `les_${shortHash(`${lesson.role}:${text.toLowerCase().replace(/\s+/g, ' ')}`)}`;
         const previous = memory.lessons.find((item) => item.id === id);
-        const next: Lesson = { ...lesson, id, text, hits: (previous?.hits ?? 0) + 1,
-          createdAt: previous?.createdAt ?? now, lastSeenAt: now };
+        const next: Lesson = {
+          ...lesson,
+          id,
+          text,
+          hits: (previous?.hits ?? 0) + 1,
+          createdAt: previous?.createdAt ?? now,
+          lastSeenAt: now,
+        };
         if (previous) memory.lessons.splice(memory.lessons.indexOf(previous), 1, next);
         else memory.lessons.push(next);
         saved.push(next);
       }
       for (const role of ['explorer', 'judge', 'fixer'] as LessonRole[]) {
-        const active = memory.lessons.filter((item) => item.role === role && !item.retired)
+        const active = memory.lessons
+          .filter((item) => item.role === role && !item.retired)
           .sort((a, b) => a.lastSeenAt.localeCompare(b.lastSeenAt));
         for (const lesson of active.slice(0, Math.max(0, active.length - 40))) {
           lesson.retired = { at: now, reason: 'Pruned: not seen recently' };
@@ -132,7 +139,11 @@ export class Workspace {
     try {
       const raw = await readFile(join(paths.session(this.root, sessionId), 'events.jsonl'), 'utf8');
       return raw.split('\n').flatMap((line) => {
-        try { return line.trim() ? [JSON.parse(line) as AgentEvent] : []; } catch { return []; }
+        try {
+          return line.trim() ? [JSON.parse(line) as AgentEvent] : [];
+        } catch {
+          return [];
+        }
       });
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') return [];
@@ -150,7 +161,9 @@ export class Workspace {
     const previous = map?.screens.find((item) => item.id === screen.id);
     const transitions = [...(previous?.transitions ?? [])];
     for (const incoming of screen.transitions ?? []) {
-      const found = transitions.find((item) => item.to === incoming.to && item.kind === incoming.kind && item.via === incoming.via);
+      const found = transitions.find(
+        (item) => item.to === incoming.to && item.kind === incoming.kind && item.via === incoming.via,
+      );
       if (found) {
         found.count += 1;
         found.steps = Math.min(found.steps, incoming.steps);
@@ -214,7 +227,10 @@ export class Workspace {
 
   async startSession(role: AgentRole): Promise<SessionSummary> {
     const now = new Date();
-    const id = `ses_${now.toISOString().replace(/[-:TZ.]/g, '').slice(0, 14)}_${randomBytes(2).toString('hex')}`;
+    const id = `ses_${now
+      .toISOString()
+      .replace(/[-:TZ.]/g, '')
+      .slice(0, 14)}_${randomBytes(2).toString('hex')}`;
     const session: SessionSummary = {
       version: 1,
       id,
@@ -278,8 +294,12 @@ export class Workspace {
   }
 
   async endSession(id: string, patch: Partial<SessionSummary> = {}): Promise<SessionSummary> {
-    return this.updateSession(id, { status: 'finished', endedAt: new Date().toISOString(),
-      ...usageOf(await this.readEvents(id)), ...patch });
+    return this.updateSession(id, {
+      status: 'finished',
+      endedAt: new Date().toISOString(),
+      ...usageOf(await this.readEvents(id)),
+      ...patch,
+    });
   }
 
   async listSessions(limit = 20): Promise<SessionSummary[]> {
@@ -292,8 +312,9 @@ export class Workspace {
       }
       throw error;
     }
-    const sessions = await Promise.all(ids.map((id) =>
-      readJson<SessionSummary>(join(paths.session(this.root, id), 'session.json'))));
+    const sessions = await Promise.all(
+      ids.map((id) => readJson<SessionSummary>(join(paths.session(this.root, id), 'session.json'))),
+    );
     const valid = sessions.filter((session): session is SessionSummary => Boolean(session));
     return valid.sort((a, b) => b.startedAt.localeCompare(a.startedAt)).slice(0, limit);
   }
@@ -366,8 +387,9 @@ export class Workspace {
     return (event) => {
       const file = join(paths.session(this.root, sessionId), 'events.jsonl');
       const previous = eventWrites.get(file) ?? Promise.resolve();
-      const next = previous.then(() => this.appendEvent(sessionId,
-        vars.redact({ ...event, sessionId, role }) as Omit<AgentEvent, 'at'>));
+      const next = previous.then(() =>
+        this.appendEvent(sessionId, vars.redact({ ...event, sessionId, role }) as Omit<AgentEvent, 'at'>),
+      );
       eventWrites.set(file, next);
       void next.catch(() => undefined);
     };
@@ -375,14 +397,24 @@ export class Workspace {
 }
 
 export function lessonsFor(memory: MemoryFile, role: LessonRole, limit = 15): Lesson[] {
-  return memory.lessons.filter((lesson) => lesson.role === role && !lesson.retired)
-    .sort((a, b) => Number(b.source === 'human') - Number(a.source === 'human')
-      || b.hits - a.hits || b.lastSeenAt.localeCompare(a.lastSeenAt))
+  return memory.lessons
+    .filter((lesson) => lesson.role === role && !lesson.retired)
+    .sort(
+      (a, b) =>
+        Number(b.source === 'human') - Number(a.source === 'human') ||
+        b.hits - a.hits ||
+        b.lastSeenAt.localeCompare(a.lastSeenAt),
+    )
     .slice(0, limit);
 }
 
 /** The issue's own fingerprint and every candidate it collected. */
-export async function dismissedFingerprints(workspace: Workspace, issue: Issue, reason: string, at: string): Promise<TriageFile['fingerprints']> {
+export async function dismissedFingerprints(
+  workspace: Workspace,
+  issue: Issue,
+  reason: string,
+  at: string,
+): Promise<TriageFile['fingerprints']> {
   const entries: TriageFile['fingerprints'] = {
     [issue.fingerprint]: { decision: 'dismissed', issueId: issue.id, reason, at },
   };
@@ -390,7 +422,8 @@ export async function dismissedFingerprints(workspace: Workspace, issue: Issue, 
   if (!ids.size) return entries;
   for (const session of await workspace.listSessions(Infinity)) {
     for (const candidate of await workspace.readCandidates(session.id)) {
-      if (ids.has(candidate.id)) entries[candidate.fingerprint] = { decision: 'dismissed', issueId: issue.id, reason, at };
+      if (ids.has(candidate.id))
+        entries[candidate.fingerprint] = { decision: 'dismissed', issueId: issue.id, reason, at };
     }
   }
   return entries;

@@ -1,11 +1,11 @@
-import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest';
-import { mkdtempSync, rmSync, mkdirSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { parseConfig, ExitCode, type BugpatrolConfig } from '@bugpatrol/core';
-import type { ScreenSnapshot } from '@bugpatrol/invariants';
+import { type BugpatrolConfig, ExitCode, parseConfig } from '@bugpatrol/core';
 import type { CrossCheckResult, DiffResult } from '@bugpatrol/diff';
-import { executeRun, PIXEL_DIFF_RULE, type CapturedScreen } from './run-pipeline.js';
+import type { ScreenSnapshot } from '@bugpatrol/invariants';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { type CapturedScreen, executeRun, PIXEL_DIFF_RULE } from './run-pipeline.js';
 
 let root: string;
 
@@ -84,15 +84,28 @@ describe('executeRun', () => {
 
   it('does not return success when the decision budget is exhausted', async () => {
     vi.stubEnv('OPENROUTER_API_KEY', 'synthetic');
-    const fetch = vi.fn(); vi.stubGlobal('fetch', fetch);
+    const fetch = vi.fn();
+    vi.stubGlobal('fetch', fetch);
     try {
-      const result = await executeRun({ ...base, root, noModels: false, isFirstRun: false,
-        config: parseConfig({ version: 1, run: { command: 'noop', url: 'http://localhost:3000' }, decisions: { budget: { perRunUsd: 0 } } }),
-        screens: [screen({ comparison: comparison(0, { maskedFraction: 0.9, maskedRegionCount: 1 }) })] });
+      const result = await executeRun({
+        ...base,
+        root,
+        noModels: false,
+        isFirstRun: false,
+        config: parseConfig({
+          version: 1,
+          run: { command: 'noop', url: 'http://localhost:3000' },
+          decisions: { budget: { perRunUsd: 0 } },
+        }),
+        screens: [screen({ comparison: comparison(0, { maskedFraction: 0.9, maskedRegionCount: 1 }) })],
+      });
       expect(result.run.status).toBe('incomplete');
       expect(result.exitCode).toBe(ExitCode.Infrastructure);
       expect(fetch).not.toHaveBeenCalled();
-    } finally { vi.unstubAllEnvs(); vi.unstubAllGlobals(); }
+    } finally {
+      vi.unstubAllEnvs();
+      vi.unstubAllGlobals();
+    }
   });
 
   it('passes cleanly when the capture matches its baseline', async () => {
@@ -128,7 +141,10 @@ describe('executeRun', () => {
       severity: { score: 1, confidence: 0.4 },
       needs_frontier: { noul: 0.9 },
     };
-    vi.stubGlobal('fetch', vi.fn(async () => Response.json({ choices: [{ message: { content: JSON.stringify(answers) } }] })));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => Response.json({ choices: [{ message: { content: JSON.stringify(answers) } }] })),
+    );
     const result = await executeRun({
       ...base,
       root,
@@ -136,7 +152,10 @@ describe('executeRun', () => {
       config,
       isFirstRun: false,
       screens: [screen({ comparison: comparison(2400) })],
-    }).finally(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); });
+    }).finally(() => {
+      vi.unstubAllEnvs();
+      vi.unstubAllGlobals();
+    });
     expect(result.notes.join(' ')).toContain('model via openrouter');
     expect(result.exitCode).toBe(ExitCode.Regression);
     expect(result.findings.filter((f) => f.route === 'check').map((f) => f.ruleId)).toEqual([PIXEL_DIFF_RULE]);
@@ -246,8 +265,13 @@ describe('finding identity', () => {
     // Two small tap targets side by side land in one 32px fingerprint cell.
     // Without the element in the fingerprint they shared an id.
     const tiny = (selector: string, x: number) => ({
-      selector, box: { x, y: 0, width: 12, height: 12 }, visible: true, rendered: true,
-      interactive: true, zIndex: 0, hitSelector: selector,
+      selector,
+      box: { x, y: 0, width: 12, height: 12 },
+      visible: true,
+      rendered: true,
+      interactive: true,
+      zIndex: 0,
+      hitSelector: selector,
     });
     const result = await executeRun({
       ...base,
