@@ -119,7 +119,8 @@ export async function watchCi(root: string, config: BugpatrolConfig, deps: CiDep
         break;
       }
       if (!failed.length) {
-        await save('passed');
+        // A PR whose checks all skip has no passed test.
+        await save(checks.some((check) => check.bucket === 'pass') ? 'passed' : 'none');
         deps.onLog?.(`CI: all ${checks.length} check(s) passed on PR #${pr}.`);
         break;
       }
@@ -131,6 +132,10 @@ export async function watchCi(root: string, config: BugpatrolConfig, deps: CiDep
         break;
       }
       await save('failed');
+      if (!config.agents.fixer.enabled) {
+        deps.onLog?.(`CI: PR #${pr} failed ${failed.map((check) => check.name).join(', ')}. The fixer is off, so a person must fix it.`);
+        break;
+      }
       deps.onLog?.(`CI: PR #${pr} failed ${failed.map((check) => check.name).join(', ')}. The fixer tries to fix it.`);
       const pushed = await fixCi(root, config, fix, failed, await failureLog(gh, repo, failed), deps);
       fix.ci = { ...fix.ci!, attempts: (fix.ci?.attempts ?? 0) + 1 };
