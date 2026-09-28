@@ -3,8 +3,9 @@ import type { AppConfig } from '@bugpatrol/core';
 /** Captures and allowlisted secrets share one redaction and interpolation path. */
 export class Vars {
   private readonly values = new Map<string, string>();
+  private readonly configValues = new Map<string, string>();
 
-  constructor(secrets: AppConfig['secrets'] = [], env: NodeJS.ProcessEnv = process.env) {
+  constructor(secrets: AppConfig['secrets'] = [], private readonly env: NodeJS.ProcessEnv = process.env) {
     for (const name of secrets) {
       if (env[name] !== undefined) {
         this.set(name, env[name]);
@@ -28,7 +29,17 @@ export class Vars {
     return [...this.values.entries()];
   }
 
+  /** Agent input may use only declared secrets and captured setup values. */
   resolve(text: string): string {
+    return this.interpolate(text, false);
+  }
+
+  /** Only repository-owned setup commands and paths may read the host environment. */
+  resolveConfig(text: string): string {
+    return this.interpolate(text, true);
+  }
+
+  private interpolate(text: string, trusted: boolean): string {
     const placeholder = /\{\{([A-Za-z_][A-Za-z_0-9]*)\}\}|\$\{([A-Za-z_][A-Za-z_0-9]*)\}/g;
     return text.replace(placeholder, (match, strict: string | undefined, env: string | undefined) => {
       const name = strict ?? env ?? '';
@@ -36,8 +47,10 @@ export class Vars {
       if (value !== undefined) {
         return value;
       }
-      if (env !== undefined) {
-        return process.env[name] ?? match;
+      if (trusted && env !== undefined) {
+        const configured = this.env[name];
+        if (configured !== undefined) this.configValues.set(name, configured);
+        return configured ?? match;
       }
       throw new Error(`Unknown variable ${name}. Available: ${this.names().join(', ') || '(none)'}`);
     });
@@ -48,7 +61,7 @@ export class Vars {
       return value;
     }
     if (typeof value === 'string') {
-      const entries = this.entries().filter(([, secret]) => secret.length >= 4);
+      const entries = [...this.entries(), ...this.configValues.entries()].filter(([, secret]) => secret.length > 0);
       entries.sort((a, b) => b[1].length - a[1].length);
       let result = value;
       for (const [name, secret] of entries) {
