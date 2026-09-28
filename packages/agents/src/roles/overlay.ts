@@ -1,10 +1,11 @@
+import type { Dirent } from 'node:fs';
 import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, join, relative, sep } from 'node:path';
 import { DATA_DIR, paths } from '@bugpatrol/core';
 
 async function files(dir: string, skip: string): Promise<string[]> {
   const out: string[] = [];
-  let entries;
+  let entries: Dirent[];
   try {
     entries = await readdir(dir, { withFileTypes: true });
   } catch {

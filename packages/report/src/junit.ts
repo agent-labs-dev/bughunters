@@ -17,7 +17,7 @@ export function toJUnit(run: Run, findings: Finding[]): string {
     );
     if (failures.length === 0) return `    <testcase classname="bugpatrol" name="${escapeXml(name)}" />`;
     failedCases++;
-    failures.forEach((finding) => attributed.add(finding));
+    for (const finding of failures) attributed.add(finding);
     const body = failures
       .map((f) => `      <failure type="${escapeXml(f.ruleId)}">${escapeXml(f.summary)}</failure>`)
       .join('\n');

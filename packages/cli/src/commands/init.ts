@@ -538,9 +538,9 @@ async function choose<T extends string>(
     options.findIndex((option) => option.value === fallback),
   );
   process.stdout.write(`\n${title}\n`);
-  options.forEach((option, index) =>
-    process.stdout.write(`  ${index + 1}) ${option.label}${index === start ? '  [default]' : ''}\n`),
-  );
+  for (const [index, option] of options.entries()) {
+    process.stdout.write(`  ${index + 1}) ${option.label}${index === start ? '  [default]' : ''}\n`);
+  }
   for (;;) {
     const answer = (await ask(`Choose 1-${options.length}: `, String(start + 1))).trim();
     if (!answer) return options[start]!.value;

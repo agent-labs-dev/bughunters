@@ -41,17 +41,17 @@ export function route(input: RoutingInput): RoutingOutcome {
     return { route: 'check', reason: 'Deterministic tier-1 regression; the decision layer cannot override the gate.' };
   }
 
-  const anomalous = answers['is_anomalous'];
+  const anomalous = answers.is_anomalous;
   if (anomalous?.kind === 'noul' && anomalous.value < 0.5 && anomalous.confidence >= thresholds.high) {
     return { route: 'ignore', reason: 'Confidently not anomalous versus the modelled product.' };
   }
 
-  const needsFrontier = answers['needs_frontier'];
+  const needsFrontier = answers.needs_frontier;
   if (needsFrontier?.kind === 'noul' && needsFrontier.value >= 0.5) {
     return { route: 'escalate', reason: 'The decider flagged this as too ambiguous for a confident call.' };
   }
 
-  const proposed = answers['route'];
+  const proposed = answers.route;
   if (proposed?.kind !== 'choice') {
     return { route: 'question', reason: 'No routing answer was returned, so a human decides.' };
   }
@@ -84,8 +84,8 @@ export function route(input: RoutingInput): RoutingOutcome {
 
 /** Auto-fix preconditions that live in the decision layer (spec 6.1). */
 export function fixEligible(input: RoutingInput): boolean {
-  const proposed = input.answers['route'];
-  const needsFrontier = input.answers['needs_frontier'];
+  const proposed = input.answers.route;
+  const needsFrontier = input.answers.needs_frontier;
   if (input.matchedLedger) return false;
   if (proposed?.kind !== 'choice' || proposed.confidence < input.thresholds.high) return false;
   if (needsFrontier?.kind === 'noul' && needsFrontier.value >= 0.5) return false;

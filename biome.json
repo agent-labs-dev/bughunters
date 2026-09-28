@@ -21,9 +21,13 @@
   "linter": {
     "enabled": true,
     "rules": {
-      "recommended": true,
+      "preset": "recommended",
       "style": {
-        "noNonNullAssertion": "off"
+        "noNonNullAssertion": "off",
+        "noDescendingSpecificity": "off"
+      },
+      "suspicious": {
+        "noTemplateCurlyInString": "off"
       }
     }
   },
@@ -36,7 +40,8 @@
       "!**/.pnpm-store",
       "!**/*.tsbuildinfo",
       "!**/.bugpatrol",
-      "!packages/bugpatrol/src/ui"
+      "!packages/bugpatrol/src/ui",
+      "!examples/fixture-app/*.html"
     ]
   }
 }

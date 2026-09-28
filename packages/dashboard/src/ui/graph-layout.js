@@ -84,7 +84,7 @@ export function layoutGraph(screens, edges, entryId) {
     const columns = Array.from({ length: Math.max(...layer.values()) + 1 }, () => []);
     for (const id of members) columns[layer.get(id)].push(id);
     const order = new Map();
-    columns.forEach((list) => list.forEach((id, index) => order.set(id, index)));
+    for (const list of columns) for (const [index, id] of list.entries()) order.set(id, index);
     const sweep = (column, neighbor) => {
       const list = columns[column];
       const center = (id) => {
@@ -100,7 +100,7 @@ export function layoutGraph(screens, edges, entryId) {
         return positions.length ? positions.reduce((sum, value) => sum + value, 0) / positions.length : order.get(id);
       };
       list.sort((a, b) => center(a) - center(b) || a.localeCompare(b));
-      list.forEach((id, index) => order.set(id, index));
+      for (const [index, id] of list.entries()) order.set(id, index);
     };
     for (let pass = 0; pass < 4; pass++) {
       for (let col = 1; col < columns.length; col++) sweep(col, col - 1);

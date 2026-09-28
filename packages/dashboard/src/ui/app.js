@@ -45,7 +45,7 @@ let showBackLinks = false;
 // Mirrors isFeedEvent in agents.ts: the feed shows actions, not reasoning.
 function isFeedEvent(event) {
   if (event.kind === 'thought' || event.kind === 'tool-call') return false;
-  return Boolean(event.summary && event.summary.trim());
+  return Boolean(event.summary?.trim());
 }
 
 async function getJson(url) {
@@ -177,7 +177,7 @@ function svgEl(tag, props = {}, children = []) {
 /** Shown only while a run is actually in flight. */
 function renderLiveBanner() {
   const live = state.live;
-  if (!live || live.status !== 'running') return null;
+  if (live?.status !== 'running') return null;
   const done = live.captured.length;
   const total = live.plannedCaptures || done;
   return el('div', { class: 'runbanner' }, [
@@ -440,7 +440,7 @@ function renderReasoning(screen) {
     // First line only: older runs stored the loader's full multi-line dump.
     if (d.degraded) add('Degraded', d.degraded.split('\n')[0].replace(/(: \/\S+)+.*$/, ''));
     if (d.dimensionMismatch) {
-      add('Dimensions changed', `${d.dimensionMismatch.baseline.join('x')} → ` + d.dimensionMismatch.actual.join('x'));
+      add('Dimensions changed', `${d.dimensionMismatch.baseline.join('x')} → ${d.dimensionMismatch.actual.join('x')}`);
     }
   }
 
@@ -1359,7 +1359,9 @@ function renderScreenGraph(screens, allEdges) {
             path.getAttribute('data-from') !== node.id && path.getAttribute('data-to') !== node.id,
           );
       },
-      onpointerleave: () => edgeNodes.forEach((path) => path.classList.remove('faded')),
+      onpointerleave: () => {
+        for (const path of edgeNodes) path.classList.remove('faded');
+      },
     });
     card.append(svgEl('rect', { x: node.x, y: node.y, width: node.w, height: node.h, rx: 9, class: 'graph-card' }));
     if (screen.lastScreenshot)

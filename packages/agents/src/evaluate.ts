@@ -53,7 +53,7 @@ export async function evaluateScreen(
       : await session.capture(observation, screenId);
   await writeFile(
     join(paths.session(session.root, session.sessionId), `${screenId}.snapshot.json`),
-    JSON.stringify(snapshot, null, 2) + '\n',
+    `${JSON.stringify(snapshot, null, 2)}\n`,
   );
 
   const baseline = await readBaseline(session, screenId);
@@ -126,7 +126,7 @@ async function saveBaseline(
 ): Promise<void> {
   await mkdir(paths.agentBaselines(session.root), { recursive: true });
   await copyFile(join(session.root, screenshot), baseline.png);
-  await writeFile(baseline.snapshotFile, JSON.stringify(snapshot, null, 2) + '\n');
+  await writeFile(baseline.snapshotFile, `${JSON.stringify(snapshot, null, 2)}\n`);
 }
 
 /** One entry per rule; the elements go in the detail and the fingerprint. */
@@ -237,7 +237,7 @@ export async function closeAbsentChecks(
   }
   for (const id of ids) {
     const issue = await session.workspace.readIssue(id);
-    if (!issue || !issue.candidateIds.length) continue;
+    if (!issue?.candidateIds.length) continue;
     const candidates = issue.candidateIds.map((candidateId) => sources.get(candidateId));
     if (
       candidates.some((candidate) => !candidate || candidate.source === 'explorer' || candidate.screenId !== screenId)

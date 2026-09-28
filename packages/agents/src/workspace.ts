@@ -41,7 +41,7 @@ async function atomic(file: string, value: unknown): Promise<void> {
   // Unique per write, not per process: two writes in one process with one
   // temp name race, and the loser's rename fails or leaves torn JSON.
   const temp = `${file}.tmp-${process.pid}-${randomBytes(4).toString('hex')}`;
-  await writeFile(temp, JSON.stringify(value, null, 2) + '\n');
+  await writeFile(temp, `${JSON.stringify(value, null, 2)}\n`);
   await rename(temp, file);
 }
 
@@ -251,7 +251,7 @@ export class Workspace {
   async appendEvent(sessionId: string, event: Omit<AgentEvent, 'at'>): Promise<void> {
     const dir = paths.session(this.root, sessionId);
     await mkdir(dir, { recursive: true });
-    await appendFile(join(dir, 'events.jsonl'), JSON.stringify({ ...event, at: new Date().toISOString() }) + '\n');
+    await appendFile(join(dir, 'events.jsonl'), `${JSON.stringify({ ...event, at: new Date().toISOString() })}\n`);
   }
 
   async saveScreenshot(sessionId: string, png: Buffer, label: string): Promise<string> {
@@ -267,7 +267,7 @@ export class Workspace {
   async appendCandidate(sessionId: string, candidate: Candidate): Promise<void> {
     const dir = paths.session(this.root, sessionId);
     await mkdir(dir, { recursive: true });
-    await appendFile(join(dir, 'candidates.jsonl'), JSON.stringify(candidate) + '\n');
+    await appendFile(join(dir, 'candidates.jsonl'), `${JSON.stringify(candidate)}\n`);
   }
 
   async readCandidates(sessionId: string): Promise<Candidate[]> {

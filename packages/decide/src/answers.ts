@@ -15,20 +15,20 @@ export function normalizeAnswers(
     if (!isObject(value)) continue;
     switch (question.type) {
       case 'noul': {
-        const probability = finite(value['noul'] ?? value['value']);
+        const probability = finite(value.noul ?? value.value);
         if (probability === undefined) break;
         const p = clamp(probability);
         out[key] = { kind: 'noul', value: p, confidence: Math.max(p, 1 - p) };
         break;
       }
       case 'choice': {
-        const chosen = value['choice'] ?? value['value'];
-        const confidence = finite(value['confidence']);
+        const chosen = value.choice ?? value.value;
+        const confidence = finite(value.confidence);
         if (typeof chosen !== 'string' || !Object.hasOwn(question.criteria, chosen) || confidence === undefined) break;
         const probabilities: Record<string, number> = {};
-        if (isObject(value['probabilities'])) {
+        if (isObject(value.probabilities)) {
           for (const option of Object.keys(question.criteria)) {
-            const p = finite(value['probabilities'][option]);
+            const p = finite(value.probabilities[option]);
             if (p !== undefined) probabilities[option] = clamp(p);
           }
         }
@@ -41,10 +41,10 @@ export function normalizeAnswers(
         break;
       }
       case 'score': {
-        const score = finite(value['score'] ?? value['value']);
-        const confidence = finite(value['confidence']);
+        const score = finite(value.score ?? value.value);
+        const confidence = finite(value.confidence);
         if (score === undefined || confidence === undefined) break;
-        const rawProbabilities = value['probabilities'];
+        const rawProbabilities = value.probabilities;
         const probabilities = question.legend.map((_, index) => {
           const p = Array.isArray(rawProbabilities)
             ? finite(rawProbabilities[index])

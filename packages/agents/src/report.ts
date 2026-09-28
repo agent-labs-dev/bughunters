@@ -56,7 +56,7 @@ export function buildReport(input: ReportInput): string {
       parts.push(
         '## Verified in the app',
         `${verdict} — ${retest.reason}`,
-        '| Screen | Before | After |\n| --- | --- | --- |\n' + rows.join('\n'),
+        `| Screen | Before | After |\n| --- | --- | --- |\n${rows.join('\n')}`,
         'Bugpatrol started the app from this branch, repeated the flow, and compared the screens.',
       );
     } else parts.push(`Not verified in the app: ${fix.retests?.at(-1)?.reason ?? 'retest disabled'}`);

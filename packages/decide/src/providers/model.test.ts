@@ -95,13 +95,11 @@ describe('ModelDecider', () => {
     const malformed = { ...answers, category: { ...answers.category, value: 'invented' } };
     vi.stubGlobal(
       'fetch',
-      vi
-        .fn()
-        .mockResolvedValue(
-          new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify(malformed) } }] }), {
-            status: 200,
-          }),
-        ),
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify(malformed) } }] }), {
+          status: 200,
+        }),
+      ),
     );
     const result = await new ModelDecider({ via: 'openai', apiKey: 'secret', model: 'gpt-5-mini' }).ask(
       'state',
@@ -119,13 +117,11 @@ describe('ModelDecider', () => {
     };
     vi.stubGlobal(
       'fetch',
-      vi
-        .fn()
-        .mockResolvedValue(
-          new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify(malformed) } }] }), {
-            status: 200,
-          }),
-        ),
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify(malformed) } }] }), {
+          status: 200,
+        }),
+      ),
     );
     const result = await new ModelDecider({ via: 'openai', apiKey: 'secret', model: 'gpt-5-mini' }).ask(
       'state',

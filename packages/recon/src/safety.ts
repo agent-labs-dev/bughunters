@@ -52,7 +52,7 @@ export async function classifyAction(
   }
 
   const answers = await options.decider.ask(JSON.stringify(candidate), { destructive: IS_DESTRUCTIVE });
-  const answer = answers['destructive'];
+  const answer = answers.destructive;
   if (answer?.kind !== 'noul') {
     return { class: 'destructive', reason: 'No usable answer; treated as destructive.' };
   }
@@ -71,7 +71,7 @@ const PRODUCTION_HOSTNAME = /^(?!localhost|127\.|0\.0\.0\.0|.*\.local$|.*\.test$
  * There is no flag that silently overrides this.
  */
 export function looksLikeProduction(url: string, env: NodeJS.ProcessEnv = process.env): boolean {
-  if (env['NODE_ENV'] === 'production') return true;
+  if (env.NODE_ENV === 'production') return true;
   try {
     const { hostname } = new URL(url);
     if (hostname === 'localhost' || hostname.startsWith('127.') || hostname.endsWith('.local')) return false;

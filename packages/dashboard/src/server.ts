@@ -180,7 +180,10 @@ export function resolveArtifactPath(root: string, requested: string): string | u
 
 function serveArtifact(res: ServerResponse, root: string, requested: string): void {
   const file = resolveArtifactPath(root, requested);
-  if (!file) return json(res, { error: 'not found' }, 404);
+  if (!file) {
+    json(res, { error: 'not found' }, 404);
+    return;
+  }
 
   res.writeHead(200, {
     'content-type': MIME[extname(file).toLowerCase()] ?? 'application/octet-stream',
@@ -194,7 +197,8 @@ function serveUi(res: ServerResponse, path: string): void {
   const file = resolve(UI_DIR, name);
   if (!file.startsWith(UI_DIR) || !existsSync(file) || !statSync(file).isFile()) {
     // Unknown paths fall through to the app shell so client-side routing works.
-    return serveUi(res, '/');
+    serveUi(res, '/');
+    return;
   }
   res.writeHead(200, { 'content-type': MIME[extname(file)] ?? 'text/plain', 'cache-control': 'no-cache' });
   createReadStream(file).pipe(res);

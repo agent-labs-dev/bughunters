@@ -116,7 +116,8 @@ export function buildFileIndex(model: Pick<AppModel, 'screens'>): Record<string,
   const index: Record<string, ScreenId[]> = {};
   for (const screen of model.screens) {
     for (const file of screen.sourceFiles) {
-      (index[String(file)] ??= []).push(screen.id);
+      const key = String(file);
+      index[key] = [...(index[key] ?? []), screen.id];
     }
   }
   return index;

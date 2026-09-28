@@ -262,12 +262,12 @@ export function judgeTools(session: AgentSession, sessionIds: string[], runtimeL
           }
           await appendFile(
             join(paths.session(session.root, candidate.sessionId), 'decisions.jsonl'),
-            JSON.stringify({
+            `${JSON.stringify({
               candidateId: candidate.id,
               decision: 'dismiss',
               reason: input.reason,
               at: new Date().toISOString(),
-            }) + '\n',
+            })}\n`,
           );
         }
         await session.workspace.recordTriage(triageEntries(candidates, 'dismissed', String(input.reason)));
