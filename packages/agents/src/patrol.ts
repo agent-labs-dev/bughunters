@@ -4,6 +4,7 @@ import { promisify } from 'node:util';
 import { type BugpatrolConfig } from '@bugpatrol/core';
 import { createDriver as makeDriver, type Driver } from '@bugpatrol/drivers';
 import { createRuntime } from './runtime/index.js';
+import type { RoleOutcome } from './types.js';
 import { Workspace } from './workspace.js';
 import { Vars } from './vars.js';
 import { startApp } from './lifecycle.js';
@@ -99,6 +100,13 @@ export type PatrolResult = {
  * that fails does not stop a patrol: the error goes in `problems`, and the
  * next cycle tries again.
  */
+/** An error or a timeout is a failed cycle, so the next cycle tests the commit again. A full step count is a normal end. */
+function unfinished(role: string, outcome: RoleOutcome): void {
+  if (outcome.stop === 'error' || outcome.stop === 'timeout') {
+    throw new Error(`${role} did not finish (${outcome.stop}): ${outcome.error ?? outcome.summary ?? 'no result'}`);
+  }
+}
+
 export async function runPatrol(options: PatrolOptions): Promise<PatrolResult> {
   const problems: string[] = [];
   const { root, config } = options;
@@ -167,7 +175,7 @@ export async function runPatrol(options: PatrolOptions): Promise<PatrolResult> {
             const session = new AgentSession(root, config, vars, record.id, 'explorer', driver, options.onLog);
             activeSession = session;
             if (!interrupted) {
-              await runExplorer(session, runtime(config.agents.explorer.use));
+              unfinished('Explorer', await runExplorer(session, runtime(config.agents.explorer.use)));
             } else {
               await workspace.endSession(record.id, { summary: 'Interrupted' });
             }
@@ -177,7 +185,7 @@ export async function runPatrol(options: PatrolOptions): Promise<PatrolResult> {
             const record = await workspace.startSession('judge');
             const session = new AgentSession(root, config, vars, record.id, 'judge', undefined, options.onLog);
             activeSession = session;
-            await runJudge(session, runtime(config.agents.judge.use), { sessionIds: [explorerId] });
+            unfinished('Judge', await runJudge(session, runtime(config.agents.judge.use), { sessionIds: [explorerId] }));
           }
         } catch (error) {
           activeSession = undefined;
