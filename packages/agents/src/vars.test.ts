@@ -16,6 +16,27 @@ describe('Vars', () => {
     expect(() => vars.resolve('{{MISSING}}')).not.toThrow('top-secret');
   });
 
+  it('rejects undeclared environment variables in both agent placeholder forms', () => {
+    const vars = new Vars([], { PRIVATE_KEY: 'synthetic-secret' });
+    for (const text of ['${PRIVATE_KEY}', '{{PRIVATE_KEY}}']) {
+      expect(() => vars.resolve(text)).toThrow('Unknown variable PRIVATE_KEY');
+    }
+  });
+
+  it('keeps trusted setup expansion separate from agent authority', () => {
+    const vars = new Vars([], { SETUP_TOKEN: 'setup-only' });
+    expect(vars.resolveConfig('${SETUP_TOKEN}')).toBe('setup-only');
+    expect(vars.redact('setup-only')).toBe('{{SETUP_TOKEN}}');
+    expect(vars.names()).toEqual([]);
+    expect(() => vars.resolve('${SETUP_TOKEN}')).toThrow('Unknown variable');
+    expect(vars.resolveConfig('${SHELL_VAR}')).toBe('${SHELL_VAR}');
+  });
+
+  it('redacts short nonempty secrets without replacing empty strings', () => {
+    const vars = new Vars(['PIN', 'EMPTY'], { PIN: '12', EMPTY: '' });
+    expect(vars.redact('PIN=12')).toBe('PIN={{PIN}}');
+  });
+
   it('redacts nested strings, preferring the longest value, and preserves buffers', () => {
     const vars = new Vars();
     vars.set('SHORT', 'abcd');
