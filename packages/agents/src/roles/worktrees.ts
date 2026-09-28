@@ -7,7 +7,7 @@ import { Workspace } from '../workspace.js';
 
 const exec = promisify(execFile);
 const git = async (repo: string, ...args: string[]) =>
-  (await exec('git', ['-C', repo, ...args])).stdout.trim();
+  (await exec('git', args, { cwd: repo })).stdout.trim();
 const message = (error: unknown) =>
   ((error as { stderr?: string }).stderr || String(error)).trim();
 
@@ -82,9 +82,11 @@ async function deleteBranch(fix: FixProposal, onLog?: (message: string) => void)
   catch { return; }
   let sameRemote = false;
   try {
-    await git(fix.repo, 'fetch', '-q', 'origin', fix.branch);
-    sameRemote = await git(fix.repo, 'rev-parse', fix.branch)
-      === await git(fix.repo, 'rev-parse', `origin/${fix.branch}`);
+    // Query the exact remote ref. A narrow fetch refspec may not populate
+    // origin/<branch>, and a cached tracking ref is not proof of publication.
+    const remote = await git(fix.repo, 'ls-remote', '--heads', 'origin', `refs/heads/${fix.branch}`);
+    const published = remote.split('\n').find((line) => line.split('\t')[1] === `refs/heads/${fix.branch}`)?.split('\t')[0];
+    sameRemote = published === await git(fix.repo, 'rev-parse', `refs/heads/${fix.branch}`);
   } catch { /* A missing remote branch is not proof that deletion is safe. */ }
   // A branch with no commit of its own (a declined fix) only points at an old
   // commit of the checkout's history, so deleting it loses nothing.
