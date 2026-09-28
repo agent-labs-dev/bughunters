@@ -98,3 +98,28 @@ describe('exports', () => {
     expect(sarif.runs[0].results[0].partialFingerprints.bugpatrolFingerprint).toBe('fp_abc');
   });
 });
+
+describe('JUnit attribution and completeness', () => {
+  it('attributes a finding only to its screen and viewport', () => {
+    const plan = { ...run.plan, items: [
+      { target: { screenId: id.screen('/settings'), viewport: 'desktop' }, reason: 'always-on' as const },
+      { target: { screenId: id.screen('/settings'), viewport: 'mobile' }, reason: 'always-on' as const },
+      { target: { screenId: id.screen('/other'), viewport: 'desktop' }, reason: 'always-on' as const },
+    ] };
+    const xml = toJUnit({ ...run, plan }, [{ ...finding, viewport: 'mobile' }]);
+    expect(xml.match(/<failure /g)).toHaveLength(1);
+    expect(xml).toContain('name="/settings @desktop" />');
+    expect(xml).toContain('name="/other @desktop" />');
+    expect(xml).toContain('tests="3" failures="1"');
+  });
+  it('records an incomplete run as an error even without selected tests', () => {
+    const xml = toJUnit({ ...run, status: 'incomplete', plan: { ...run.plan, items: [] } }, []);
+    expect(xml).toContain('tests="1" failures="0" errors="1"');
+    expect(xml).toContain('<error type="incomplete">');
+  });
+  it('retains unmatched blocking findings and counts failed cases, not findings', () => {
+    const xml = toJUnit(run, [finding, { ...finding, id: id.finding('second') }]);
+    expect(xml).toContain('tests="1" failures="1"');
+    expect(toJUnit({ ...run, plan: { ...run.plan, items: [] } }, [finding])).toContain('<failure');
+  });
+});
