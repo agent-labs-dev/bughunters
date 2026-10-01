@@ -2,8 +2,36 @@
 
 Bugpatrol's web driver can test backend behavior exposed by a frontend: sending
 a message, saving settings, switching tenants, or reopening persisted content.
-There is currently no API-only platform or HTTP request tool. Keep direct API
-contract, authorization, and background-worker tests alongside the patrol.
+For direct HTTP testing, use `app.platform: api` and the `request` tool. Keep
+deterministic contract and background-worker tests alongside the patrol.
+
+## Direct API patrols
+
+```yaml
+app:
+  platform: api
+  connect:
+    url: http://127.0.0.1:8000
+    headers:
+      Authorization: 'Bearer ${SESSION_TOKEN}'
+    # Read-only by default. Enable writes only against disposable data.
+    methods: [GET, HEAD, OPTIONS, POST, PUT, PATCH, DELETE]
+    timeoutMs: 30000
+```
+
+Use the usual setup captures to provision a session. `request` accepts a method,
+relative URL, optional headers, and a string body (use `Content-Type` for JSON).
+Credentials use placeholders and replay preserves them. Requests cannot leave
+the configured origin and redirects are not followed, so credentials cannot
+follow a redirect to another server. Request/response bodies are bounded to
+1 MiB and a larger response fails explicitly rather than silently truncating.
+
+The returned status and sanitized body are HTTP evidence. Screenshots render
+that transcript; they are not screenshots of a product UI. Remote HTML is
+displayed as text. Captured secrets and credential fields in JSON responses
+are redacted before rendering. A 401 or 403 can be correct behavior, not a bug.
+
+`bugpatrol init --platform api --url http://127.0.0.1:8000` creates a starter.
 
 ## Run a disposable stack
 

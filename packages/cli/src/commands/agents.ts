@@ -270,7 +270,7 @@ export async function runAgentCommand(
   process.on('SIGTERM', onSignal);
   try {
     app = await startApp(config.app, { root, vars, emit: log });
-    driver = createDriver(config, vars.resolve.bind(vars));
+    driver = createDriver(config, vars.resolve.bind(vars), (value) => vars.redact(value) as string);
     await driver.connect();
     if (command === 'replay') {
       const record = await workspace.startSession('explorer');

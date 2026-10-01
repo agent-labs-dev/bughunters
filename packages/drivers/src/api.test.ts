@@ -1,0 +1,125 @@
+import { once } from 'node:events';
+import { createServer, type Server } from 'node:http';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { ApiDriver } from './api.js';
+
+describe('API driver against real HTTP and Chromium', () => {
+  let server: Server;
+  let collector: Server;
+  let driver: ApiDriver;
+  let origin: string;
+  let otherOrigin: string;
+  let leaks = 0;
+  beforeAll(async () => {
+    collector = createServer((_request, response) => {
+      leaks++;
+      response.end('unexpected');
+    });
+    collector.listen(0, '127.0.0.1');
+    await once(collector, 'listening');
+    const other = collector.address();
+    if (!other || typeof other === 'string') throw new Error('No collector port');
+    otherOrigin = `http://127.0.0.1:${other.port}`;
+    server = createServer(async (request, response) => {
+      if (request.url === '/redirect') {
+        response.writeHead(302, { location: otherOrigin });
+        response.end();
+        return;
+      }
+      if (request.url === '/slow') {
+        setTimeout(() => response.end('late'), 300);
+        return;
+      }
+      if (request.url === '/big') {
+        response.end('x'.repeat(1024 * 1024 + 1));
+        return;
+      }
+      if (request.url === '/html') {
+        response.end("<script>document.title='executed'</script>");
+        return;
+      }
+      if (request.url === '/denied') {
+        response.writeHead(401);
+        response.end('not authorized');
+        return;
+      }
+      const chunks: Buffer[] = [];
+      for await (const chunk of request) chunks.push(Buffer.from(chunk));
+      response.writeHead(200, { 'content-type': 'application/json' });
+      response.end(
+        JSON.stringify({
+          method: request.method,
+          body: Buffer.concat(chunks).toString(),
+          authorization: request.headers.authorization,
+          secretEcho: 'private-fixture-session',
+          accessToken: 'newly-minted-secret',
+        }),
+      );
+    });
+    server.listen(0, '127.0.0.1');
+    await once(server, 'listening');
+    const address = server.address();
+    if (!address || typeof address === 'string') throw new Error('No API port');
+    origin = `http://127.0.0.1:${address.port}`;
+    driver = new ApiDriver({
+      url: origin,
+      headers: { Authorization: 'Bearer private-fixture-session' },
+      methods: ['GET', 'POST'],
+      timeoutMs: 100,
+      viewport: { width: 900, height: 600 },
+      redact: (text) => text.replaceAll('private-fixture-session', '{{SESSION}}'),
+    });
+    await driver.connect();
+  }, 15000);
+  afterAll(async () => {
+    await driver?.close();
+    server?.closeAllConnections();
+    collector?.closeAllConnections();
+    await Promise.all([
+      new Promise<void>((resolve) => server.close(() => resolve())),
+      new Promise<void>((resolve) => collector.close(() => resolve())),
+    ]);
+  });
+
+  it('sends allowed writes and exposes sanitized response evidence', async () => {
+    const result = await driver.act({
+      kind: 'request',
+      method: 'POST',
+      url: '/echo',
+      body: '{"message":"hello"}',
+      headers: { authorization: 'Bearer second-session' },
+    });
+    expect(result.ok).toBe(true);
+    const observation = await driver.observe();
+    expect(observation.http?.status).toBe(200);
+    expect(observation.http?.body).toContain('hello');
+    expect(observation.http?.body).not.toContain('private-fixture-session');
+    expect(observation.http?.body).not.toContain('newly-minted-secret');
+    expect(observation.http?.body).not.toContain('second-session');
+    expect(observation.platform).toBe('api');
+    expect(observation.screenshot.length).toBeGreaterThan(100);
+  });
+  it('blocks disallowed methods and credentials sent to a different origin', async () => {
+    expect((await driver.act({ kind: 'request', method: 'DELETE', url: '/echo' })).ok).toBe(false);
+    expect((await driver.act({ kind: 'request', method: 'GET', url: otherOrigin })).ok).toBe(false);
+    expect(
+      (await driver.act({ kind: 'request', method: 'GET', url: origin.replace('http://', 'http://user:password@') }))
+        .ok,
+    ).toBe(false);
+    expect((await driver.act({ kind: 'request', method: 'GET', url: '/redirect' })).ok).toBe(true);
+    expect((await driver.observe()).http?.status).toBe(302);
+    expect(leaks).toBe(0);
+  });
+  it('treats response errors as evidence and never executes response HTML', async () => {
+    expect((await driver.act({ kind: 'request', method: 'GET', url: '/denied' })).ok).toBe(true);
+    expect((await driver.observe()).http?.status).toBe(401);
+    await driver.act({ kind: 'request', method: 'GET', url: '/html' });
+    const observation = await driver.observe();
+    expect(observation.http?.body).toContain('<script>');
+    expect(observation.title).not.toBe('executed');
+  });
+  it('fails explicitly on timeouts and oversized response evidence', async () => {
+    expect((await driver.act({ kind: 'request', method: 'GET', url: '/slow' })).ok).toBe(false);
+    expect((await driver.act({ kind: 'request', method: 'GET', url: '/big' })).error).toContain('exceeds 1 MiB');
+  });
+});

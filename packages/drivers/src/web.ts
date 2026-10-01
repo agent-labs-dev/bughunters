@@ -14,7 +14,7 @@ type TargetResult = { degraded: boolean; element?: UiElement };
 
 /** Browser and CDP drivers share observation and action semantics across startup modes. */
 export class WebDriver implements Driver {
-  readonly platform: 'web' | 'electron' = 'web';
+  readonly platform: 'web' | 'electron' | 'api' = 'web';
   protected browser?: Browser;
   protected context?: BrowserContext;
   protected page?: Page;
@@ -200,6 +200,7 @@ export class WebDriver implements Driver {
   }
 
   async act(action: DriverAction): Promise<ActResult> {
+    if (action.kind === 'request') return { ok: false, error: 'HTTP requests require the API driver' };
     try {
       const page = this.activePage();
       let result: TargetResult = { degraded: false };

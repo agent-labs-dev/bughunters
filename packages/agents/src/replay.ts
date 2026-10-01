@@ -170,5 +170,14 @@ function toAction(step: RoutineStep, session: AgentSession): DriverAction {
   if (step.kind === 'scroll') return { kind: 'scroll', direction: step.direction, locator: step.target };
   if (step.kind === 'open') return { kind: 'open', url: session.vars.resolve(step.url) };
   if (step.kind === 'window') return { kind: 'window', match: step.match };
+  if (step.kind === 'request')
+    return {
+      ...step,
+      url: session.vars.resolve(step.url),
+      headers: step.headers
+        ? Object.fromEntries(Object.entries(step.headers).map(([key, value]) => [key, session.vars.resolve(value)]))
+        : undefined,
+      body: step.body === undefined ? undefined : session.vars.resolve(step.body),
+    };
   return step;
 }
