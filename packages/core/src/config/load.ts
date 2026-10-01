@@ -1,5 +1,4 @@
 import { existsSync, readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
 import { parse as parseYaml } from 'yaml';
 import type { z } from 'zod';
 import { ConfigError } from '../errors.js';
@@ -18,7 +17,7 @@ export function loadConfig(
   overrides: Partial<BugpatrolConfig> = {},
   configFile?: string,
 ): BugpatrolConfig {
-  const path = configFile ? resolve(root, configFile) : paths.config(root);
+  const path = paths.config(root, configFile);
   if (!existsSync(path)) {
     if (configFile) throw new ConfigError(`Config file not found: ${path}`);
     const legacy = legacyLayout(root);

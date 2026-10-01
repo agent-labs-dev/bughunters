@@ -37,7 +37,7 @@ const MIME: Record<string, string> = {
 export async function startDashboard(options: DashboardOptions): Promise<Dashboard> {
   const root = resolve(options.root);
   const host = options.host ?? '127.0.0.1';
-  const reader = new ProjectReader(root);
+  const reader = new ProjectReader(root, options.configFile);
   if (options.configFile) loadConfig(root, {}, options.configFile);
   const agents = new AgentReader(root, options.configFile);
   const clients = new Set<ServerResponse>();
@@ -106,7 +106,7 @@ async function handle(
     return json(res, {
       root: ctx.root,
       hasProject: ctx.reader.hasProject(),
-      hasConfig: existsSync(paths.config(ctx.root)),
+      hasConfig: ctx.reader.readConfigRaw() !== undefined,
       hasAppModel: ctx.reader.readAppModel() !== undefined,
       runs,
       live: ctx.reader.readLive() ?? null,

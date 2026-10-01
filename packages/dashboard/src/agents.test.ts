@@ -301,6 +301,7 @@ describe.skipIf(!canBind)('agent API', () => {
     );
     dashboard = await startDashboard({ root, port: 0, configFile: '.bugpatrol/api.yml' });
     const overview = await (await fetch(`${dashboard.url}/api/overview`)).json();
+    expect((await (await fetch(`${dashboard.url}/api/state`)).json()).hasConfig).toBe(true);
     expect(overview.agents.find((agent: { role: string }) => agent.role === 'explorer')).toMatchObject({
       state: 'idle',
       runtime: 'cli:profile-api',
