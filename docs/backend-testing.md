@@ -162,3 +162,8 @@ BUGPATROL_CUA_E2E=1 BUGPATROL_CUA_COMMAND=/path/to/cua-driver \
 
 Normal CI covers the viewer/ownership boundaries without native prerequisites;
 the real native test is explicitly skipped unless that flag is set.
+
+Response captures hold non-secret identifiers, including numeric IDs. Use explicit
+`{{RESPONSE_NAME}}` placeholders in subsequent routine steps; literal values are
+never inferred as IDs. Configured/setup credentials and their historical values
+remain redacted. Captures parse credential-sanitized JSON before evidence redaction.

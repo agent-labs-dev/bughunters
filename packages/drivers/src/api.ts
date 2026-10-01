@@ -109,8 +109,9 @@ export class ApiDriver extends WebDriver {
           reader.releaseLock();
         }
       }
-      const raw = this.api.redact(Buffer.concat(chunks).toString('utf8'));
-      const body = redactCredentials(raw);
+      const sanitized = redactCredentials(Buffer.concat(chunks).toString('utf8'));
+      const captures = Object.keys(pointers).length ? responseCaptures(sanitized, pointers) : undefined;
+      const body = this.api.redact(sanitized);
       this.http = {
         method: action.method,
         status: response.status,
@@ -123,7 +124,6 @@ export class ApiDriver extends WebDriver {
         status,
         `${status}\nContent-Type: ${response.headers.get('content-type') ?? '(absent)'}\n\n${body}`,
       );
-      const captures = Object.keys(pointers).length ? responseCaptures(body, pointers) : undefined;
       return { ok: true, step: action, captures };
     } catch (error) {
       return { ok: false, retryable: false, error: this.api.redact(String(error)) };

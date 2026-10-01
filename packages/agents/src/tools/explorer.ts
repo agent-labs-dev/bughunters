@@ -421,7 +421,7 @@ export function explorerTools(session: AgentSession): Tool[] {
                   type: 'object',
                   additionalProperties: string,
                   description:
-                    'Map RESPONSE_NAME variables to JSON pointers in the response, e.g. {RESPONSE_THREAD_ID: "/result/id"}. Replays refresh these ids before later placeholder steps. Credential fields cannot be captured.',
+                    'Map RESPONSE_NAME variables to JSON pointers in the response, e.g. {RESPONSE_THREAD_ID: "/result/id"}. Use explicit {{RESPONSE_NAME}} placeholders in later URLs/bodies; literals remain literal on replay. Credential fields cannot be captured.',
                 },
               },
               ['method', 'url'],
