@@ -9,6 +9,17 @@ describe('Vars', () => {
     expect(vars.has('CDP_PORT')).toBe(true);
   });
 
+  it('refreshes response ids without overwriting configured variables or exposing previous values', () => {
+    const vars = new Vars(['RESPONSE_AUTH'], { RESPONSE_AUTH: 'configured-secret' });
+    vars.capture({ RESPONSE_THREAD: 'old-thread' });
+    vars.capture({ RESPONSE_THREAD: 'new-thread' });
+    expect(vars.resolve('{{RESPONSE_THREAD}}')).toBe('new-thread');
+    expect(vars.redact('old-thread new-thread configured-secret')).toBe(
+      '{{RESPONSE_THREAD}} {{RESPONSE_THREAD}} {{RESPONSE_AUTH}}',
+    );
+    expect(() => vars.capture({ RESPONSE_AUTH: 'replacement' })).toThrow('cannot overwrite');
+  });
+
   it('lists names but never values for an unknown strict placeholder', () => {
     const vars = new Vars();
     vars.set('TOKEN', 'top-secret');

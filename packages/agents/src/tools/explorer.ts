@@ -6,6 +6,7 @@ const apiRequestSchema = z.object({
   url: z.string().min(1),
   headers: z.record(z.string()).optional(),
   body: z.string().optional(),
+  capture: z.record(z.string().regex(/^RESPONSE_[A-Z0-9_]+$/), z.string()).optional(),
 });
 
 import {
@@ -222,14 +223,18 @@ function describe(session: AgentSession, action: DriverAction): string {
 }
 
 async function act(session: AgentSession, action: DriverAction, recorded?: RoutineStep): Promise<ToolResult> {
+  const version = session.driver!.controlVersion;
   const before = session.lastObservation;
   const replacement = 'ref' in action ? resolveOldRef(session, action.ref) : undefined;
   if (replacement && 'ref' in action) action = { ...action, ref: replacement.ref };
   const summary = describe(session, action);
   const result = await session.driver!.act(action);
   if (!result.ok) return failed(session, result.error ?? 'Action failed', summary);
+  session.vars.capture(result.captures);
   await session.driver!.settle();
   const viewed = await observe(session, action.kind, summary);
+  if (version !== session.driver!.controlVersion)
+    return failed(session, 'Human takeover interrupted this action. Look again; start a new routine.', summary);
   if (recorded ?? result.step)
     session.trail.push({ ...(recorded ?? result.step)!, at: locationKey(session.lastObservation!) });
   await arriveAtKnownScreen(session, before);
@@ -384,6 +389,22 @@ function stepSignature(step: RoutineStep): string {
 /** Tool calls operate on refs; only replayable locators and placeholders enter routines. */
 export function explorerTools(session: AgentSession): Tool[] {
   const tools: Tool[] = [
+    ...(session.driver?.platform === 'desktop'
+      ? [
+          {
+            name: 'tap_point',
+            description:
+              'Tap an explicit point in the latest native window screenshot when no semantic ref can reach the control. Coordinates are screenshot pixels. Recorded and replayed as degraded; never a fallback from an ambiguous ref.',
+            inputSchema: schema({ x: { type: 'number', minimum: 0 }, y: { type: 'number', minimum: 0 } }, ['x', 'y']),
+            run(input: Record<string, unknown>) {
+              const point = z
+                .object({ x: z.number().finite().nonnegative(), y: z.number().finite().nonnegative() })
+                .parse(input);
+              return act(session, { kind: 'tap', locator: { point } });
+            },
+          },
+        ]
+      : []),
     ...(session.driver?.platform === 'api'
       ? [
           {
@@ -396,6 +417,12 @@ export function explorerTools(session: AgentSession): Tool[] {
                 url: string,
                 headers: { type: 'object', additionalProperties: string },
                 body: string,
+                capture: {
+                  type: 'object',
+                  additionalProperties: string,
+                  description:
+                    'Map RESPONSE_NAME variables to JSON pointers in the response, e.g. {RESPONSE_THREAD_ID: "/result/id"}. Replays refresh these ids before later placeholder steps. Credential fields cannot be captured.',
+                },
               },
               ['method', 'url'],
             ),
@@ -447,6 +474,7 @@ export function explorerTools(session: AgentSession): Tool[] {
         ['text'],
       ),
       async run(input) {
+        const version = session.driver!.controlVersion;
         const before = session.lastObservation;
         const value = arg(input, 'text');
         const replacement = resolveOldRef(session, input.ref as string | undefined);
@@ -465,6 +493,8 @@ export function explorerTools(session: AgentSession): Tool[] {
         if (!result.ok) return failed(session, result.error ?? 'Action failed', summary);
         await session.driver!.settle();
         const viewed = await observe(session, 'type', summary);
+        if (version !== session.driver!.controlVersion)
+          return failed(session, 'Human takeover interrupted typing. Look again; start a new routine.', summary);
         session.trail.push({
           kind: 'type',
           target: result.step?.kind === 'type' ? result.step.target : undefined,
@@ -703,7 +733,11 @@ export function explorerTools(session: AgentSession): Tool[] {
       },
     },
   ];
-  if (session.driver?.platform === 'web' || session.driver?.platform === 'electron') {
+  if (
+    session.driver?.platform === 'web' ||
+    session.driver?.platform === 'electron' ||
+    session.driver?.platform === 'desktop'
+  ) {
     tools.push({
       name: 'switch_window',
       description: 'Switch to a web or Electron window.',
@@ -712,6 +746,7 @@ export function explorerTools(session: AgentSession): Tool[] {
     });
   }
   tools.push(...lessonTools(session, 'explorer'));
+  if (session.driver?.platform === 'desktop') return tools.filter((tool) => tool.name !== 'open');
   return session.driver?.platform === 'api'
     ? tools.filter((tool) => !['tap', 'type', 'press', 'scroll', 'back', 'open'].includes(tool.name))
     : tools;

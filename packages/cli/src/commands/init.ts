@@ -14,13 +14,14 @@ import {
   DATA_DIR,
   layout,
   legacyLayout,
+  type Platform,
   paths,
   type StackProfile,
 } from '@bugpatrol/core';
 import { detectBringUp, detectStack } from '@bugpatrol/recon';
 
-export type Platform = 'web' | 'electron' | 'ios' | 'android' | 'api';
-export const PLATFORMS: Platform[] = ['web', 'electron', 'ios', 'android', 'api'];
+export type { Platform } from '@bugpatrol/core';
+export const PLATFORMS: Platform[] = ['web', 'electron', 'ios', 'android', 'api', 'desktop'];
 
 /** Model routes that need only an API key. */
 export const KEY_PROVIDERS = {
@@ -253,6 +254,7 @@ export type InitAnswers = {
 };
 
 const READY: Record<Platform, string> = {
+  desktop: 'ready|Ready|listening',
   api: 'ready|Uvicorn running on|listening',
   web: 'https?://(localhost|127\\.0\\.0\\.1)',
   electron: 'DevTools listening',
@@ -303,6 +305,14 @@ export function renderConfig(answers: InitAnswers): string {
   }
   lines.push('  connect:');
   if (platform === 'web' || platform === 'api') lines.push(`    url: ${answers.url ?? 'http://localhost:3000'}`);
+  if (platform === 'desktop')
+    lines.push(
+      '    cua:',
+      '      launch: /absolute/path/to/app',
+      '      args: []',
+      '      viewer:',
+      '        allowTakeover: false',
+    );
   if (platform === 'electron')
     lines.push(`    cdp: http://127.0.0.1:${answers.cdpPort ?? 9222}   # the app must open this CDP port`);
   if (platform === 'ios' || platform === 'android') {

@@ -10,6 +10,7 @@ describe('API driver against real HTTP and Chromium', () => {
   let origin: string;
   let otherOrigin: string;
   let leaks = 0;
+  let ids = 0;
   beforeAll(async () => {
     collector = createServer((_request, response) => {
       leaks++;
@@ -21,6 +22,11 @@ describe('API driver against real HTTP and Chromium', () => {
     if (!other || typeof other === 'string') throw new Error('No collector port');
     otherOrigin = `http://127.0.0.1:${other.port}`;
     server = createServer(async (request, response) => {
+      if (request.url === '/entities') {
+        response.setHeader('content-type', 'application/json');
+        response.end(JSON.stringify({ result: { id: `entity-${++ids}` }, accessToken: 'new-secret' }));
+        return;
+      }
       if (request.url === '/redirect') {
         response.writeHead(302, { location: otherOrigin });
         response.end();
@@ -98,6 +104,46 @@ describe('API driver against real HTTP and Chromium', () => {
     expect(observation.http?.body).not.toContain('second-session');
     expect(observation.platform).toBe('api');
     expect(observation.screenshot.length).toBeGreaterThan(100);
+  });
+  it('captures fresh response ids for replay and refuses missing or credential fields', async () => {
+    const first = await driver.act({
+      kind: 'request',
+      method: 'POST',
+      url: '/entities',
+      capture: { RESPONSE_ENTITY: '/result/id' },
+    });
+    const second = await driver.act({
+      kind: 'request',
+      method: 'POST',
+      url: '/entities',
+      capture: { RESPONSE_ENTITY: '/result/id' },
+    });
+    expect(first.captures).toEqual({ RESPONSE_ENTITY: 'entity-1' });
+    expect(second.captures).toEqual({ RESPONSE_ENTITY: 'entity-2' });
+    expect(
+      (
+        await driver.act({
+          kind: 'request',
+          method: 'GET',
+          url: '/entities',
+          capture: { RESPONSE_TOKEN: '/accessToken' },
+        })
+      ).ok,
+    ).toBe(false);
+    expect(
+      (
+        await driver.act({
+          kind: 'request',
+          method: 'GET',
+          url: '/entities',
+          capture: { RESPONSE_MISSING: '/missing' },
+        })
+      ).error,
+    ).toContain('did not resolve');
+    expect(
+      (await driver.act({ kind: 'request', method: 'GET', url: '/entities', capture: { SESSION_TOKEN: '/result/id' } }))
+        .ok,
+    ).toBe(false);
   });
   it('blocks disallowed methods and credentials sent to a different origin', async () => {
     expect((await driver.act({ kind: 'request', method: 'DELETE', url: '/echo' })).ok).toBe(false);

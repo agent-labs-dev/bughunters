@@ -179,7 +179,7 @@ export const appCommandSchema = z.object({
 
 export const appSchema = z
   .object({
-    platform: z.enum(['web', 'electron', 'ios', 'android', 'api']).default('web'),
+    platform: z.enum(['web', 'electron', 'ios', 'android', 'api', 'desktop']).default('web'),
     /** The source repository the fixer edits. Relative to the config file. */
     source: z.string().default('.'),
     setup: z.array(appCommandSchema).default([]),
@@ -195,6 +195,24 @@ export const appSchema = z
           .array(z.enum(['GET', 'HEAD', 'OPTIONS', 'POST', 'PUT', 'PATCH', 'DELETE']))
           .default(['GET', 'HEAD', 'OPTIONS']),
         timeoutMs: z.number().int().positive().max(120000).default(30000),
+        /** Linux desktop: a private Xvfb/DBus session; never the host display. */
+        cua: z
+          .object({
+            command: z.string().default('cua-driver'),
+            windowManager: z.string().default('openbox'),
+            launch: z.string().min(1),
+            deliveryMode: z.enum(['background', 'foreground']).default('background'),
+            args: z.array(z.string()).default([]),
+            windowTitle: z.string().optional(),
+            viewer: z
+              .object({
+                enabled: z.boolean().default(true),
+                port: z.number().int().min(0).max(65535).default(0),
+                allowTakeover: z.boolean().default(false),
+              })
+              .default({}),
+          })
+          .optional(),
         /** Electron: the CDP endpoint, e.g. http://127.0.0.1:${CDP_PORT}. */
         cdp: z.string().optional(),
         /** Mobile: the bundle id or package name. */

@@ -65,10 +65,21 @@ export type DriverAction =
   | { kind: 'open'; url: string }
   | { kind: 'wait'; ms: number }
   | { kind: 'window'; match: string }
-  | { kind: 'request'; method: HttpMethod; url: string; headers?: Record<string, string>; body?: string };
+  | {
+      kind: 'request';
+      method: HttpMethod;
+      url: string;
+      headers?: Record<string, string>;
+      body?: string;
+      capture?: Record<string, string>;
+    };
 
 export type ActResult = {
   ok: boolean;
+  /** False when delivery may be partial or a control boundary invalidated the path. */
+  retryable?: boolean;
+  /** API response strings selected by replayable JSON pointers. */
+  captures?: Record<string, string>;
   /** Set when a locator failed and the driver fell back to the point. */
   degraded?: boolean;
   error?: string;
@@ -80,7 +91,15 @@ export type ActResult = {
  * The only thing the agent layer knows about a platform (ADR 0005). A new
  * platform is a new Driver; nothing above this interface changes.
  */
+export type ControlEvent =
+  | { kind: 'control-change'; summary: string; owner: 'agent' | 'human' }
+  | { kind: 'human-action'; summary: string };
+
 export interface Driver {
+  readonly viewerUrl?: string;
+  readonly controlVersion?: number;
+  onControlEvent?: (event: ControlEvent) => void;
+  interrupt?(): void;
   readonly platform: Platform;
   /** Connect to an app that `app.setup` already started. */
   connect(): Promise<void>;

@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { cleanWorktrees, syncGitHub } from '@bugpatrol/agents';
 import { BugpatrolError, ExitCode, findProjectRoot, loadConfig } from '@bugpatrol/core';
 import { startDashboard } from '@bugpatrol/dashboard';
-import { legacyEnv, withDefaultCommand } from './argv.js';
+import { configArgs, legacyEnv, withDefaultCommand } from './argv.js';
 import { runAgentCommand } from './commands/agents.js';
 import { doctorExitCode, runChecks } from './commands/doctor.js';
 import { runInit } from './commands/init.js';
@@ -14,7 +14,7 @@ import { formatRunSummary, parseRunFlags } from './commands/run-cli.js';
 import { commandHelp, USAGE } from './usage.js';
 
 legacyEnv(process.env);
-const [command, ...args] = withDefaultCommand(process.argv.slice(2));
+
 // The folder that holds .bugpatrol/, found from any subfolder the way git does.
 const root = findProjectRoot(process.cwd());
 
@@ -31,6 +31,10 @@ function version(): string {
 }
 
 try {
+  const selected = configArgs(process.argv.slice(2));
+  const [command, ...args] = withDefaultCommand(selected.args);
+  const readConfig = () => loadConfig(root, {}, selected.configFile);
+  const optionalConfig = () => (selected.configFile ? readConfig() : tryLoadConfig(root));
   if (command && (args.includes('--help') || args.includes('-h'))) {
     process.stdout.write(commandHelp(command) ?? USAGE);
     process.exit(ExitCode.Clean);
@@ -57,7 +61,7 @@ try {
     }
 
     case 'doctor': {
-      const config = tryLoadConfig(root);
+      const config = optionalConfig();
       const checks = runChecks(root, config);
       for (const check of checks) {
         process.stdout.write(`${check.ok ? 'ok  ' : check.fatal ? 'FAIL' : 'warn'}  ${check.name}: ${check.detail}\n`);
@@ -67,7 +71,7 @@ try {
     }
 
     case 'run': {
-      const config = loadConfig(root);
+      const config = readConfig();
       const flags = parseRunFlags(args);
       const result = await runCommand({
         root,
@@ -91,13 +95,13 @@ try {
     case 'ci':
     case 'patrol':
     case 'replay': {
-      const config = loadConfig(root);
+      const config = readConfig();
       await runAgentCommand(command, args, root, config, (message) => process.stdout.write(`${message}\n`));
       break;
     }
 
     case 'issue': {
-      await runIssueCommand(args, root, (line) => process.stdout.write(`${line}\n`), tryLoadConfig(root));
+      await runIssueCommand(args, root, (line) => process.stdout.write(`${line}\n`), optionalConfig());
       break;
     }
 
@@ -108,7 +112,7 @@ try {
 
     case 'github': {
       if (args.length !== 1 || args[0] !== 'sync') throw new Error('Use bugpatrol github sync');
-      const config = loadConfig(root);
+      const config = readConfig();
       const result = await syncGitHub(root, config, { onLog: console.error });
       await cleanWorktrees(root, config, { onLog: console.error });
       process.stdout.write(`Synced: ${result.changed.length} change(s)\n`);
@@ -118,7 +122,7 @@ try {
 
     case 'worktrees': {
       if (args.length !== 1 || args[0] !== 'clean') throw new Error('Use bugpatrol worktrees clean');
-      const result = await cleanWorktrees(root, loadConfig(root), { onLog: console.error });
+      const result = await cleanWorktrees(root, readConfig(), { onLog: console.error });
       process.stdout.write(`Removed: ${result.removed.length} worktree(s)\n`);
       for (const id of result.removed) process.stdout.write(`${id}\n`);
       for (const item of result.kept) process.stdout.write(`Kept ${item.id}: ${item.reason}\n`);
@@ -132,7 +136,7 @@ try {
         process.stderr.write('--port needs an integer\n');
         process.exit(ExitCode.Usage);
       }
-      const config = tryLoadConfig(root);
+      const config = optionalConfig();
       let timer: ReturnType<typeof setInterval> | undefined;
       if (config?.agents.github.enabled) {
         const sync = () =>

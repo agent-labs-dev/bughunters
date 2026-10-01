@@ -1,5 +1,6 @@
 import { type BugpatrolConfig, ConfigError } from '@bugpatrol/core';
 import { ApiDriver } from './api.js';
+import { CuaDriver } from './cua/driver.js';
 import { ElectronDriver } from './electron.js';
 import { MaestroDriver } from './maestro.js';
 import type { Driver } from './types.js';
@@ -12,6 +13,19 @@ export function createDriver(
   redact: (value: string) => string = (value) => value,
 ): Driver {
   const { platform, connect } = config.app;
+  if (platform === 'desktop') {
+    if (!connect.cua) throw new ConfigError('Desktop driver requires app.connect.cua.launch');
+    return new CuaDriver({
+      ...connect.cua,
+      command: vars(connect.cua.command),
+      windowManager: vars(connect.cua.windowManager),
+      launch: vars(connect.cua.launch),
+      args: connect.cua.args.map((arg) => arg.split('{{PRIVATE_DIR}}').map(vars).join('{{PRIVATE_DIR}}')),
+      windowTitle: connect.cua.windowTitle ? vars(connect.cua.windowTitle) : undefined,
+      viewport: config.viewports[0]!,
+      redact,
+    });
+  }
   if (platform === 'api') {
     const url = connect.url ?? config.run?.url;
     if (!url) throw new ConfigError('API driver requires app.connect.url');

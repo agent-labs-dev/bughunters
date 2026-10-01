@@ -1,4 +1,5 @@
 import type { HttpMethod } from '@bugpatrol/core';
+import { z } from 'zod';
 import type { ActResult, DriverAction, Observation } from './types.js';
 import { WebDriver } from './web.js';
 
@@ -12,6 +13,25 @@ type ApiOptions = {
 };
 
 const MAX_RESPONSE_BYTES = 1024 * 1024;
+const captureSchema = z.record(z.string().regex(/^RESPONSE_[A-Z0-9_]+$/), z.string().regex(/^(?:\/(?:[^~]|~[01])*)*$/));
+
+function responseCaptures(body: string, pointers: Record<string, string>): Record<string, string> {
+  const parsed: unknown = JSON.parse(body);
+  return Object.fromEntries(
+    Object.entries(pointers).map(([name, pointer]) => {
+      let value = parsed;
+      for (const part of pointer.split('/').slice(1)) {
+        const key = part.replaceAll('~1', '/').replaceAll('~0', '~');
+        if (typeof value !== 'object' || value === null || !Object.hasOwn(value, key))
+          throw new Error(`Response capture ${name}: JSON pointer ${pointer} did not resolve`);
+        value = (value as Record<string, unknown>)[key];
+      }
+      if ((typeof value !== 'string' && typeof value !== 'number') || value === '[redacted]')
+        throw new Error(`Response capture ${name} requires an unredacted string or number`);
+      return [name, String(value)];
+    }),
+  );
+}
 
 function redactCredentials(text: string): string {
   try {
@@ -51,6 +71,7 @@ export class ApiDriver extends WebDriver {
     if (action.kind === 'wait') return super.act(action);
     if (action.kind !== 'request') return { ok: false, error: 'Use request to exercise an API endpoint' };
     try {
+      const pointers = captureSchema.parse(action.capture ?? {});
       const url = new URL(action.url, this.api.url);
       if (url.origin !== this.origin || url.username || url.password)
         throw new Error('API requests must stay on the configured origin without embedded credentials');
@@ -102,9 +123,10 @@ export class ApiDriver extends WebDriver {
         status,
         `${status}\nContent-Type: ${response.headers.get('content-type') ?? '(absent)'}\n\n${body}`,
       );
-      return { ok: true, step: action };
+      const captures = Object.keys(pointers).length ? responseCaptures(body, pointers) : undefined;
+      return { ok: true, step: action, captures };
     } catch (error) {
-      return { ok: false, error: this.api.redact(String(error)) };
+      return { ok: false, retryable: false, error: this.api.redact(String(error)) };
     }
   }
 

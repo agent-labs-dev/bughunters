@@ -1,4 +1,5 @@
 import { existsSync, readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { parse as parseYaml } from 'yaml';
 import type { z } from 'zod';
 import { ConfigError } from '../errors.js';
@@ -12,9 +13,14 @@ import { type BugpatrolConfig, bugpatrolConfigSchema } from './schema.js';
  * on top of whatever comes back. `root` is the project root: the folder that
  * holds `.bugpatrol/`.
  */
-export function loadConfig(root = process.cwd(), overrides: Partial<BugpatrolConfig> = {}): BugpatrolConfig {
-  const path = paths.config(root);
+export function loadConfig(
+  root = process.cwd(),
+  overrides: Partial<BugpatrolConfig> = {},
+  configFile?: string,
+): BugpatrolConfig {
+  const path = configFile ? resolve(root, configFile) : paths.config(root);
   if (!existsSync(path)) {
+    if (configFile) throw new ConfigError(`Config file not found: ${path}`);
     const legacy = legacyLayout(root);
     if (legacy) throw new ConfigError(legacy);
     throw new ConfigError(
