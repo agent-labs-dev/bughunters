@@ -151,6 +151,7 @@ try {
       }
       const dashboard = await startDashboard({
         root,
+        configFile: selected.configFile,
         port,
         onReady: (url) => {
           process.stdout.write(`Bugpatrol dashboard on ${url}\n`);

@@ -288,6 +288,27 @@ const canBind = await new Promise<boolean>((done) => {
 });
 
 describe.skipIf(!canBind)('agent API', () => {
+  it('uses the selected profile and fails loudly when that profile disappears', async () => {
+    mkdirSync(join(root, '.bugpatrol'));
+    const file = join(root, '.bugpatrol', 'api.yml');
+    writeFileSync(
+      file,
+      JSON.stringify({
+        version: 1,
+        app: { platform: 'api', connect: { url: 'http://127.0.0.1:1234' } },
+        agents: { explorer: { use: { runtime: 'cli', command: 'profile-api' } } },
+      }),
+    );
+    dashboard = await startDashboard({ root, port: 0, configFile: '.bugpatrol/api.yml' });
+    const overview = await (await fetch(`${dashboard.url}/api/overview`)).json();
+    expect(overview.agents.find((agent: { role: string }) => agent.role === 'explorer')).toMatchObject({
+      state: 'idle',
+      runtime: 'cli:profile-api',
+    });
+    rmSync(file);
+    expect((await fetch(`${dashboard.url}/api/overview`)).status).toBe(500);
+  });
+
   it('serves overview, detail and routine summaries', async () => {
     writeAgentFixture(root);
     dashboard = await startDashboard({ root, port: 0 });

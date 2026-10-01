@@ -87,7 +87,10 @@ function processAlive(pid: number | undefined): boolean {
 const STOPPED = 'Stopped: its process ended.';
 
 export class AgentReader {
-  constructor(private readonly root: string) {}
+  constructor(
+    private readonly root: string,
+    private readonly configFile?: string,
+  ) {}
 
   memory(): MemoryFile {
     const value = readJson<MemoryFile>(paths.memory(this.root));
@@ -276,7 +279,7 @@ export class AgentReader {
   /** Each role as the config sets it, in the same form as the runtime labels. */
   private configuredAgents(): Record<AgentRole, { enabled: boolean; runtime: string }> | undefined {
     try {
-      const config = loadConfig(this.root);
+      const config = loadConfig(this.root, {}, this.configFile);
       return Object.fromEntries(
         roles.map((role) => {
           const { enabled, use } = config.agents[role];
@@ -285,7 +288,8 @@ export class AgentReader {
           return [role, { enabled, runtime }];
         }),
       ) as Record<AgentRole, { enabled: boolean; runtime: string }>;
-    } catch {
+    } catch (error) {
+      if (this.configFile) throw error;
       return undefined;
     }
   }
