@@ -167,6 +167,9 @@ export class CliRuntime implements Runtime {
         detached: true,
         stdio: ['pipe', 'pipe', 'pipe'],
       });
+      // A command that never reads its prompt can exit before the write lands; the
+      // resulting EPIPE is not a failure of the run, whose exit code is read below.
+      child.stdin.on('error', () => {});
       child.stdin.end(prompt);
       child.stdout.on('data', (chunk: Buffer) => {
         stdout += chunk.toString();
