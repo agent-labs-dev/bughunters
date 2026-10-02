@@ -15,23 +15,66 @@ const LEVELS: ReadonlyArray<readonly [LogLevel, RegExp]> = [
 /** An ISO-8601 timestamp at the start of a line, bracketed or bare. */
 const LEADING_TIMESTAMP = /^\[?(\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?)\]?/;
 
-export function levelOf(line: string): LogLevel | undefined {
+/** The keys structured loggers put a line's time and level under. */
+const TIME_KEYS = ['timestamp', 'time', 'ts', '@timestamp'] as const;
+const LEVEL_KEYS = ['level', 'severity', 'levelname'] as const;
+
+/** The line as a JSON object when a structured logger wrote it, else undefined. */
+function structured(line: string): Record<string, unknown> | undefined {
+  if (!line.trimStart().startsWith('{')) return undefined;
+  try {
+    const value: unknown = JSON.parse(line);
+    return typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function wordLevel(text: string): LogLevel | undefined {
   for (const [level, pattern] of LEVELS) {
-    if (pattern.test(line)) return level;
+    if (pattern.test(text)) return level;
   }
   return undefined;
 }
 
 /**
- * The line's own timestamp when it carries a parseable one, else the moment we
- * read it. Correlation is only as good as this, so a line with no timestamp is
+ * A structured line states its own level, and that wins: an info line whose
+ * message mentions an error is still an info line.
+ */
+export function levelOf(line: string): LogLevel | undefined {
+  const fields = structured(line);
+  for (const key of LEVEL_KEYS) {
+    const stated = fields?.[key];
+    if (typeof stated === 'string') return wordLevel(stated);
+  }
+  return wordLevel(line);
+}
+
+/** Epoch seconds or milliseconds, or any string `Date` reads, as ISO-8601. */
+function isoOf(value: unknown): string | undefined {
+  const parsed =
+    typeof value === 'number'
+      ? new Date(value < 1e11 ? value * 1000 : value)
+      : typeof value === 'string'
+        ? new Date(value)
+        : undefined;
+  return parsed === undefined || Number.isNaN(parsed.getTime()) ? undefined : parsed.toISOString();
+}
+
+/**
+ * The line's own timestamp when it carries a parseable one - leading the line,
+ * or under a structured logger's time key - else the moment we read it. Correlation is only as good as this, so a line with no timestamp is
  * placed at read time rather than dropped.
  */
 export function timestampOf(line: string, fallback: string): string {
   const found = LEADING_TIMESTAMP.exec(line);
-  if (!found?.[1]) return fallback;
-  const parsed = new Date(found[1]);
-  return Number.isNaN(parsed.getTime()) ? fallback : parsed.toISOString();
+  if (found?.[1]) return isoOf(found[1]) ?? fallback;
+  const fields = structured(line);
+  for (const key of TIME_KEYS) {
+    const stated = isoOf(fields?.[key]);
+    if (stated) return stated;
+  }
+  return fallback;
 }
 
 /**

@@ -13,6 +13,11 @@ describe('levelOf', () => {
     expect(levelOf('error then a warning')).toBe('error');
   });
 
+  it('trusts the level a structured line states over words in its message', () => {
+    expect(levelOf('{"level":"info","event":"retrying after error"}')).toBe('info');
+    expect(levelOf('{"severity":"WARNING","message":"slow"}')).toBe('warn');
+  });
+
   it('leaves a line with no recognisable level without one', () => {
     expect(levelOf('just a plain message')).toBeUndefined();
   });
@@ -25,6 +30,19 @@ describe('timestampOf', () => {
 
   it('accepts a bracketed timestamp', () => {
     expect(timestampOf('[2024-03-05T06:07:08Z] boom', 'fallback')).toBe('2024-03-05T06:07:08.000Z');
+  });
+
+  it('reads the time a structured line carries, as a string or an epoch', () => {
+    expect(timestampOf('{"event":"boom","timestamp":"2024-03-05T06:07:08.500Z"}', 'fallback')).toBe(
+      '2024-03-05T06:07:08.500Z',
+    );
+    expect(timestampOf('{"ts":1709618828.5,"msg":"boom"}', 'fallback')).toBe('2024-03-05T06:07:08.500Z');
+    expect(timestampOf('{"time":1709618828500,"msg":"boom"}', 'fallback')).toBe('2024-03-05T06:07:08.500Z');
+  });
+
+  it('falls back when a structured line has no readable time', () => {
+    expect(timestampOf('{"time":"yesterday","msg":"boom"}', 'fallback')).toBe('fallback');
+    expect(timestampOf('{not json', 'fallback')).toBe('fallback');
   });
 
   it('falls back to the read time when the line carries none', () => {
