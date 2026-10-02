@@ -40,7 +40,10 @@ export type RunSummary = {
  * corrupt a run or race the CLI writing one.
  */
 export class ProjectReader {
-  constructor(private readonly root: string) {}
+  constructor(
+    private readonly root: string,
+    private readonly configFile?: string,
+  ) {}
 
   get bugpatrolDir(): string {
     return paths.dir(this.root);
@@ -127,7 +130,7 @@ export class ProjectReader {
   }
 
   readConfigRaw(): string | undefined {
-    const file = paths.config(this.root);
+    const file = paths.config(this.root, this.configFile);
     return existsSync(file) ? readFileSync(file, 'utf8') : undefined;
   }
 }

@@ -1,6 +1,6 @@
 # Configuration
 
-All settings live in `.bugpatrol/bugpatrol.yml`. Every field has a default, so a small file is enough.
+All settings live in `.bugpatrol/bugpatrol.yml`. Select another repository-owned profile with `bugpatrol explore --config .bugpatrol/api.yml`. Paths remain relative to the project root; choosing a profile never changes the artifact directory.
 
 ## The `.bugpatrol/` folder
 
@@ -22,7 +22,7 @@ Older versions kept `bugpatrol.yml` and `instructions.md` at the project root. I
 version: 1
 
 app:
-  platform: web                 # web | electron | ios | android
+  platform: web                 # web | electron | ios | android | api | desktop
   source: .                     # the repo that the fixer edits, relative to the project root
   setup: []                     # commands: { run, cwd, capture, background, readyWhen, timeoutMs }
   teardown: []

@@ -57,7 +57,8 @@ export const paths = {
   /** Gitignored. All local output: nothing under it is committed. */
   data: (root: string) => data(root),
   /** Committed. */
-  config: (root: string) => join(dir(root), layout(root).config),
+  config: (root: string, configFile?: string) =>
+    configFile ? resolve(root, configFile) : join(dir(root), layout(root).config),
   /** Committed. Human-reviewable. */
   appModel: (root: string) => join(dir(root), 'appmodel.json'),
   /** Committed. Hashes + image digest, NOT the pixels. */

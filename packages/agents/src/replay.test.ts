@@ -2,6 +2,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { parseConfig, type Routine } from '@bugpatrol/core';
+import type { DriverAction } from '@bugpatrol/drivers';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { replayRoutine, replaySteps } from './replay.js';
 import { AgentSession } from './session.js';
@@ -119,5 +120,44 @@ describe('replaySteps', () => {
     );
     expect(result).toMatchObject({ ok: false, failedStep: 0 });
     expect(driver.current).toBe('home');
+  });
+});
+
+describe('replay control boundaries', () => {
+  it('does not retry or skip an action whose delivery is unknown', async () => {
+    class RefusedDriver extends FakeDriver {
+      calls = 0;
+      override async act(_action: DriverAction) {
+        this.calls++;
+        return { ok: false, retryable: false, error: 'Delivery unknown' };
+      }
+    }
+    const driver = new RefusedDriver(screens);
+    const workspace = new Workspace(root);
+    const record = await workspace.startSession('explorer');
+    const session = new AgentSession(root, config, new Vars(), record.id, 'explorer', driver);
+    await workspace.saveRoutine(routine({ elements: ['Open settings'] }));
+    expect(await replayRoutine(session, 'open-settings', { windowMs: 1000 })).toMatchObject({
+      ok: false,
+      failedStep: 0,
+      error: 'Delivery unknown',
+    });
+    expect(driver.calls).toBe(1);
+  });
+  it('fails the replay when human control changes while settling an input', async () => {
+    class TakenDriver extends FakeDriver {
+      controlVersion = 0;
+      override async settle() {
+        this.controlVersion++;
+        return { frames: 1, stable: true };
+      }
+    }
+    const driver = new TakenDriver(screens);
+    const workspace = new Workspace(root);
+    const record = await workspace.startSession('explorer');
+    const session = new AgentSession(root, config, new Vars(), record.id, 'explorer', driver);
+    expect(
+      await replaySteps(session, [{ kind: 'tap', target: { name: 'Open settings', role: 'button' } }]),
+    ).toMatchObject({ ok: false, error: expect.stringContaining('Human takeover') });
   });
 });

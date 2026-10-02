@@ -1,3 +1,5 @@
+import { chmod, mkdir, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import {
   AgentSession,
   applyRetest,
@@ -265,14 +267,23 @@ export async function runAgentCommand(
     if (activeSession) {
       activeSession.cancelled = true;
     }
+    driver?.interrupt?.();
     log('Interrupt received; tearing down after the current operation.');
   };
   process.on('SIGINT', onSignal);
   process.on('SIGTERM', onSignal);
   try {
     app = await startApp(config.app, { root, vars, emit: log });
-    driver = createDriver(config, vars.resolve.bind(vars));
+    driver = createDriver(config, vars.resolve.bind(vars), (value) => vars.redact(value) as string);
     await driver.connect();
+    if (driver.viewerUrl) {
+      const directory = join(root, '.bugpatrol', 'runs');
+      await mkdir(directory, { recursive: true });
+      const path = join(directory, 'desktop-viewer.json');
+      await writeFile(path, JSON.stringify({ url: driver.viewerUrl }), { mode: 0o600 });
+      await chmod(path, 0o600);
+      log(`Private desktop viewer: ${driver.viewerUrl.split('#')[0]} (access link saved in ${path})`);
+    }
     if (command === 'replay') {
       const record = await workspace.startSession('explorer');
       const session = new AgentSession(root, config, vars, record.id, 'explorer', driver, log);

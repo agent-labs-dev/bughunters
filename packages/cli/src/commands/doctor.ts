@@ -1,6 +1,6 @@
 import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { runtimeProblem } from '@bugpatrol/agents';
+import { onPath, runtimeProblem } from '@bugpatrol/agents';
 import { type BugpatrolConfig, ExitCode, type ExitCodeValue, legacyLayout, paths } from '@bugpatrol/core';
 
 export type DoctorCheck = { name: string; ok: boolean; detail: string; fatal: boolean };
@@ -32,6 +32,35 @@ export function runChecks(root: string, config: BugpatrolConfig | undefined): Do
   });
 
   if (config) checks.push(...agentChecks(config));
+  if (config?.app.platform === 'desktop') {
+    checks.push({
+      name: 'desktop-os',
+      ok: process.platform === 'linux',
+      detail: 'Private Cua desktops require Linux/Xvfb',
+      fatal: true,
+    });
+    const cua = config.app.connect.cua;
+    for (const command of [
+      'setsid',
+      'Xvfb',
+      'xauth',
+      'dbus-run-session',
+      cua?.command ?? 'cua-driver',
+      cua?.windowManager ?? 'openbox',
+    ]) {
+      const unresolved = command.includes('${');
+      checks.push({
+        name: `desktop:${command}`,
+        ok: unresolved || onPath(command),
+        detail: unresolved
+          ? 'Resolved from environment/setup at connect time'
+          : onPath(command)
+            ? 'Installed'
+            : 'Missing executable',
+        fatal: true,
+      });
+    }
+  }
   // The pinned image and the AppModel belong to the deterministic web gate
   // (`bugpatrol run`). They do not apply to the agents.
   if (config && !config.run) return checks;

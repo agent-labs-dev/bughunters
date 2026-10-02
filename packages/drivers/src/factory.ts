@@ -1,12 +1,43 @@
 import { type BugpatrolConfig, ConfigError } from '@bugpatrol/core';
+import { ApiDriver } from './api.js';
+import { CuaDriver } from './cua/driver.js';
 import { ElectronDriver } from './electron.js';
 import { MaestroDriver } from './maestro.js';
 import type { Driver } from './types.js';
 import { WebDriver } from './web.js';
 
 /** Pick the transport configured for the app while resolving captured endpoints. */
-export function createDriver(config: BugpatrolConfig, vars: (value: string) => string): Driver {
+export function createDriver(
+  config: BugpatrolConfig,
+  vars: (value: string) => string,
+  redact: (value: string) => string = (value) => value,
+): Driver {
   const { platform, connect } = config.app;
+  if (platform === 'desktop') {
+    if (!connect.cua) throw new ConfigError('Desktop driver requires app.connect.cua.launch');
+    return new CuaDriver({
+      ...connect.cua,
+      command: vars(connect.cua.command),
+      windowManager: vars(connect.cua.windowManager),
+      launch: vars(connect.cua.launch),
+      args: connect.cua.args.map((arg) => arg.split('{{PRIVATE_DIR}}').map(vars).join('{{PRIVATE_DIR}}')),
+      windowTitle: connect.cua.windowTitle ? vars(connect.cua.windowTitle) : undefined,
+      viewport: config.viewports[0]!,
+      redact,
+    });
+  }
+  if (platform === 'api') {
+    const url = connect.url ?? config.run?.url;
+    if (!url) throw new ConfigError('API driver requires app.connect.url');
+    return new ApiDriver({
+      url: vars(url),
+      headers: Object.fromEntries(Object.entries(connect.headers).map(([name, value]) => [name, vars(value)])),
+      methods: connect.methods,
+      timeoutMs: connect.timeoutMs,
+      viewport: config.viewports[0]!,
+      redact,
+    });
+  }
   if (platform === 'web') {
     const url = connect.url ?? config.run?.url;
     if (!url) {

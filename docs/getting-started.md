@@ -1,5 +1,8 @@
 # Getting started
 
+For backend services with a web frontend, see [backend testing](backend-testing.md)
+for disposable stack setup and coverage limits.
+
 This guide adds Bugpatrol to your repo, step by step. For a faster setup, install the [Bugpatrol skill](../skills/bugpatrol/SKILL.md) with `npx skills add agent-labs-dev/bugpatrol`, and ask your coding agent to set up Bugpatrol. The skill does these steps for you.
 
 ## Requirements

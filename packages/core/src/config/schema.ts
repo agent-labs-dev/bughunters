@@ -179,7 +179,7 @@ export const appCommandSchema = z.object({
 
 export const appSchema = z
   .object({
-    platform: z.enum(['web', 'electron', 'ios', 'android']).default('web'),
+    platform: z.enum(['web', 'electron', 'ios', 'android', 'api', 'desktop']).default('web'),
     /** The source repository the fixer edits. Relative to the config file. */
     source: z.string().default('.'),
     setup: z.array(appCommandSchema).default([]),
@@ -188,6 +188,31 @@ export const appSchema = z
       .object({
         /** Web: defaults to run.url. May use ${NAME} from env or captures. */
         url: z.string().optional(),
+        /** API: default request headers; credentials should be placeholders. */
+        headers: z.record(z.string()).default({}),
+        /** API: writes require explicit opt-in in repository configuration. */
+        methods: z
+          .array(z.enum(['GET', 'HEAD', 'OPTIONS', 'POST', 'PUT', 'PATCH', 'DELETE']))
+          .default(['GET', 'HEAD', 'OPTIONS']),
+        timeoutMs: z.number().int().positive().max(120000).default(30000),
+        /** Linux desktop: a private Xvfb/DBus session; never the host display. */
+        cua: z
+          .object({
+            command: z.string().default('cua-driver'),
+            windowManager: z.string().default('openbox'),
+            launch: z.string().min(1),
+            deliveryMode: z.enum(['background', 'foreground']).default('background'),
+            args: z.array(z.string()).default([]),
+            windowTitle: z.string().optional(),
+            viewer: z
+              .object({
+                enabled: z.boolean().default(true),
+                port: z.number().int().min(0).max(65535).default(0),
+                allowTakeover: z.boolean().default(false),
+              })
+              .default({}),
+          })
+          .optional(),
         /** Electron: the CDP endpoint, e.g. http://127.0.0.1:${CDP_PORT}. */
         cdp: z.string().optional(),
         /** Mobile: the bundle id or package name. */
@@ -450,11 +475,11 @@ export const bugpatrolConfigSchema = z
     logs: z.array(logSourceSchema).default([]),
   })
   .superRefine((config, ctx) => {
-    if (config.app.platform === 'web' && !config.run && !config.app.connect.url) {
+    if ((config.app.platform === 'web' || config.app.platform === 'api') && !config.run && !config.app.connect.url) {
       ctx.addIssue({
         code: 'custom',
         path: ['run'],
-        message: 'A web app needs `run` (command and url) or `app.connect.url`.',
+        message: 'A web or API app needs `run` (command and url) or `app.connect.url`.',
       });
     }
   });

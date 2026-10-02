@@ -52,6 +52,21 @@ export class AgentSession {
           .catch(() => undefined);
       }
     };
+    if (driver)
+      driver.onControlEvent = (event) => {
+        if (event.kind === 'control-change') {
+          this.trail.length = 0;
+          this.anchor = { index: 0 };
+          this.completedRoutines.clear();
+          this.lastObservation = undefined;
+          this.previousObservation = undefined;
+          this.lastScreenshot = undefined;
+          this.lastScreenId = undefined;
+          this.lastScreenLocation = undefined;
+          this.lastScreenTrailIndex = 0;
+        }
+        this.emit(event);
+      };
   }
 
   /** Status for the dashboard. A failed status write is logged, never thrown into a tool. */
