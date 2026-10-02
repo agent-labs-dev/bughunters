@@ -26,7 +26,10 @@ export class WebDriver implements Driver {
   constructor(protected readonly options: WebOptions) {}
 
   async connect(): Promise<void> {
-    this.browser = await chromium.launch({ headless: this.options.headless ?? true });
+    const headless = this.options.headless ?? true;
+    // A headless browser draws nothing a patrol needs a GPU for, and on some
+    // hosts the GPU process fails to start and every new page then hangs.
+    this.browser = await chromium.launch({ headless, args: headless ? ['--disable-gpu'] : [] });
     this.context = await this.browser.newContext({
       viewport: this.options.viewport,
       reducedMotion: 'reduce',
