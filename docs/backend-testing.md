@@ -112,7 +112,7 @@ app:
   platform: desktop
   connect:
     cua:
-      command: cua-driver          # or the installed cua-jev prototype path
+      command: cua-driver
       windowManager: openbox
       launch: /absolute/path/to/app
       args: ['--user-data-dir={{PRIVATE_DIR}}/profile']
