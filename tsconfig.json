@@ -29,6 +29,9 @@
       "path": "packages/agents"
     },
     {
+      "path": "packages/logs"
+    },
+    {
       "path": "packages/dashboard"
     },
     {

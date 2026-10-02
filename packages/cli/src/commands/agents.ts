@@ -18,6 +18,7 @@ import {
   Vars,
   Workspace,
   watchCi,
+  withSessionLogs,
 } from '@bugpatrol/agents';
 import { type AgentRole, type BugpatrolConfig, ConfigError, formatUsage, InfrastructureError } from '@bugpatrol/core';
 import { createDriver } from '@bugpatrol/drivers';
@@ -299,10 +300,12 @@ export async function runAgentCommand(
     const record = await workspace.startSession('explorer');
     const session = new AgentSession(root, config, vars, record.id, 'explorer', driver, log);
     activeSession = session;
-    await runExplorer(session, createRuntime(config.agents.explorer.use), {
-      goal: flags.goal as string | undefined,
-      maxSteps: flags.steps as number | undefined,
-    });
+    await withSessionLogs({ config, root, vars, onLog: log, workspace, session: record }, () =>
+      runExplorer(session, createRuntime(config.agents.explorer.use), {
+        goal: flags.goal as string | undefined,
+        maxSteps: flags.steps as number | undefined,
+      }),
+    );
     // The session-end event already printed the summary.
     await logUsage(workspace, record.id, log);
     log('Next: run `bugpatrol judge` to file the real bugs as issues, or open `bugpatrol dashboard`.');

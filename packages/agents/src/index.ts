@@ -1,6 +1,7 @@
 export * from './evaluate.js';
 export * from './github.js';
 export * from './lifecycle.js';
+export * from './logs.js';
 export * from './mcp-server.js';
 export * from './patrol.js';
 export * from './replay.js';

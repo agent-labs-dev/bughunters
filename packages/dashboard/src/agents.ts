@@ -14,6 +14,7 @@ import {
   type MemoryFile,
   paths,
   type Routine,
+  type SessionFlow,
   type SessionSummary,
   type TokenUsage,
   usageOf,
@@ -193,6 +194,11 @@ export class AgentReader {
       events,
       candidates: jsonLines<Candidate>(join(dir, 'candidates.jsonl')),
     };
+  }
+
+  /** One session's merged flow view: actions, failed requests, backend logs. */
+  flow(id: string): SessionFlow | undefined {
+    return readJson<SessionFlow>(paths.sessionFlow(this.root, id));
   }
 
   issue(id: string): { issue: Issue; fix?: FixProposal; candidates: Candidate[]; routine?: Routine } | undefined {

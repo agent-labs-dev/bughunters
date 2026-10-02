@@ -20,6 +20,7 @@ const state = {
   sessions: [],
   selectedSessionId: null,
   sessionDetail: null,
+  flow: null,
   appmap: null,
   selectedScreenId: null,
   routines: [],
@@ -103,6 +104,15 @@ async function refresh({ keepSelection = true } = {}) {
       state.sessionDetail = null;
     }
   }
+  if (state.view === 'flow') {
+    state.sessions = await getJson('/api/sessions');
+    if (!state.sessions.some((session) => session.id === state.selectedSessionId)) {
+      state.selectedSessionId = state.sessions[0]?.id ?? null;
+    }
+    state.flow = state.selectedSessionId
+      ? await getJson(`/api/flow/${encodeURIComponent(state.selectedSessionId)}`).catch(() => null)
+      : null;
+  }
   if (state.view === 'screens') {
     state.appmap = await getJson('/api/appmap');
     state.issues = await getJson('/api/issues');
@@ -143,6 +153,7 @@ function render() {
     overview: renderOverview,
     issues: renderIssues,
     activity: renderActivity,
+    flow: renderFlow,
     screens: renderScreens,
     memory: renderMemory,
     checks: renderRuns,
@@ -1156,6 +1167,78 @@ function renderEventRow(event) {
           el('pre', { text: JSON.stringify({ input: event.input, output: event.output }, null, 2) }),
         ])
       : null,
+  ]);
+}
+
+// The flow view is what a human reads when triaging: the agent's actions, the
+// failed requests the app reported, and the backend logs that followed, merged
+// in time order. A log close behind a failure is marked correlated.
+function renderFlow() {
+  const list = el('section', { class: 'card panel' }, [
+    title('Flow'),
+    ...state.sessions.map((session) =>
+      el(
+        'button',
+        {
+          class: `list-row ${session.id === state.selectedSessionId ? 'active' : ''}`,
+          onclick: async () => {
+            state.selectedSessionId = session.id;
+            await refresh();
+          },
+        },
+        [
+          roleIcon(session.role),
+          el('span', { class: 'grow' }, [
+            el('strong', { text: firstSentence(session.summary) || `${capital(session.role)} session` }),
+            el('small', {
+              class: 'muted',
+              text: `${capital(session.role)} · ${relativeTime(session.startedAt)} · ${duration(session)}`,
+            }),
+          ]),
+        ],
+      ),
+    ),
+  ]);
+  const flow = state.flow;
+  if (!flow) {
+    return el('div', { class: 'master-detail' }, [
+      list,
+      el('section', {
+        class: 'card panel empty',
+        text: 'No flow for this session. Add a `logs:` source to bugpatrol.yml and run a patrol.',
+      }),
+    ]);
+  }
+  const sources = flow.sources.length
+    ? flow.sources.map((source) =>
+        el('div', {
+          text: `${source.name} (${source.kind}): ${source.collected} line${source.collected === 1 ? '' : 's'}`,
+        }),
+      )
+    : [
+        el('div', {
+          text: 'No log sources configured. Add `logs:` to bugpatrol.yml to see backend logs beside each action.',
+        }),
+      ];
+  return el('div', { class: 'master-detail' }, [
+    list,
+    el('section', { class: 'card panel' }, [
+      title('Flow', `${capital(flow.role)} · ${relativeTime(flow.startedAt)}`),
+      el('div', { class: 'muted session-usage' }, sources),
+      flow.entries.length
+        ? el('div', { class: 'event-list' }, flow.entries.map(renderFlowRow))
+        : el('div', { class: 'muted', text: 'This session recorded nothing.' }),
+    ]),
+  ]);
+}
+
+function renderFlowRow(entry) {
+  return el('div', { class: `event-row flow-row flow-${entry.kind}${entry.correlated ? ' correlated' : ''}` }, [
+    el('time', { text: new Date(entry.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }),
+    el('span', { class: 'flow-kind', text: entry.kind }),
+    el('span', { class: 'grow truncate', text: entry.summary }),
+    entry.level ? el('small', { class: 'muted', text: entry.level }) : null,
+    entry.screenshot ? image(entry.screenshot, entry.summary, 'event-thumb') : null,
   ]);
 }
 

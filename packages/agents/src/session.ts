@@ -1,4 +1,4 @@
-import type { AgentRole, AgentStatus, BugpatrolConfig, RoutineStep } from '@bugpatrol/core';
+import type { AgentRole, AgentStatus, BugpatrolConfig, RoutineStep, SessionSignal } from '@bugpatrol/core';
 import type { Driver, Observation } from '@bugpatrol/drivers';
 import type { EventSink } from './types.js';
 import type { Vars } from './vars.js';
@@ -104,6 +104,31 @@ export class AgentSession {
     if (this.lastObservation !== observation) this.previousObservation = this.lastObservation;
     this.lastObservation = observation;
     this.lastScreenshot = screenshot;
+    await this.recordSignals(observation);
     return screenshot;
+  }
+
+  /**
+   * Keep the app's own failures with the moment they were seen. A failed
+   * request is the link between a user action and the backend's logs, so it is
+   * recorded as it happens rather than reconstructed afterwards.
+   */
+  private async recordSignals(observation: Observation): Promise<void> {
+    const signals: SessionSignal[] = [];
+    for (const text of observation.consoleErrors) {
+      signals.push({ at: observation.at, kind: 'console', text: this.vars.redact(text) as string });
+    }
+    for (const text of observation.networkErrors ?? []) {
+      signals.push({ at: observation.at, kind: 'request', text: this.vars.redact(text) as string });
+    }
+    if (signals.length === 0) return;
+    try {
+      await this.workspace.appendSignals(this.sessionId, signals);
+    } catch (error) {
+      this.emit({
+        kind: 'error',
+        summary: `Could not record the app's failed requests: ${String(error).slice(0, 120)}`,
+      });
+    }
   }
 }

@@ -90,6 +90,10 @@ export const paths = {
   sessions: (root: string) => data(root, 'sessions'),
   session: (root: string, id: string) => data(root, 'sessions', recordId(id)),
   agents: (root: string) => data(root, 'agents.json'),
+  /** One session's collected logs, the signals it saw, and its merged flow. */
+  sessionLogs: (root: string, id: string) => data(root, 'sessions', recordId(id), 'logs.json'),
+  sessionSignals: (root: string, id: string) => data(root, 'sessions', recordId(id), 'signals.jsonl'),
+  sessionFlow: (root: string, id: string) => data(root, 'sessions', recordId(id), 'flow.json'),
 } as const;
 
 /**

@@ -5,6 +5,7 @@ import type { BugpatrolConfig } from '@bugpatrol/core';
 import { type Driver, createDriver as makeDriver } from '@bugpatrol/drivers';
 import { syncGitHub } from './github.js';
 import { startApp } from './lifecycle.js';
+import { withSessionLogs } from './logs.js';
 import { watchCi } from './roles/ci.js';
 import { runExplorer } from './roles/explorer.js';
 import { runJudge } from './roles/judge.js';
@@ -189,12 +190,20 @@ export async function runPatrol(options: PatrolOptions): Promise<PatrolResult> {
             explorerId = record.id;
             const session = new AgentSession(root, config, vars, record.id, 'explorer', driver, options.onLog);
             activeSession = session;
-            if (!interrupted) {
-              unfinished('Explorer', await runExplorer(session, runtime(config.agents.explorer.use)));
-            } else {
-              await workspace.endSession(record.id, { summary: 'Interrupted' });
+            try {
+              await withSessionLogs(
+                { config, root, vars, onLog: options.onLog, workspace, session: record },
+                async () => {
+                  if (!interrupted) {
+                    unfinished('Explorer', await runExplorer(session, runtime(config.agents.explorer.use)));
+                  } else {
+                    await workspace.endSession(record.id, { summary: 'Interrupted' });
+                  }
+                },
+              );
+            } finally {
+              activeSession = undefined;
             }
-            activeSession = undefined;
           }
           if (config.agents.judge.enabled && explorerId && !interrupted) {
             const record = await workspace.startSession('judge');
