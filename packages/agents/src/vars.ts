@@ -3,6 +3,8 @@ import type { AppConfig } from '@bugpatrol/core';
 /** Captures and allowlisted secrets share one redaction and interpolation path. */
 export class Vars {
   private readonly values = new Map<string, string>();
+  private readonly responseNames = new Set<string>();
+  private readonly historicalValues: [string, string][] = [];
   private readonly configValues = new Map<string, string>();
 
   constructor(
@@ -17,7 +19,25 @@ export class Vars {
   }
 
   set(name: string, value: string): void {
+    const previous = this.values.get(name);
+    if (previous !== undefined && previous !== value && !this.responseNames.has(name))
+      this.historicalValues.push([name, previous]);
     this.values.set(name, value);
+  }
+
+  /** Response captures may refresh their own names, never overwrite setup/auth variables. */
+  capture(values: Record<string, string> = {}): void {
+    for (const name of Object.keys(values)) {
+      if (
+        !/^RESPONSE_[A-Z0-9_]+$/.test(name) ||
+        ((this.has(name) || this.configValues.has(name)) && !this.responseNames.has(name))
+      )
+        throw new Error(`Response capture cannot overwrite configured variable ${name}`);
+    }
+    for (const [name, value] of Object.entries(values)) {
+      this.responseNames.add(name);
+      this.set(name, value);
+    }
   }
 
   has(name: string): boolean {
@@ -64,7 +84,9 @@ export class Vars {
       return value;
     }
     if (typeof value === 'string') {
-      const entries = [...this.entries(), ...this.configValues.entries()].filter(([, secret]) => secret.length > 0);
+      const entries = [...this.entries(), ...this.historicalValues, ...this.configValues.entries()].filter(
+        ([name, secret]) => secret.length > 0 && !this.responseNames.has(name),
+      );
       entries.sort((a, b) => b[1].length - a[1].length);
       let result = value;
       for (const [name, secret] of entries) {

@@ -22,7 +22,9 @@ export type Lesson = {
 };
 export type MemoryFile = { version: 1; lessons: Lesson[] };
 
-export type Platform = 'web' | 'electron' | 'ios' | 'android';
+export type Platform = 'web' | 'electron' | 'ios' | 'android' | 'api' | 'desktop';
+
+export type HttpMethod = 'GET' | 'HEAD' | 'OPTIONS' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
 /**
  * How Bugpatrol finds an element again on a later run. The locator is tried
@@ -52,6 +54,14 @@ export type RoutineStep = (
   | { kind: 'open'; url: string }
   | { kind: 'wait'; ms: number }
   | { kind: 'window'; match: string }
+  | {
+      kind: 'request';
+      method: HttpMethod;
+      url: string;
+      headers?: Record<string, string>;
+      body?: string;
+      capture?: Record<string, string>;
+    }
 ) & { at?: string };
 
 export type Routine = {
@@ -285,6 +295,8 @@ export type FixProposal = {
 export type AgentEventKind =
   | 'session-start'
   | 'session-end'
+  | 'control-change'
+  | 'human-action'
   | 'setup'
   | 'thought'
   | 'tool-call'

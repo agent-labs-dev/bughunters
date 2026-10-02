@@ -9,6 +9,15 @@ describe('Vars', () => {
     expect(vars.has('CDP_PORT')).toBe(true);
   });
 
+  it('refreshes non-secret response ids without overwriting configured variables', () => {
+    const vars = new Vars(['RESPONSE_AUTH'], { RESPONSE_AUTH: 'configured-secret' });
+    vars.capture({ RESPONSE_THREAD: 'old-thread' });
+    vars.capture({ RESPONSE_THREAD: 'new-thread' });
+    expect(vars.resolve('{{RESPONSE_THREAD}}')).toBe('new-thread');
+    expect(vars.redact('old-thread new-thread configured-secret')).toBe('old-thread new-thread {{RESPONSE_AUTH}}');
+    expect(() => vars.capture({ RESPONSE_AUTH: 'replacement' })).toThrow('cannot overwrite');
+  });
+
   it('lists names but never values for an unknown strict placeholder', () => {
     const vars = new Vars();
     vars.set('TOKEN', 'top-secret');
@@ -30,6 +39,19 @@ describe('Vars', () => {
     expect(vars.names()).toEqual([]);
     expect(() => vars.resolve('${SETUP_TOKEN}')).toThrow('Unknown variable');
     expect(vars.resolveConfig('${SHELL_VAR}')).toBe('${SHELL_VAR}');
+  });
+
+  it('preserves numeric response ids and literal request data while redacting secret history', () => {
+    const vars = new Vars([], { RESPONSE_CONFIGURED: 'configured' });
+    vars.capture({ RESPONSE_ID: '1' });
+    expect(vars.redact('{"id":2,"parent":1,"limit":10}')).toBe('{"id":2,"parent":1,"limit":10}');
+    vars.set('TOKEN', 'old-secret');
+    vars.set('TOKEN', 'new-secret');
+    vars.capture({ RESPONSE_LITERAL: '{{TOKEN}}' });
+    expect(vars.resolve('{{RESPONSE_LITERAL}}')).toBe('{{TOKEN}}');
+    expect(vars.redact('old-secret new-secret')).toBe('{{TOKEN}} {{TOKEN}}');
+    vars.resolveConfig('${RESPONSE_CONFIGURED}');
+    expect(() => vars.capture({ RESPONSE_CONFIGURED: 'replacement' })).toThrow('cannot overwrite');
   });
 
   it('redacts short nonempty secrets without replacing empty strings', () => {

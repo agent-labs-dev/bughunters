@@ -17,6 +17,7 @@ export async function replaySteps(
 
 async function runSteps(session: AgentSession, steps: RoutineStep[], windowMs: number, skippable: boolean) {
   const driver = session.driver as Driver;
+  const version = driver.controlVersion;
   let degraded = false;
   let failedStep: number | undefined;
   let error: string | undefined;
@@ -30,9 +31,11 @@ async function runSteps(session: AgentSession, steps: RoutineStep[], windowMs: n
     const step = steps[index]!;
     try {
       const result = await actWhenReady(driver, toAction(step, session), session, windowMs);
+      if (version !== driver.controlVersion)
+        throw new Error('Human takeover interrupted replay; look again and start a new path');
       degraded ||= Boolean(result.degraded);
       if (!result.ok) {
-        if (skippable && isTargeted(step)) {
+        if (skippable && result.retryable !== false && isTargeted(step)) {
           skipped.push(index);
           continue;
         }
@@ -40,7 +43,10 @@ async function runSteps(session: AgentSession, steps: RoutineStep[], windowMs: n
         error = result.error ?? 'Action failed';
         break;
       }
+      session.vars.capture(result.captures);
       await driver.settle();
+      if (version !== driver.controlVersion)
+        throw new Error('Human takeover interrupted replay; look again and start a new path');
     } catch (cause) {
       failedStep = index;
       error = String(cause);
@@ -56,6 +62,7 @@ export async function replayRoutine(
   id: string,
   options: { seen?: Set<string>; dependency?: boolean; windowMs?: number; save?: boolean; onFixBuild?: boolean } = {},
 ): Promise<ReplayResult> {
+  const version = session.driver?.controlVersion;
   const seen = options.seen ?? new Set<string>();
   if (options.dependency && session.completedRoutines.has(id)) {
     return { ok: true, degraded: false };
@@ -105,6 +112,8 @@ export async function replayRoutine(
       }
     }
   }
+  if (version !== session.driver?.controlVersion)
+    error = 'Human takeover interrupted replay; look again and start a new path';
   if (options.save !== false || (options.onFixBuild && error))
     await session.workspace.saveRoutine({
       ...routine,
@@ -149,7 +158,7 @@ async function actWhenReady(driver: Driver, action: DriverAction, session: Agent
   while (true) {
     const result = await driver.act(action);
     degraded ||= Boolean(result.degraded);
-    if (result.ok || !retry || Date.now() >= deadline || session.cancelled) {
+    if (result.ok || result.retryable === false || !retry || Date.now() >= deadline || session.cancelled) {
       return { ...result, degraded };
     }
     await new Promise((resolve) => setTimeout(resolve, 500));
@@ -170,5 +179,14 @@ function toAction(step: RoutineStep, session: AgentSession): DriverAction {
   if (step.kind === 'scroll') return { kind: 'scroll', direction: step.direction, locator: step.target };
   if (step.kind === 'open') return { kind: 'open', url: session.vars.resolve(step.url) };
   if (step.kind === 'window') return { kind: 'window', match: step.match };
+  if (step.kind === 'request')
+    return {
+      ...step,
+      url: session.vars.resolve(step.url),
+      headers: step.headers
+        ? Object.fromEntries(Object.entries(step.headers).map(([key, value]) => [key, session.vars.resolve(value)]))
+        : undefined,
+      body: step.body === undefined ? undefined : session.vars.resolve(step.body),
+    };
   return step;
 }

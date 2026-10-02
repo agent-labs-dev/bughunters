@@ -12,9 +12,14 @@ import { type BugpatrolConfig, bugpatrolConfigSchema } from './schema.js';
  * on top of whatever comes back. `root` is the project root: the folder that
  * holds `.bugpatrol/`.
  */
-export function loadConfig(root = process.cwd(), overrides: Partial<BugpatrolConfig> = {}): BugpatrolConfig {
-  const path = paths.config(root);
+export function loadConfig(
+  root = process.cwd(),
+  overrides: Partial<BugpatrolConfig> = {},
+  configFile?: string,
+): BugpatrolConfig {
+  const path = paths.config(root, configFile);
   if (!existsSync(path)) {
+    if (configFile) throw new ConfigError(`Config file not found: ${path}`);
     const legacy = legacyLayout(root);
     if (legacy) throw new ConfigError(legacy);
     throw new ConfigError(

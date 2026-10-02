@@ -2,13 +2,14 @@ import { createReadStream, existsSync, type FSWatcher, realpathSync, statSync, w
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { extname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { paths } from '@bugpatrol/core';
+import { loadConfig, paths } from '@bugpatrol/core';
 import { AgentReader } from './agents.js';
 import { buildGraph } from './graph.js';
 import { ProjectReader } from './project.js';
 
 export type DashboardOptions = {
   root: string;
+  configFile?: string;
   port?: number;
   /**
    * Loopback by default and deliberately so: screenshots are of a real
@@ -36,8 +37,9 @@ const MIME: Record<string, string> = {
 export async function startDashboard(options: DashboardOptions): Promise<Dashboard> {
   const root = resolve(options.root);
   const host = options.host ?? '127.0.0.1';
-  const reader = new ProjectReader(root);
-  const agents = new AgentReader(root);
+  const reader = new ProjectReader(root, options.configFile);
+  if (options.configFile) loadConfig(root, {}, options.configFile);
+  const agents = new AgentReader(root, options.configFile);
   const clients = new Set<ServerResponse>();
 
   const server = createServer((req, res) => {
@@ -104,7 +106,7 @@ async function handle(
     return json(res, {
       root: ctx.root,
       hasProject: ctx.reader.hasProject(),
-      hasConfig: existsSync(paths.config(ctx.root)),
+      hasConfig: ctx.reader.readConfigRaw() !== undefined,
       hasAppModel: ctx.reader.readAppModel() !== undefined,
       runs,
       live: ctx.reader.readLive() ?? null,

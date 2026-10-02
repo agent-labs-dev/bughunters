@@ -167,6 +167,11 @@ export class CliRuntime implements Runtime {
         detached: true,
         stdio: ['pipe', 'pipe', 'pipe'],
       });
+      let inputError: string | undefined;
+      // Commands may read {prompt} from disk and close stdin before this write.
+      child.stdin.on('error', (error: NodeJS.ErrnoException) => {
+        if (error.code !== 'EPIPE') inputError = `Prompt input failed: ${error.message}`;
+      });
       child.stdin.end(prompt);
       child.stdout.on('data', (chunk: Buffer) => {
         stdout += chunk.toString();
@@ -222,12 +227,12 @@ export class CliRuntime implements Runtime {
           summary: summary || text,
         };
       }
-      if (code !== 0) {
+      if (code !== 0 || inputError) {
         return {
           stop: 'error',
           steps,
           costUsd: 0,
-          error: stderr.trim().split('\n').slice(-20).join('\n') || text || `CLI exited ${code}`,
+          error: inputError || stderr.trim().split('\n').slice(-20).join('\n') || text || `CLI exited ${code}`,
         };
       }
       return {
