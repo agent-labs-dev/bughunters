@@ -52,6 +52,12 @@ export class ApiDriver extends WebDriver {
   private readonly origin: string;
   private location: string;
   private http?: Observation['http'];
+  /**
+   * Requests the server failed, reported once on the next observation in the
+   * web driver's `METHOD url → status` form. A 4xx is the API answering
+   * correctly; a 5xx or no answer at all is the server's own failure.
+   */
+  private serverFailures: string[] = [];
 
   constructor(private readonly api: ApiOptions) {
     super({ url: 'about:blank', viewport: api.viewport });
@@ -90,7 +96,11 @@ export class ApiDriver extends WebDriver {
         body: action.body,
         redirect: 'manual',
         signal: AbortSignal.timeout(this.api.timeoutMs),
+      }).catch((error: unknown) => {
+        this.serverFailed(`${action.method} ${url.href} → ${error instanceof Error ? error.name : 'no response'}`);
+        throw error;
       });
+      if (response.status >= 500) this.serverFailed(`${action.method} ${url.href} → ${response.status}`);
       const reader = response.body?.getReader();
       const chunks: Uint8Array[] = [];
       let size = 0;
@@ -130,6 +140,10 @@ export class ApiDriver extends WebDriver {
     }
   }
 
+  private serverFailed(line: string): void {
+    if (this.serverFailures.length < 50) this.serverFailures.push(this.api.redact(line));
+  }
+
   private async render(title: string, evidence: string): Promise<void> {
     const page = this.activePage();
     await page.setContent(
@@ -146,6 +160,12 @@ export class ApiDriver extends WebDriver {
 
   override async observe(): Promise<Observation> {
     const observation = await super.observe();
-    return { ...observation, location: this.api.redact(this.location), windows: undefined, http: this.http };
+    return {
+      ...observation,
+      location: this.api.redact(this.location),
+      windows: undefined,
+      http: this.http,
+      networkErrors: this.serverFailures.splice(0),
+    };
   }
 }

@@ -44,6 +44,11 @@ describe('API driver against real HTTP and Chromium', () => {
         response.end("<script>document.title='executed'</script>");
         return;
       }
+      if (request.url === '/broken') {
+        response.writeHead(500);
+        response.end('boom');
+        return;
+      }
       if (request.url === '/denied') {
         response.writeHead(401);
         response.end('not authorized');
@@ -163,6 +168,18 @@ describe('API driver against real HTTP and Chromium', () => {
     const observation = await driver.observe();
     expect(observation.http?.body).toContain('<script>');
     expect(observation.title).not.toBe('executed');
+  });
+  it('reports server failures once as failed requests, and client errors never', async () => {
+    await driver.observe();
+    await driver.act({ kind: 'request', method: 'GET', url: '/denied' });
+    expect((await driver.observe()).networkErrors).toEqual([]);
+    expect((await driver.act({ kind: 'request', method: 'GET', url: '/broken' })).ok).toBe(true);
+    await driver.act({ kind: 'request', method: 'GET', url: '/slow' });
+    const failed = (await driver.observe()).networkErrors ?? [];
+    expect(failed).toHaveLength(2);
+    expect(failed[0]).toMatch(/^GET http:\/\/127\.0\.0\.1:\d+\/broken → 500$/);
+    expect(failed[1]).toMatch(/\/slow → TimeoutError$/);
+    expect((await driver.observe()).networkErrors).toEqual([]);
   });
   it('fails explicitly on timeouts and oversized response evidence', async () => {
     expect((await driver.act({ kind: 'request', method: 'GET', url: '/slow' })).ok).toBe(false);
