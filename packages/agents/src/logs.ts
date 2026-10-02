@@ -3,7 +3,7 @@ import { buildFlow, LogCollectorSet } from '@bugpatrol/logs';
 import type { Vars } from './vars.js';
 import type { Workspace } from './workspace.js';
 
-export type LogCaptureOptions = {
+type LogCaptureOptions = {
   config: BugpatrolConfig;
   root: string;
   vars: Vars;
@@ -15,7 +15,7 @@ export type LogCaptureOptions = {
  * configures none. Everything the sources collect is redacted with the run's
  * variables before it is kept, exactly like the rest of the run.
  */
-export function logCollectorSet(options: LogCaptureOptions): LogCollectorSet | undefined {
+function logCollectorSet(options: LogCaptureOptions): LogCollectorSet | undefined {
   if (options.config.logs.length === 0) return undefined;
   return new LogCollectorSet(
     {
@@ -27,7 +27,34 @@ export function logCollectorSet(options: LogCaptureOptions): LogCollectorSet | u
   );
 }
 
-export type SessionFlowOptions = {
+/**
+ * Run one session with the configured sources listening for all of it - the
+ * window in which the app is driven and failures happen - then write its logs
+ * and flow. Every command that drives a session goes through here, so a flow
+ * exists however the session was started.
+ */
+export async function withSessionLogs<T>(
+  options: LogCaptureOptions & { workspace: Workspace; session: { id: string; startedAt: string } },
+  run: () => Promise<T>,
+): Promise<T> {
+  const collectors = logCollectorSet(options);
+  if (!collectors) return run();
+  await collectors.start();
+  try {
+    return await run();
+  } finally {
+    await captureSessionFlow({
+      workspace: options.workspace,
+      sessionId: options.session.id,
+      collectors,
+      window: { from: options.session.startedAt, to: new Date().toISOString() },
+      onLog: options.onLog,
+    });
+    await collectors.stop();
+  }
+}
+
+type SessionFlowOptions = {
   workspace: Workspace;
   sessionId: string;
   collectors: LogCollectorSet;
@@ -40,7 +67,7 @@ export type SessionFlowOptions = {
  * actions into the flow view. A failure here is reported and swallowed: the
  * flow is evidence, and missing evidence must never fail a patrol.
  */
-export async function captureSessionFlow(options: SessionFlowOptions): Promise<SessionFlow | undefined> {
+async function captureSessionFlow(options: SessionFlowOptions): Promise<SessionFlow | undefined> {
   const { workspace, sessionId, collectors } = options;
   try {
     const session = await workspace.readSession(sessionId);
