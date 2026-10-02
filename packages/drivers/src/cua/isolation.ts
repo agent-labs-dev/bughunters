@@ -4,7 +4,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { getDefaultEnvironment, StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 
-/** A separate X server and bus isolate focus; no user profile or backend env is inherited. */
+/**
+ * A separate X server and bus isolate focus; no user profile or backend env is inherited.
+ * The launcher stops Xvfb itself when the session ends, so a session that fails to start
+ * leaves no display behind.
+ */
 export async function isolatedTransport(
   command: string,
   windowManager: string,
@@ -53,7 +57,7 @@ export async function isolatedTransport(
       args: [
         'sh',
         '-c',
-        'export XAUTHORITY="$1/auth"; xauth -f "$XAUTHORITY" add :0 . "$2" || exit 1; Xvfb -displayfd 3 -screen 0 "$3" -nolisten tcp -auth "$XAUTHORITY" 3>"$1/display" >"$1/xvfb.log" 2>&1 & xvfb=$!; n=0; while [ ! -s "$1/display" ]; do kill -0 "$xvfb" || { cat "$1/xvfb.log" >&2; exit 1; }; n=$((n+1)); [ "$n" -lt 100 ] || exit 1; sleep 0.05; done; export DISPLAY=":$(cat "$1/display")"; xauth -f "$XAUTHORITY" add "$DISPLAY" . "$2" || exit 1; shift 3; exec "$@"',
+        'export XAUTHORITY="$1/auth"; xauth -f "$XAUTHORITY" add :0 . "$2" || exit 1; Xvfb -displayfd 3 -screen 0 "$3" -nolisten tcp -auth "$XAUTHORITY" 3>"$1/display" >"$1/xvfb.log" 2>&1 & xvfb=$!; n=0; while [ ! -s "$1/display" ]; do kill -0 "$xvfb" || { cat "$1/xvfb.log" >&2; exit 1; }; n=$((n+1)); [ "$n" -lt 100 ] || exit 1; sleep 0.05; done; export DISPLAY=":$(cat "$1/display")"; xauth -f "$XAUTHORITY" add "$DISPLAY" . "$2" || { kill "$xvfb"; exit 1; }; shift 3; "$@"; status=$?; kill "$xvfb" 2>/dev/null; exit "$status"',
         'bugpatrol-xvfb',
         directory,
         randomBytes(32).toString('hex'),
