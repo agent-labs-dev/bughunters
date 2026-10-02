@@ -12,6 +12,7 @@ export * from './types/decision.js';
 export * from './types/finding.js';
 export * from './types/ids.js';
 export * from './types/intent.js';
+export * from './types/logs.js';
 export * from './types/project.js';
 export * from './types/run.js';
 export * from './types/trace.js';

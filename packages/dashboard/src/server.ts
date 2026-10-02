@@ -87,6 +87,10 @@ async function handle(
     const detail = ctx.agents.session(decodeURIComponent(path.slice('/api/sessions/'.length)));
     return detail ? json(res, detail) : json(res, { error: 'no such session' }, 404);
   }
+  if (path.startsWith('/api/flow/')) {
+    const flow = ctx.agents.flow(decodeURIComponent(path.slice('/api/flow/'.length)));
+    return flow ? json(res, flow) : json(res, { error: 'no such flow' }, 404);
+  }
   if (path === '/api/appmap') return json(res, ctx.agents.screens());
   if (path === '/api/routines')
     return json(

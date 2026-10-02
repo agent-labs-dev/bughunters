@@ -749,6 +749,29 @@ h1 {
   font-size: 0.75rem;
   white-space: nowrap;
 }
+.flow-row {
+  gap: 0.6rem;
+}
+.flow-row.correlated {
+  background: color-mix(in srgb, #b93038 12%, transparent);
+}
+.flow-kind {
+  flex: none;
+  width: 4.2rem;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+.flow-action .flow-kind {
+  color: #3b6ea5;
+}
+.flow-request .flow-kind {
+  color: #ae551c;
+}
+.flow-log .flow-kind {
+  color: #4f7a4f;
+}
 .event-row details {
   flex: none;
   font-size: 0.75rem;

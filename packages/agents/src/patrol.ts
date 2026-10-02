@@ -5,6 +5,7 @@ import type { BugpatrolConfig } from '@bugpatrol/core';
 import { type Driver, createDriver as makeDriver } from '@bugpatrol/drivers';
 import { syncGitHub } from './github.js';
 import { startApp } from './lifecycle.js';
+import { captureSessionFlow, logCollectorSet } from './logs.js';
 import { watchCi } from './roles/ci.js';
 import { runExplorer } from './roles/explorer.js';
 import { runJudge } from './roles/judge.js';
@@ -189,12 +190,29 @@ export async function runPatrol(options: PatrolOptions): Promise<PatrolResult> {
             explorerId = record.id;
             const session = new AgentSession(root, config, vars, record.id, 'explorer', driver, options.onLog);
             activeSession = session;
-            if (!interrupted) {
-              unfinished('Explorer', await runExplorer(session, runtime(config.agents.explorer.use)));
-            } else {
-              await workspace.endSession(record.id, { summary: 'Interrupted' });
+            // The sources listen for the whole explorer session: that is the
+            // window in which the app is driven and failures happen.
+            const collectors = logCollectorSet({ config, root, vars, onLog: options.onLog });
+            await collectors?.start();
+            try {
+              if (!interrupted) {
+                unfinished('Explorer', await runExplorer(session, runtime(config.agents.explorer.use)));
+              } else {
+                await workspace.endSession(record.id, { summary: 'Interrupted' });
+              }
+            } finally {
+              activeSession = undefined;
+              if (collectors) {
+                await captureSessionFlow({
+                  workspace,
+                  sessionId: record.id,
+                  collectors,
+                  window: { from: record.startedAt, to: new Date().toISOString() },
+                  onLog: options.onLog,
+                });
+                await collectors.stop();
+              }
             }
-            activeSession = undefined;
           }
           if (config.agents.judge.enabled && explorerId && !interrupted) {
             const record = await workspace.startSession('judge');

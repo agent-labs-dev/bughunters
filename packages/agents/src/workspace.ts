@@ -13,10 +13,13 @@ import {
   type Issue,
   type Lesson,
   type LessonRole,
+  type LogRecord,
   type MemoryFile,
   paths,
   type Routine,
   type ScreenTransition,
+  type SessionFlow,
+  type SessionSignal,
   type SessionSummary,
   shortHash,
   type TriageFile,
@@ -223,6 +226,44 @@ export class Workspace {
   }
   saveFix(value: FixProposal): Promise<void> {
     return atomic(paths.fix(this.root, value.id), value);
+  }
+
+  /** The session header, as written by `startSession`. */
+  async readSession(id: string): Promise<SessionSummary | undefined> {
+    return readJson<SessionSummary>(join(paths.session(this.root, id), 'session.json'));
+  }
+
+  /**
+   * Keep the app's own failures with the moment they were seen. A failed
+   * request is the link between a user action and the backend's logs, so it is
+   * recorded as it happens rather than reconstructed afterwards.
+   */
+  async appendSignals(sessionId: string, signals: SessionSignal[]): Promise<void> {
+    if (signals.length === 0) return;
+    await mkdir(paths.session(this.root, sessionId), { recursive: true });
+    await appendFile(
+      paths.sessionSignals(this.root, sessionId),
+      `${signals.map((signal) => JSON.stringify(signal)).join('\n')}\n`,
+    );
+  }
+
+  async readSignals(sessionId: string): Promise<SessionSignal[]> {
+    try {
+      const text = (await readFile(paths.sessionSignals(this.root, sessionId), 'utf8')).trim();
+      return text === '' ? [] : text.split('\n').map((line) => JSON.parse(line) as SessionSignal);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return [];
+      throw error;
+    }
+  }
+
+  /** The backend logs one session collected, and its merged flow view. */
+  async saveSessionLogs(sessionId: string, logs: LogRecord[]): Promise<void> {
+    await atomic(paths.sessionLogs(this.root, sessionId), { version: 1, records: logs });
+  }
+
+  async saveSessionFlow(sessionId: string, flow: SessionFlow): Promise<void> {
+    await atomic(paths.sessionFlow(this.root, sessionId), flow);
   }
 
   async startSession(role: AgentRole): Promise<SessionSummary> {

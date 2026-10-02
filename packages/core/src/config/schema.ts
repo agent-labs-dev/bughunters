@@ -203,6 +203,46 @@ export const appSchema = z
   })
   .default({});
 
+/**
+ * One place Bugpatrol reads backend logs from. Kept generic on purpose: any
+ * backend that can write a file, stream lines, or POST an event is covered,
+ * with no assumption about the language or the log library.
+ */
+export const logSourceSchema = z.discriminatedUnion('kind', [
+  z.object({
+    name: z.string(),
+    kind: z.literal('file'),
+    /** The log file, relative to the project root. */
+    path: z.string(),
+    /** Keep only lines matching this pattern. */
+    match: z.string().optional(),
+    /** How much of the file's tail to read. Older lines are dropped. Default: 1 MiB. */
+    maxBytes: z
+      .number()
+      .int()
+      .positive()
+      .default(1024 * 1024),
+  }),
+  z.object({
+    name: z.string(),
+    kind: z.literal('stream'),
+    /** A shell command whose stdout is the log stream. */
+    command: z.string(),
+    /** Keep only lines matching this pattern. */
+    match: z.string().optional(),
+  }),
+  z.object({
+    name: z.string(),
+    kind: z.literal('webhook'),
+    /** The loopback port to listen on. 0 picks a free one. Default: 0. */
+    port: z.number().int().min(0).max(65535).default(0),
+    /** The path the backend POSTs newline-delimited lines to. Default: /logs. */
+    path: z.string().default('/logs'),
+    /** Keep only lines matching this pattern. */
+    match: z.string().optional(),
+  }),
+]);
+
 const modelRuntimeSchema = z.object({
   runtime: z.literal('model'),
   via: z.enum(['openrouter', 'vercel', 'openai', 'anthropic', 'custom']).default('openrouter'),
@@ -407,6 +447,7 @@ export const bugpatrolConfigSchema = z
     determinism: determinismSchema,
     surfaces: surfacesSchema,
     production: productionSchema,
+    logs: z.array(logSourceSchema).default([]),
   })
   .superRefine((config, ctx) => {
     if (config.app.platform === 'web' && !config.run && !config.app.connect.url) {
