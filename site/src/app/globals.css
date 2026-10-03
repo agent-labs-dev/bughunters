@@ -1,0 +1,32 @@
+@import "tailwindcss";
+
+/* Colours follow assets/logo.svg: a navy ground and the lime beetle. */
+@theme {
+  --color-ground: #070914;
+  --color-raised: #11152a;
+  --color-rule: #232a4a;
+  --color-ink: #e2e8f0;
+  --color-muted: #94a3b8;
+  --color-lime: #a3e635;
+  --color-lime-soft: #d9f99d;
+  --color-violet: #a5b4fc;
+  --font-sans: var(--font-inter), system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains), ui-monospace, monospace;
+}
+
+html {
+  color-scheme: dark;
+  scroll-behavior: smooth;
+}
+
+body {
+  background: radial-gradient(70rem 36rem at 50% -14rem, rgb(163 230 53 / 0.13), transparent), var(--color-ground);
+}
+
+.grid-backdrop {
+  background-image:
+    linear-gradient(to right, rgb(255 255 255 / 0.04) 1px, transparent 1px),
+    linear-gradient(to bottom, rgb(255 255 255 / 0.04) 1px, transparent 1px);
+  background-size: 32px 32px;
+  mask-image: radial-gradient(ellipse at top, black 30%, transparent 75%);
+}

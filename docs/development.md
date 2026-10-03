@@ -78,9 +78,6 @@ A maintainer runs the **Release** workflow in GitHub Actions and selects `patch`
 
 ## The landing page
 
-`site/` is the landing page: plain HTML and CSS, with no build. The `Pages` workflow publishes it to GitHub Pages on each push to `main` that changes `site/` or `assets/`, and copies the logo, the dashboard screenshot, and the social preview from `assets/` next to it. To preview it, stage it the same way and serve the folder:
+`site/` is the landing page: a Next.js app with Tailwind, built as a static export. Its copy follows this README, so change both together. `pnpm --filter @bugpatrol/site dev` serves it at http://localhost:3000, and `build` writes `site/out/`. Both first copy the logo, the dashboard screenshot, and the social preview from `assets/` into `site/public/assets/`, so the README and the site share one copy of each image.
 
-```bash
-mkdir -p _site/assets && cp -r site/. _site/ && cp assets/logo.svg assets/dashboard.png assets/social-preview.png _site/assets/
-python3 -m http.server -d _site 8000
-```
+The `Pages` workflow builds it with `SITE_BASE_PATH=/bugpatrol` and publishes it to GitHub Pages on each push to `main` that changes `site/` or `assets/`.

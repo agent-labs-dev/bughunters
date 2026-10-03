@@ -1,6 +1,5 @@
-# Publishes the landing page in site/ to GitHub Pages. The page is plain HTML
-# and CSS with no build, so the job only stages it next to the brand assets,
-# which stay in assets/ so the README and the site share one copy.
+# Publishes the landing page in site/ to GitHub Pages, as a Next.js static
+# export served under /bugpatrol.
 name: Pages
 
 on:
@@ -26,13 +25,19 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
-      - run: |
-          mkdir -p _site/assets
-          cp -r site/. _site/
-          cp assets/logo.svg assets/dashboard.png assets/social-preview.png _site/assets/
+      # No `version:` here: it is read from package.json's packageManager.
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --filter @bugpatrol/site
+      - run: pnpm --filter @bugpatrol/site build
+        env:
+          SITE_BASE_PATH: /bugpatrol
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: _site
+          path: site/out
       - id: deployment
         uses: actions/deploy-pages@v4

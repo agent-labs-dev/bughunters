@@ -43,5 +43,10 @@
       "!packages/bugpatrol/src/ui",
       "!examples/fixture-app/*.html"
     ]
+  },
+  "css": {
+    "parser": {
+      "tailwindDirectives": true
+    }
   }
 }
