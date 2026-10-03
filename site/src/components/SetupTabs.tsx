@@ -18,7 +18,7 @@ export function SetupTabs({ tabs }: { tabs: Tab[] }) {
             aria-selected={index === active}
             onClick={() => setActive(index)}
             className={`rounded-lg px-4 py-2 font-medium text-sm transition ${
-              index === active ? 'bg-lime/15 text-lime' : 'text-muted hover:text-ink'
+              index === active ? 'bg-lime/15 text-lime-deep' : 'text-muted hover:text-ink'
             }`}
           >
             {tab.label}

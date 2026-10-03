@@ -12,7 +12,7 @@ export function CopyCommand({ command }: { command: string }) {
   }
 
   return (
-    <div className="inline-flex items-center gap-4 rounded-xl border border-rule bg-raised/80 py-2 pr-2 pl-5 font-mono text-[15px] shadow-lg shadow-black/30 backdrop-blur">
+    <div className="inline-flex items-center gap-4 rounded-xl border border-rule bg-raised py-2 pr-2 pl-5 font-mono text-[15px] shadow-lg shadow-slate-900/5 backdrop-blur">
       <span>
         <span className="text-muted select-none">$ </span>
         {command}

@@ -1,32 +1,36 @@
 @import "tailwindcss";
 
-/* Colours follow assets/logo.svg: a navy ground and the lime beetle. */
+/* Light, so the page sits easily around the light dashboard screenshot. The
+   accents come from assets/logo.svg: navy and the lime beetle. Lime is a fill
+   only; text in that hue uses the deeper lime-deep, which passes contrast. */
 @theme {
-  --color-ground: #070914;
-  --color-raised: #11152a;
-  --color-rule: #232a4a;
-  --color-ink: #e2e8f0;
-  --color-muted: #94a3b8;
+  --color-ground: #f8fafc;
+  --color-raised: #ffffff;
+  --color-sunk: #f1f5f9;
+  --color-rule: #e2e8f0;
+  --color-ink: #0f172a;
+  --color-muted: #475569;
   --color-lime: #a3e635;
-  --color-lime-soft: #d9f99d;
-  --color-violet: #a5b4fc;
+  --color-lime-soft: #bef264;
+  --color-lime-deep: #4d7c0f;
+  --color-violet: #4f46e5;
   --font-sans: var(--font-inter), system-ui, sans-serif;
   --font-mono: var(--font-jetbrains), ui-monospace, monospace;
 }
 
 html {
-  color-scheme: dark;
+  color-scheme: light;
   scroll-behavior: smooth;
 }
 
 body {
-  background: radial-gradient(70rem 36rem at 50% -14rem, rgb(163 230 53 / 0.13), transparent), var(--color-ground);
+  background: radial-gradient(70rem 36rem at 50% -14rem, rgb(163 230 53 / 0.22), transparent), var(--color-ground);
 }
 
 .grid-backdrop {
   background-image:
-    linear-gradient(to right, rgb(255 255 255 / 0.04) 1px, transparent 1px),
-    linear-gradient(to bottom, rgb(255 255 255 / 0.04) 1px, transparent 1px);
+    linear-gradient(to right, rgb(15 23 42 / 0.05) 1px, transparent 1px),
+    linear-gradient(to bottom, rgb(15 23 42 / 0.05) 1px, transparent 1px);
   background-size: 32px 32px;
   mask-image: radial-gradient(ellipse at top, black 30%, transparent 75%);
 }

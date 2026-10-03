@@ -64,7 +64,7 @@ function Section({
 }) {
   return (
     <section id={id} className="mx-auto max-w-6xl scroll-mt-20 px-6 py-20 sm:py-28">
-      <p className="font-mono text-lime text-sm uppercase tracking-widest">{eyebrow}</p>
+      <p className="font-mono text-lime-deep text-sm uppercase tracking-widest">{eyebrow}</p>
       <h2 className="mt-3 max-w-3xl font-semibold text-3xl tracking-tight sm:text-4xl">{title}</h2>
       <p className="mt-4 max-w-2xl text-lg text-muted">{intro}</p>
       <div className="mt-12">{children}</div>
@@ -74,7 +74,7 @@ function Section({
 
 function Code({ children }: { children: ReactNode }) {
   return (
-    <pre className="overflow-x-auto rounded-xl border border-rule bg-ground/70 px-5 py-4 font-mono text-[14px] leading-7">
+    <pre className="overflow-x-auto rounded-xl border border-rule bg-sunk px-5 py-4 font-mono text-[14px] leading-7">
       {children}
     </pre>
   );
@@ -145,7 +145,7 @@ const byHand = (
 export default function Home() {
   return (
     <>
-      <header className="sticky top-0 z-10 border-rule/60 border-b bg-ground/70 backdrop-blur">
+      <header className="sticky top-0 z-10 border-rule/60 border-b bg-sunk backdrop-blur">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
           <a href="#top" className="flex items-center gap-2.5 font-semibold">
             <Image src={asset('logo.svg')} alt="" width={30} height={30} />
@@ -180,7 +180,7 @@ export default function Home() {
               Open source · Apache-2.0
             </p>
             <h1 className="mt-6 font-semibold text-5xl tracking-tight sm:text-7xl">
-              A QA team made of <span className="text-lime">agents</span>
+              A QA team made of <span className="text-lime-deep">agents</span>
             </h1>
             <p className="mx-auto mt-6 max-w-2xl text-lg text-muted sm:text-xl">
               Bugpatrol uses your app the way a tester does. It finds bugs, fixes them, checks each fix in the running
@@ -192,7 +192,7 @@ export default function Home() {
             <div className="mt-6 flex flex-wrap justify-center gap-3">
               <a
                 href="#start"
-                className="rounded-xl bg-lime px-5 py-2.5 font-semibold text-ground transition hover:bg-lime-soft"
+                className="rounded-xl bg-lime px-5 py-2.5 font-semibold text-ink transition hover:bg-lime-soft"
               >
                 Get started
               </a>
@@ -212,7 +212,7 @@ export default function Home() {
               height={1351}
               priority
               alt="The Bugpatrol dashboard: the agent cards, the issues that need attention, the live screen, the coverage, and the token usage."
-              className="w-full rounded-2xl border border-rule shadow-2xl shadow-lime/5"
+              className="w-full rounded-2xl border border-rule shadow-2xl shadow-slate-900/15"
             />
           </div>
         </section>
@@ -248,7 +248,7 @@ export default function Home() {
           <ol className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
             {steps.map((step, index) => (
               <li key={step.name} className="relative rounded-2xl border border-rule bg-raised p-5">
-                <span className="grid h-8 w-8 place-items-center rounded-lg bg-lime/15 font-bold font-mono text-lime">
+                <span className="grid h-8 w-8 place-items-center rounded-lg bg-lime/15 font-bold font-mono text-lime-deep">
                   {index + 1}
                 </span>
                 <h3 className="mt-4 font-semibold">{step.name}</h3>
@@ -265,7 +265,7 @@ export default function Home() {
             ))}
           </ul>
           <p className="mt-8">
-            <a href={`${docs}/how-it-works.md`} className="text-lime-soft hover:underline">
+            <a href={`${docs}/how-it-works.md`} className="text-lime-deep hover:underline">
               Read how it works →
             </a>
           </p>
@@ -284,7 +284,7 @@ export default function Home() {
             ]}
           />
           <p className="mt-6">
-            <a href={`${docs}/getting-started.md`} className="text-lime-soft hover:underline">
+            <a href={`${docs}/getting-started.md`} className="text-lime-deep hover:underline">
               Full getting started guide, with Electron and mobile examples →
             </a>
           </p>
@@ -318,7 +318,7 @@ export default function Home() {
               <div className="mt-8 flex flex-wrap justify-center gap-3">
                 <a
                   href={repo}
-                  className="rounded-xl bg-lime px-5 py-2.5 font-semibold text-ground transition hover:bg-lime-soft"
+                  className="rounded-xl bg-lime px-5 py-2.5 font-semibold text-ink transition hover:bg-lime-soft"
                 >
                   Star on GitHub
                 </a>
