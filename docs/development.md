@@ -75,3 +75,12 @@ A maintainer runs the **Release** workflow in GitHub Actions and selects `patch`
 - [Architecture decisions](adr/): all ADRs
 - [Technical specification](spec/bugpatrol-technical-spec.md): the deterministic gate
 - [Competitive landscape](research/oss-visual-testing-landscape-2026.md): the research behind the design
+
+## The landing page
+
+`site/` is the landing page: plain HTML and CSS, with no build. The `Pages` workflow publishes it to GitHub Pages on each push to `main` that changes `site/` or `assets/`, and copies the logo, the dashboard screenshot, and the social preview from `assets/` next to it. To preview it, stage it the same way and serve the folder:
+
+```bash
+mkdir -p _site/assets && cp -r site/. _site/ && cp assets/logo.svg assets/dashboard.png assets/social-preview.png _site/assets/
+python3 -m http.server -d _site 8000
+```
