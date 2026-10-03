@@ -24,7 +24,7 @@ html {
 }
 
 body {
-  background: radial-gradient(70rem 36rem at 50% -14rem, rgb(163 230 53 / 0.22), transparent), var(--color-ground);
+  background: var(--color-ground);
 }
 
 .grid-backdrop {
